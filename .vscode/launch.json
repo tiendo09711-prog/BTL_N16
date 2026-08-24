@@ -1,0 +1,30 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "java",
+      "name": "Run Server Dashboard",
+      "request": "launch",
+      "mainClass": "vn.ptit.btl16.server.dashboard.ServerDashboardMain"
+    },
+    {
+      "type": "java",
+      "name": "Run Server Console",
+      "request": "launch",
+      "mainClass": "vn.ptit.btl16.server.ServerMain"
+    },
+    {
+      "type": "java",
+      "name": "Run Auction Client",
+      "request": "launch",
+      "mainClass": "vn.ptit.btl16.client.ClientMain"
+    },
+    {
+      "type": "java",
+      "name": "Run Self Tests",
+      "request": "launch",
+      "mainClass": "vn.ptit.btl16.selftest.AllSelfTests",
+      "classPaths": ["$Auto", "target/test-classes"]
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+target/
+out/
+.idea/
+*.iml
+*.log
+.DS_Store
+config/server-local.properties
+config/client-local.properties
