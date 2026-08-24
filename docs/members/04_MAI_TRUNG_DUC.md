@@ -198,3 +198,42 @@ endTime la han du kien/chinh thuc; endedAt la luc task server thuc su commit clo
 - Review `ExtendAuctionCommit`, `CancelAuctionCommit`, `CloseAuctionCommit.requireExpired`.
 
 Can demo timer close va host close khong the tao hai ket qua.
+
+## Lo trinh nang cap ca nhan
+
+Muc tieu: hoan thien quyen dieu khien thoi gian cua host va hoc quan he giua create room, bid, timer, transaction va UI.
+
+| Ngay | Noi dung hoc va thuc hanh | Dau ra ban giao |
+|---|---|---|
+| 1 | Doc ma tinh nang moi, ve `OPEN -> ENDED/CANCELLED` | So do lifecycle |
+| 2 | Pair voi Tien hoc host authorization va error contract | Checklist extend/end/cancel |
+| 3 | Pair voi Phuoc hoc endTime, host, result va repository | Bang field runtime/DB |
+| 4 | Pair voi Dung hoc anti-sniping va race bid/close | Ma tran thu tu bid/extend/end |
+| 5 | Hoan thien host extend, manual end, cancel no-bid, close-once | Service/commit memory va JDBC |
+| 6 | Pair voi Thuan bind nut host, countdown va status | UI dung quyen/trang thai |
+| 7 | Them assertion extend/end/cancel va timer/manual race | Test lifecycle |
+| 8 | Chay JDBC, kiem tra result duy nhat va rollback | Bien ban transaction |
+| 9 | Thu bid, gia han, ket thuc som va huy bang nhieu client | Kich ban lifecycle |
+| 10 | Demo timer close va host close cung luc | Bang chung mot ket qua |
+
+### Dau vao phu thuoc
+
+- Protocol/host authorization cua Tien; runtime/repository cua Phuoc.
+- Bid/anti-sniping rule cua Dung; host controls cua Thuan.
+
+### Dau ra ban giao
+
+- Host extend, manual end va cancel no-bid dong bo memory/JDBC.
+- Test close-once va kich ban demo lifecycle.
+
+### Nguoi review
+
+- Tien review authorization; Dung review lock/race.
+- Phuoc review commit/runtime; Thuan review event/status.
+
+### Tieu chi hoan thanh
+
+- User khong phai host khong the extend, end hoac cancel.
+- Timer va host cung close van chi co mot `auction_result`.
+- Phong co bid khong the cancel nhung co the ket thuc som.
+- Client hien dung `ENDED` hoac `CANCELLED`.

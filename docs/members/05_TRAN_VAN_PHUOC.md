@@ -195,3 +195,42 @@ Khong; JTable va detail chi de quan sat luong network va state.
 - Phu trach `ClientProduct`, host column va product/auction data tren UI.
 
 Can demo product tao tu client duoc luu repository va room moi xuat hien khong can restart server.
+
+## Lo trinh nang cap ca nhan
+
+Muc tieu: hoan thien product/create room va persistence, dong thoi hoc cach du lieu duoc authorization, bid, lifecycle va client su dung.
+
+| Ngay | Noi dung hoc va thuc hanh | Dau ra ban giao |
+|---|---|---|
+| 1 | Doc ma tinh nang moi, ve user -> product -> auction -> blocked user | So do model/ownership |
+| 2 | Hoan thien model, repository, memory/JDBC va runtime fields | Contract du lieu SV01-SV08 |
+| 3 | Hoan thien CRUD, my products, create/my auctions | OP01/OP02 va tao phong |
+| 4 | Pair voi Tien review owner/host tu session va migration | Checklist auth/persistence |
+| 5 | Pair voi Dung hoan thien blocked user va kick/rejoin | Repository behavior OP07 |
+| 6 | Pair voi Duc doi chieu endTime/status/result | Commit phuc vu lifecycle |
+| 7 | Pair voi Thuan dong bo client model, bang va dialog | Field server-client nhat quan |
+| 8 | Chay test CRUD/create/list va migrate JDBC | Memory/JDBC cung hanh vi |
+| 9 | Tao product/phong khi server chay, reconnect va tai lai | Runtime moi khong can restart |
+| 10 | Demo product -> room -> join -> kick -> reload | Luong du lieu end-to-end |
+
+### Dau vao phu thuoc
+
+- Session/protocol/migration cua Tien; bid/block rule cua Dung.
+- Lifecycle commit cua Duc; parser/controller/dialog cua Thuan.
+
+### Dau ra ban giao
+
+- Product ownership, update, soft delete va create room dong bo memory/JDBC.
+- Runtime moi, my lists va blocked user persistence.
+
+### Nguoi review
+
+- Tien review schema/auth; Dung review runtime/block data.
+- Duc review lifecycle commit; Thuan review wire data/UI.
+
+### Tieu chi hoan thanh
+
+- Chi owner sua/an product; soft delete khong mat lich su.
+- Chi product active cua owner duoc dung tao phong.
+- Phong moi xuat hien khong can restart server.
+- Memory va JDBC tra cung snapshot, my lists va block behavior.

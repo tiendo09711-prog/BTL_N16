@@ -194,3 +194,42 @@ TCP reconnect duoc nhung session token khong con; UI yeu cau login lai.
 - Chu tri `AuctionManagementSelfTest` va regression reconnect/resync.
 
 Can demo mot client bi kick tu dong roi room va bi server chan join lai.
+
+## Lo trinh nang cap ca nhan
+
+Muc tieu: dong bo day du tinh nang server moi len client va hoc duoc protocol, state, nghiep vu thay vi chi lam giao dien.
+
+| Ngay | Noi dung hoc va thuc hanh | Dau ra ban giao |
+|---|---|---|
+| 1 | Doc ma tinh nang moi va bang protocol cung ca nhom | Bang request/response/event client can ho tro |
+| 2 | Pair voi Tien hoc authentication, requestId va error mapping | Checklist API can session |
+| 3 | Dong bo product CRUD, my products, create room va my auctions | API/parser/controller cho SV01-SV08 |
+| 4 | Pair voi Dung xu ly min increment, self-bid va `AUCTION_KICKED` | Minimum bid va luong roi room khi bi kick |
+| 5 | Pair voi Duc xu ly extend/end/cancel va `CANCELLED` | Host controls va state UI |
+| 6 | Hoan thien dialog, callback async va cap nhat tren EDT | UI khong block reader thread |
+| 7 | Chu tri `AuctionManagementSelfTest`, gom assertion ca nhom | Test product, room, bid, host va kick |
+| 8 | Kiem tra payload memory/JDBC co cung cach parse | Checklist field va fallback |
+| 9 | Thu reconnect/resume/resync sau create, extend, cancel va kick | Bao cao regression realtime |
+| 10 | Demo client bi kick, reconnect va bi chan join lai | Kich ban OP07 end-to-end |
+
+### Dau vao phu thuoc
+
+- Protocol/route cua Tien; product/auction fields cua Phuoc.
+- Bid/kick outcome cua Dung; lifecycle event/status cua Duc.
+
+### Dau ra ban giao
+
+- `AuctionApi`, parser, controller va UI ho tro tat ca thao tac moi.
+- Event realtime cap nhat dung model; self-test va regression reconnect/resync.
+
+### Nguoi review
+
+- Tien review protocol; Phuoc review du lieu UI.
+- Dung va Duc review thong bao nghiep vu cua module minh.
+
+### Tieu chi hoan thanh
+
+- Moi chuc nang server moi deu goi va quan sat duoc tren client.
+- Client khong tu quyet dinh quyen, gia toi thieu hay trang thai ket thuc.
+- Event den truoc/sau response khong lam trung state hoac treo UI.
+- Demo reconnect/resync va kick chay bang hai client that.

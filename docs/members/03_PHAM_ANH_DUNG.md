@@ -204,3 +204,42 @@ De UI phan biet loi nghiep vu bid va loi he thong chung.
 - Review `RoomManager.kickUser`, block rejoin va race kick/bid/end.
 
 Can giai thich tai sao check room truoc lock la chua du khi host kick dong thoi.
+
+## Lo trinh nang cap ca nhan
+
+Muc tieu: hoan thien OP03 va phan an toan cua OP07, dong thoi hoc cach bid lien ket voi room, lifecycle, repository va client.
+
+| Ngay | Noi dung hoc va thuc hanh | Dau ra ban giao |
+|---|---|---|
+| 1 | Doc ma tinh nang moi, xac dinh invariant bid va kick | Invariant truoc/sau transaction |
+| 2 | Pair voi Phuoc hoc runtime, host va min increment | So do state server khi dat gia |
+| 3 | Review client cung Thuan ve minimum bid va error | Contract `BID_REJECTED` cho OP03 |
+| 4 | Hoan thien min increment, chan host bid, re-check room trong lock | Bid rule authoritative |
+| 5 | Hoan thien/review kick, block rejoin va race kick/bid/end | Checklist OP07 dong thoi |
+| 6 | Pair voi Duc review bid sat gio, manual end va timer | Ma tran race bid/extend/end/cancel |
+| 7 | Them assertion min increment, self-bid va kick race | Test am va concurrency |
+| 8 | Doi chieu memory/JDBC, transaction va rollback | Bao cao hai repository |
+| 9 | Chay nhieu client dat gia, kick bidder va resync | Final price/winner authoritative |
+| 10 | Demo race condition va giai thich state | Demo OP03 + OP07 |
+
+### Dau vao phu thuoc
+
+- Session/error code cua Tien; runtime/repository cua Phuoc.
+- Client handler cua Thuan; close/extend/cancel contract cua Duc.
+
+### Dau ra ban giao
+
+- Bid rule co min increment, self-bid prevention va membership re-check.
+- Kick/bid/end khong tao state mau thuan; co test va kich ban demo.
+
+### Nguoi review
+
+- Phuoc review runtime/repository; Duc review race voi timer.
+- Thuan review error/event client nhan.
+
+### Tieu chi hoan thanh
+
+- Bid duoi `currentPrice + minBidIncrement` bi server tu choi.
+- Host khong the bid ke ca khi goi API ngoai UI.
+- User bi kick khong the chen bid hoac join lai.
+- Snapshot va bid history co cung winner/current price sau test dong thoi.
