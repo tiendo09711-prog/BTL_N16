@@ -105,7 +105,7 @@ public final class ServerDashboardFrame extends JFrame {
     private void refresh() {
         ServerStats stats = application.stats();
         portValue.setText(Integer.toString(stats.getPort()));
-        repositoryValue.setText(stats.getRepositoryMode());
+        repositoryValue.setText(stats.getRepositoryName());
         connectionsValue.setText(Integer.toString(stats.getActiveConnections()));
         sessionsValue.setText(stats.getActiveSessions() + "/" + stats.getDetachedSessions());
         roomsValue.setText(stats.getRooms() + "/" + stats.getSubscriptions());

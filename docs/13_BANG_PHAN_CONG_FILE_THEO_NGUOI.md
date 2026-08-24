@@ -89,8 +89,8 @@ server/auction/model/AuctionStatus.java
 server/auction/model/AuctionSnapshot.java
 server/auction/model/AuctionRuntime.java
 server/auction/repository/AuctionRepository.java
-server/auction/repository/InMemoryAuctionRepository.java
 server/auction/repository/JdbcAuctionRepository.java
+src/test/java/.../TestAuctionRepository.java
 server/auction/repository/CreateProductCommit.java
 server/auction/repository/UpdateProductCommit.java
 server/auction/repository/CreateAuctionCommit.java
@@ -106,7 +106,7 @@ Nhiem vu moi:
 
 - Product ownership, update va soft delete.
 - Host ownership, create room va my auctions.
-- Dong bo memory/JDBC va runtime moi sau khi create.
+- Dong bo JDBC, repository test va runtime moi sau khi create.
 - Luu blocked user de kick con hieu luc sau reconnect/restart JDBC.
 
 ## File dung chung va reviewer

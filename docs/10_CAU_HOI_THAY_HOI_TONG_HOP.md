@@ -175,3 +175,17 @@ Nhieu client, realtime room broadcast, race condition, lock, anti-sniping, serve
 ### 38. Kiem thu concurrency the nao?
 
 Self-test mo socket that va `ConcurrentBidLoadTestMain` tao nhieu client gui bid gan dong thoi.
+
+## Mo hinh san tu phuc vu
+
+### 39. Tai sao khong tach ADMIN, SELLER va BUYER?
+
+Pham vi bai tap coi day la san tu phuc vu. Moi tai khoan co the mua va ban; quyen duoc gioi han bang ownership cua product va hostUserId cua tung auction, nen khong can role toan cuc.
+
+### 40. Client tao phong co tro thanh server khong?
+
+Khong. Client chi tro thanh host nghiep vu cua phong. Java central server van giu socket, timer, room state, authorization, transaction va MySQL.
+
+### 41. Mot host co duoc mua hang khong?
+
+Co, host chi bi chan bid trong auction do chinh minh chu tri. O auction cua nguoi khac, tai khoan do la bidder binh thuong.

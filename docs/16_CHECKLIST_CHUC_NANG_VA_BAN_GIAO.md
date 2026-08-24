@@ -34,7 +34,7 @@ Tai lieu nay cho biet tinh nang da nam o dau, ai hoc chinh va cach kiem tra.
 | Place bid | `PLACE_BID` | `BidService` | o gia + nut Dat gia | bid hop le |
 | Tu choi | `BID_REJECTED` | `AuctionException`/controller | thong bao ly do | gia bang/thap hon |
 | Accepted | `BID_ACCEPTED` | controller | thong bao response | gia cao hon |
-| Race condition | nhieu `PLACE_BID` | `AuctionRuntime` lock | nhieu client | `06_TEST_BID_DONG_THOI.cmd` |
+| Race condition | nhieu `PLACE_BID` | `AuctionRuntime` lock | nhieu client | `05_TEST_BID_DONG_THOI.cmd` |
 | Transaction | insert bid + update auction | `JdbcAuctionRepository.commitAcceptedBid` | khong co SQL client | xem bids/auctions |
 | Outbid | `OUTBID_NOTIFICATION` | `AuctionBroadcastService` | notification panel | alice bid, bob vuot |
 | Buoc gia | `minBidIncrement` | `BidService` | detail/bid error | bid thap hon minimum |
@@ -70,7 +70,7 @@ Tai lieu nay cho biet tinh nang da nam o dau, ai hoc chinh va cach kiem tra.
 ## 6. Dieu kien coi la san sang demo
 
 - [x] Bien dich Java 17.
-- [x] Chay memory mode khong can MySQL.
+- [x] Runtime server chi khoi tao MySQL/JDBC.
 - [x] Hai client TCP thuc dat gia va nhan event.
 - [x] Test race condition va final state authoritative.
 - [x] Test disconnect, resume va RESYNC.
@@ -81,10 +81,13 @@ Tai lieu nay cho biet tinh nang da nam o dau, ai hoc chinh va cach kiem tra.
 - [x] Co product ownership, update va soft delete.
 - [x] Co host create/list/extend/end/cancel room.
 - [x] Co minimum bid increment va chan host tu bid.
+- [x] Moi tai khoan co the vua ban o phong minh, vua mua o phong nguoi khac.
+- [x] Khong can role admin/seller/buyer toan cuc; quyen theo ownership/host tung resource.
 - [x] Co kick user va block rejoin.
 - [x] Client Swing da dong bo cac thao tac quan tri.
-- [x] `AuctionManagementSelfTest` pass memory end-to-end.
-- [ ] Nhom chay `DatabaseSetupMain` tren Laragon cua may server va ghi lai anh/video xac nhan JDBC.
+- [x] `AuctionManagementSelfTest` pass voi repository test tach biet.
+- [x] `DatabaseSetupMain` da chay tren Laragon/MySQL va schema JDBC da duoc xac nhan.
+- [x] `npm run dev` chay MySQL, server va mot client local; `Ctrl+C` don process.
 - [ ] Nhom thu LAN voi it nhat hai may vat ly va mo firewall TCP 8888.
 
-Hai muc cuoi phu thuoc vao may Laragon va mang LAN cua nhom, khong the xac nhan trong moi truong tao bo source.
+Muc LAN cuoi cung can hai may vat ly va cau hinh Windows Firewall cua nhom.

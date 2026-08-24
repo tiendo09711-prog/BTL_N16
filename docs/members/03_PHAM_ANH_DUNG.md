@@ -42,8 +42,8 @@ AuctionController.handlePlaceBid
 4. `AuctionRuntime.java`
 5. `BidService.java`
 6. `AuctionRepository.java`
-7. `InMemoryAuctionRepository.commitAcceptedBid()`
-8. `JdbcAuctionRepository.commitAcceptedBid()`
+7. `JdbcAuctionRepository.commitAcceptedBid()`
+8. `TestAuctionRepository.commitAcceptedBid()` trong `src/test`
 9. `AuctionController.handlePlaceBid()`
 10. `AuctionBroadcastService.java`
 11. `ConcurrentBidLoadTestMain.java`
@@ -218,7 +218,7 @@ Muc tieu: hoan thien OP03 va phan an toan cua OP07, dong thoi hoc cach bid lien 
 | 5 | Hoan thien/review kick, block rejoin va race kick/bid/end | Checklist OP07 dong thoi |
 | 6 | Pair voi Duc review bid sat gio, manual end va timer | Ma tran race bid/extend/end/cancel |
 | 7 | Them assertion min increment, self-bid va kick race | Test am va concurrency |
-| 8 | Doi chieu memory/JDBC, transaction va rollback | Bao cao hai repository |
+| 8 | Doi chieu test repository/JDBC, transaction va rollback | Bao cao hai repository |
 | 9 | Chay nhieu client dat gia, kick bidder va resync | Final price/winner authoritative |
 | 10 | Demo race condition va giai thich state | Demo OP03 + OP07 |
 

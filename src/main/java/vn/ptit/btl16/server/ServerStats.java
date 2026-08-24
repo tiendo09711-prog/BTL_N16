@@ -11,7 +11,7 @@ public final class ServerStats {
     private final int openAuctions;
     private final int endedAuctions;
     private final long serverSequence;
-    private final String repositoryMode;
+    private final String repositoryName;
 
     public ServerStats(
             int port,
@@ -23,7 +23,7 @@ public final class ServerStats {
             int openAuctions,
             int endedAuctions,
             long serverSequence,
-            String repositoryMode) {
+            String repositoryName) {
         this.port = port;
         this.activeConnections = activeConnections;
         this.activeSessions = activeSessions;
@@ -33,7 +33,7 @@ public final class ServerStats {
         this.openAuctions = openAuctions;
         this.endedAuctions = endedAuctions;
         this.serverSequence = serverSequence;
-        this.repositoryMode = repositoryMode;
+        this.repositoryName = repositoryName;
     }
 
     public int getPort() { return port; }
@@ -45,5 +45,5 @@ public final class ServerStats {
     public int getOpenAuctions() { return openAuctions; }
     public int getEndedAuctions() { return endedAuctions; }
     public long getServerSequence() { return serverSequence; }
-    public String getRepositoryMode() { return repositoryMode; }
+    public String getRepositoryName() { return repositoryName; }
 }

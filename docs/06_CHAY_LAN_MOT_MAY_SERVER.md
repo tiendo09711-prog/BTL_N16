@@ -16,8 +16,8 @@ Client khong can Laragon neu chi chay client.
 
 ## Tren may server
 
-1. Bat Laragon MySQL.
-2. Chay setup DB.
+1. Mo terminal tai thu muc goc.
+2. Chay `npm run dev:server`, hoac `npm run dev` neu may server cung can mot client local.
 3. Giu:
 
 ```properties
@@ -25,7 +25,7 @@ server.bindAddress=0.0.0.0
 server.port=8888
 ```
 
-4. Tim IPv4:
+4. Runner se in IPv4; co the kiem tra lai bang:
 
 ```bat
 scripts\show-server-ip.cmd
@@ -38,28 +38,25 @@ ipconfig
 ```
 
 5. Cho phep inbound TCP 8888 trong Windows Defender Firewall.
-6. Chay:
-
-```bat
-scripts\run-server-dashboard.cmd
-```
+6. Giu terminal npm dang chay; `Ctrl+C` se dung Java server/client.
 
 ## Tren moi may client
 
-Sua `config/client.properties`:
+Neu may client co bo source, chay:
 
-```properties
-client.serverHost=192.168.x.x
-client.serverPort=8888
+```bash
+npm run client -- --host=192.168.x.x
 ```
 
-`192.168.x.x` la IPv4 cua may server.
+`192.168.x.x` la IPv4 cua may server. Client cung co the sua `config/client.properties` va chay `scripts\run-client.cmd`.
 
-Chay:
+## Gioi han cua link chia se
 
-```bat
-scripts\run-client.cmd
-```
+- Server hien tai dung raw TCP, khong phai HTTP/WebSocket.
+- Dia chi `192.168.x.x:8888` la dia chi ket noi, khong phai URL cho trinh duyet.
+- Nguoi choi can Java Swing client va JDK phu hop.
+- Muon bam link va choi ngay tren web can bo sung web frontend va WebSocket/HTTP gateway.
+- TCP hien tai khong co TLS; chi nen demo trong LAN/VPN tin cay, khong public truc tiep ra Internet.
 
 ## Kiem tra loi
 

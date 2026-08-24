@@ -3,7 +3,6 @@ package vn.ptit.btl16.server;
 import vn.ptit.btl16.common.config.ServerConfig;
 import vn.ptit.btl16.common.protocol.LengthPrefixedMessageCodec;
 import vn.ptit.btl16.server.account.controller.AccountController;
-import vn.ptit.btl16.server.account.repository.InMemoryUserRepository;
 import vn.ptit.btl16.server.account.repository.JdbcConnectionFactory;
 import vn.ptit.btl16.server.account.repository.JdbcUserRepository;
 import vn.ptit.btl16.server.account.repository.UserRepository;
@@ -13,7 +12,6 @@ import vn.ptit.btl16.server.account.service.AccountService;
 import vn.ptit.btl16.server.auction.controller.AuctionController;
 import vn.ptit.btl16.server.auction.model.AuctionSnapshot;
 import vn.ptit.btl16.server.auction.repository.AuctionRepository;
-import vn.ptit.btl16.server.auction.repository.InMemoryAuctionRepository;
 import vn.ptit.btl16.server.auction.repository.JdbcAuctionRepository;
 import vn.ptit.btl16.server.auction.service.AuctionBroadcastService;
 import vn.ptit.btl16.server.auction.service.AuctionManager;
@@ -23,7 +21,6 @@ import vn.ptit.btl16.server.auction.service.AuctionTimerService;
 import vn.ptit.btl16.server.auction.service.BidService;
 import vn.ptit.btl16.server.auction.service.RoomManager;
 import vn.ptit.btl16.server.db.DatabaseSchema;
-import vn.ptit.btl16.server.db.DemoDataSeeder;
 import vn.ptit.btl16.server.module.AuctionModule;
 import vn.ptit.btl16.server.module.CoreAccountModule;
 import vn.ptit.btl16.server.network.ConnectionRegistry;
@@ -74,25 +71,13 @@ public final class ServerApplication implements AutoCloseable {
 
     public static ServerApplication create(ServerConfig config) {
         PasswordHasher hasher = new Pbkdf2PasswordHasher(config.getPasswordIterations());
-        UserRepository users;
-        AuctionRepository auctionRepository;
-
-        if ("jdbc".equals(config.getRepositoryMode())) {
-            JdbcConnectionFactory factory = new JdbcConnectionFactory(config);
-            if (config.isDbAutoInitialize()) {
-                DatabaseSchema.initialize(factory);
-            }
-            users = new JdbcUserRepository(factory);
-            if (config.isDemoAutoSeed()) {
-                DemoDataSeeder.seed(config, factory, users, hasher);
-            }
-            auctionRepository = new JdbcAuctionRepository(factory);
-            System.out.println("[REPOSITORY] JDBC " + config.databaseJdbcUrl());
-        } else {
-            users = InMemoryUserRepository.withDemoUsers(hasher);
-            auctionRepository = InMemoryAuctionRepository.withDemoAuctions(config);
-            System.out.println("[REPOSITORY] In-memory demo mode");
+        JdbcConnectionFactory factory = new JdbcConnectionFactory(config);
+        if (config.isDbAutoInitialize()) {
+            DatabaseSchema.initialize(factory);
         }
+        UserRepository users = new JdbcUserRepository(factory);
+        AuctionRepository auctionRepository = new JdbcAuctionRepository(factory);
+        System.out.println("[REPOSITORY] MySQL/JDBC " + config.databaseJdbcUrl());
         return compose(config, users, auctionRepository, hasher);
     }
 
@@ -230,7 +215,7 @@ public final class ServerApplication implements AutoCloseable {
                 auctions.openCount(),
                 auctions.endedCount(),
                 sequence.current(),
-                config.getRepositoryMode());
+                "MySQL/JDBC");
     }
 
     @Override

@@ -9,10 +9,10 @@ import vn.ptit.btl16.client.service.AuctionApi;
 import vn.ptit.btl16.common.config.ServerConfig;
 import vn.ptit.btl16.common.protocol.MessageType;
 import vn.ptit.btl16.server.ServerApplication;
-import vn.ptit.btl16.server.account.repository.InMemoryUserRepository;
+import vn.ptit.btl16.server.account.repository.TestUserRepository;
 import vn.ptit.btl16.server.account.security.PasswordHasher;
 import vn.ptit.btl16.server.account.security.Pbkdf2PasswordHasher;
-import vn.ptit.btl16.server.auction.repository.InMemoryAuctionRepository;
+import vn.ptit.btl16.server.auction.repository.TestAuctionRepository;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -26,9 +26,9 @@ public final class AuctionManagementSelfTest {
     public static void run() throws Exception {
         ServerConfig config = ServerConfig.forTests(0, 2, 2, 1);
         PasswordHasher hasher = new Pbkdf2PasswordHasher(config.getPasswordIterations());
-        InMemoryUserRepository users = InMemoryUserRepository.withDemoUsers(hasher);
-        InMemoryAuctionRepository auctionsRepository =
-                InMemoryAuctionRepository.withDemoAuctions(config);
+        TestUserRepository users = TestUserRepository.withDemoUsers(hasher);
+        TestAuctionRepository auctionsRepository =
+                TestAuctionRepository.withDemoAuctions(config);
 
         try (ServerApplication server = ServerApplication.createForTests(
                 config, users, auctionsRepository, hasher)) {
@@ -98,6 +98,36 @@ public final class AuctionManagementSelfTest {
                 requireFailure(lowBid, "BID_TOO_LOW", "minimum increment is enforced");
                 requireSuccess(guest.bid(auctionId, new BigDecimal("1050000.00"))
                         .get(8, TimeUnit.SECONDS), "valid minimum increment bid");
+
+                ApiResponse guestProduct = guest.createProduct(
+                                "ALICE_MARKET", "San pham cua Alice", "Buyer can also become a seller")
+                        .get(8, TimeUnit.SECONDS);
+                requireSuccess(guestProduct, "buyer creates own product");
+                ApiResponse guestAuction = guest.createAuction(
+                                Long.parseLong(guestProduct.get("productId")),
+                                new BigDecimal("200000.00"),
+                                new BigDecimal("10000.00"),
+                                1)
+                        .get(8, TimeUnit.SECONDS);
+                requireSuccess(guestAuction, "buyer creates own auction");
+                long guestAuctionId = Long.parseLong(guestAuction.get("auctionId"));
+                requireSuccess(guest.join(guestAuctionId).get(8, TimeUnit.SECONDS),
+                        "seller joins own auction");
+                requireFailure(
+                        guest.bid(guestAuctionId, new BigDecimal("210000.00"))
+                                .get(8, TimeUnit.SECONDS),
+                        "AUCTION_FORBIDDEN",
+                        "seller cannot bid own auction");
+                requireSuccess(host.join(guestAuctionId).get(8, TimeUnit.SECONDS),
+                        "host of another room joins as buyer");
+                requireSuccess(host.bid(guestAuctionId, new BigDecimal("210000.00"))
+                        .get(8, TimeUnit.SECONDS), "seller in one room can buy in another room");
+                ApiResponse guestAuctions = guest.myAuctions().get(8, TimeUnit.SECONDS);
+                requireSuccess(guestAuctions, "buyer lists newly hosted auctions");
+                TestSupport.check(
+                        ClientWireParser.auctions(guestAuctions.getWireMessage().getData()).stream()
+                                .anyMatch(value -> value.getAuctionId() == guestAuctionId),
+                        "buyer-created auction appears in hosted list");
 
                 ApiResponse guestExtend = guest.extendAuction(auctionId, 60)
                         .get(8, TimeUnit.SECONDS);

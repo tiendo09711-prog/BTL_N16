@@ -72,9 +72,9 @@ Event listener
 ### Giai doan 6 - Tich hop
 
 ```text
-Memory mode tests
--> JDBC schema
--> local multi-client demo
+Isolated self-tests
+-> MySQL schema/setup
+-> local multi-client test tung cua so
 -> LAN demo
 -> stress test
 -> question rehearsal

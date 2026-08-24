@@ -9,10 +9,10 @@ import vn.ptit.btl16.client.service.AuctionApi;
 import vn.ptit.btl16.common.config.ServerConfig;
 import vn.ptit.btl16.common.protocol.MessageType;
 import vn.ptit.btl16.server.ServerApplication;
-import vn.ptit.btl16.server.account.repository.InMemoryUserRepository;
+import vn.ptit.btl16.server.account.repository.TestUserRepository;
 import vn.ptit.btl16.server.account.security.PasswordHasher;
 import vn.ptit.btl16.server.account.security.Pbkdf2PasswordHasher;
-import vn.ptit.btl16.server.auction.repository.InMemoryAuctionRepository;
+import vn.ptit.btl16.server.auction.repository.TestAuctionRepository;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -29,9 +29,9 @@ public final class FullNetworkAuctionSelfTest {
     public static void run() throws Exception {
         ServerConfig config = ServerConfig.forTests(0, 2, 2, 1);
         PasswordHasher hasher = new Pbkdf2PasswordHasher(config.getPasswordIterations());
-        InMemoryUserRepository users = InMemoryUserRepository.withDemoUsers(hasher);
-        InMemoryAuctionRepository auctionRepository =
-                InMemoryAuctionRepository.withDemoAuctions(config);
+        TestUserRepository users = TestUserRepository.withDemoUsers(hasher);
+        TestAuctionRepository auctionRepository =
+                TestAuctionRepository.withDemoAuctions(config);
 
         try (ServerApplication server = ServerApplication.createForTests(
                 config,

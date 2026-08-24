@@ -74,19 +74,19 @@ scripts\setup-db.cmd
 
 ## D. Chay local mot may
 
-### Memory, khong can MySQL
+### Chay nhanh
 
-```bat
-scripts\run-local-demo-memory.cmd
+Tai thu muc goc:
+
+```bash
+npm run dev
 ```
 
-### JDBC, co Laragon
-
-```bat
-scripts\run-local-demo-jdbc.cmd
-```
+Runner build, setup MySQL, chay server console va mo mot client local. Dung bang `Ctrl+C`.
 
 ### Chay tung thanh phan
+
+Project chi chay runtime voi MySQL/JDBC va khong con script tu dong mo nhieu cua so.
 
 Terminal 1:
 
@@ -98,6 +98,12 @@ Terminal 2, 3, 4:
 
 ```bat
 scripts\run-client.cmd
+```
+
+Hoac chay them client bang npm:
+
+```bash
+npm run client -- --host=127.0.0.1
 ```
 
 ## E. Debug theo module

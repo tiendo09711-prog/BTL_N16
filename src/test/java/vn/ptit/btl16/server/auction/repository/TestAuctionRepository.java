@@ -17,7 +17,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
-public final class InMemoryAuctionRepository implements AuctionRepository {
+public final class TestAuctionRepository implements AuctionRepository {
     private final ConcurrentHashMap<Long, Product> products = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Long, AuctionSnapshot> auctions = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Long, List<BidRecord>> bidsByAuction = new ConcurrentHashMap<>();
@@ -27,8 +27,8 @@ public final class InMemoryAuctionRepository implements AuctionRepository {
     private final AtomicLong auctionIds = new AtomicLong();
     private final AtomicLong bidIds = new AtomicLong();
 
-    public static InMemoryAuctionRepository withDemoAuctions(ServerConfig config) {
-        InMemoryAuctionRepository repository = new InMemoryAuctionRepository();
+    public static TestAuctionRepository withDemoAuctions(ServerConfig config) {
+        TestAuctionRepository repository = new TestAuctionRepository();
         Instant now = Instant.now();
         Product headset = repository.addProduct(new Product(
                 1L, 3L, "bob", "HEADSET", "Tai nghe gaming",

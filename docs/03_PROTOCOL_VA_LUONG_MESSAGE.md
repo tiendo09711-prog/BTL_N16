@@ -143,6 +143,8 @@ KICK_AUCTION_USER: auctionId, username
 
 Tat ca deu kiem tra host theo session tren server.
 
+Quyen host chi ap dung cho auction cu the. Khong co role seller/buyer toan cuc: mot user co the tao phong cua minh va van bid trong phong cua user khac. Client khong duoc coi la network server cua phong.
+
 ### Auction snapshot
 
 ```text

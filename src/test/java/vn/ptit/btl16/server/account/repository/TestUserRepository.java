@@ -10,13 +10,13 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
-public final class InMemoryUserRepository implements UserRepository {
+public final class TestUserRepository implements UserRepository {
     private final ConcurrentHashMap<Long, UserAccount> byId = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Long> idByUsername = new ConcurrentHashMap<>();
     private final AtomicLong ids = new AtomicLong(0L);
 
-    public static InMemoryUserRepository withDemoUsers(PasswordHasher hasher) {
-        InMemoryUserRepository repository = new InMemoryUserRepository();
+    public static TestUserRepository withDemoUsers(PasswordHasher hasher) {
+        TestUserRepository repository = new TestUserRepository();
         repository.createDemo("demo", "Demo User", "demo123", hasher);
         repository.createDemo("alice", "Alice", "alice123", hasher);
         repository.createDemo("bob", "Bob", "bob123", hasher);
@@ -133,7 +133,7 @@ public final class InMemoryUserRepository implements UserRepository {
 
     @Override
     public void recordFailedLogin(String username, String remoteAddress, String reason) {
-        // In-memory mode does not persist audit history.
+        // The isolated test repository does not persist audit history.
     }
 
     private UserAccount copy(

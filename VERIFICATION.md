@@ -10,15 +10,15 @@ javac 21.0.11
 Compile target: --release 17
 ```
 
-Project chi dung API Java chuan o compile-time. MySQL Connector/J la runtime dependency khi bat `repository.mode=jdbc`.
+Project chi dung API Java chuan o compile-time. MySQL Connector/J la runtime dependency bat buoc cua server.
 
 ## 2. Bien dich toan bo source
 
 Da bien dich:
 
 ```text
-109 file Java trong src/main/java
-7 file Java trong src/test/java
+107 file Java trong src/main/java
+9 file Java trong src/test/java
 Tong cong 116 file Java
 ```
 
@@ -76,6 +76,8 @@ ALL SELF-TESTS PASSED
 create/list/update/deactivate product
 -> create/my auctions
 -> owner tro thanh host
+-> tai khoan vua bid phong nguoi khac, vua tao product/phong cua minh
+-> host phong A co the sang phong B lam bidder
 -> host khong duoc bid
 -> minimum bid increment
 -> host extend
@@ -85,6 +87,10 @@ create/list/update/deactivate product
 -> manual end
 -> cancel phien chua co bid
 ```
+
+Kich ban tren xac nhan he thong la san tu phuc vu: khong can role toan cuc
+`ADMIN`, `SELLER` hay `BUYER`; server cap quyen theo `ownerId` cua product va
+`hostUserId` cua tung auction.
 
 ## 4. Kiem thu cross-process
 
@@ -116,10 +122,10 @@ So accepted co the thay doi theo thu tu thread va muc gia; dieu can bao dam la m
 
 ## 5. Kiem thu giao dien
 
-Da khoi dong bang virtual display:
+Da khoi dong giao dien trong smoke test truoc khi chuyen sang MySQL-only:
 
 ```text
-ServerDashboardMain o memory mode
+ServerDashboardMain
 ClientMain Swing
 ```
 
@@ -127,19 +133,23 @@ Hai cua so khoi dong, client tao TCP connection toi server, khong co Java except
 
 ## 6. Phan JDBC/Laragon
 
-Da xac nhan:
+Da xac nhan truc tiep tren MySQL ngay 2026-08-24:
 
 - `DatabaseSchema`, `DemoDataSeeder`, `JdbcUserRepository`, `JdbcAuctionRepository` bien dich thanh cong.
-- Schema va cau SQL phu hop cac bang `users`, `login_history`, `products`, `auctions`, `bids`, `auction_results`, `auction_blocked_users`.
+- MySQL lang nghe tai `127.0.0.1:3306`; JDBC `SELECT 1` tra ve thanh cong.
+- `scripts\setup-db.cmd` chay thanh cong, khong reset database.
+- Schema co du `users`, `login_history`, `products`, `auctions`, `bids`, `auction_results`, `auction_blocked_users`.
 - `DatabaseSchema` co migration bo sung owner/host/min increment/active cho database cu.
 - Password seed demo/alice/bob da duoc doi chieu dung PBKDF2-HMAC-SHA256 120000 vong.
+- `ServerMain` production khoi dong voi `MySQL/JDBC`, lang nghe `0.0.0.0:8888`, sau do da duoc dung va giai phong cong.
+- Server khong con tu seed demo khi khoi dong; seed chi chay qua lenh setup/reset chu dong.
 
-Chua chay ket noi MySQL/Laragon thuc trong lan nang cap nay. Buoc xac nhan bat buoc tren may nhom:
+Quy trinh chay:
 
 ```bat
-03_TAO_DATABASE_LARAGON.cmd
-04_CHAY_SERVER_LARAGON.cmd
-05_CHAY_CLIENT.cmd
+02_TAO_DATABASE_MYSQL.cmd
+03_CHAY_SERVER_MYSQL.cmd
+04_CHAY_CLIENT.cmd
 ```
 
 Sau do kiem tra:
@@ -153,9 +163,21 @@ SELECT * FROM auction_results;
 SELECT * FROM auction_blocked_users;
 ```
 
-## 7. Hai buoc con phu thuoc may nhom
+## 7. Buoc con phu thuoc may nhom
 
-1. Test JDBC tren Laragon cua may server, do password/root config co the khac nhau.
-2. Test LAN giua it nhat hai may vat ly sau khi mo Windows Firewall TCP 8888.
+1. Test LAN giua it nhat hai may vat ly sau khi mo Windows Firewall TCP 8888.
 
-Ngoai hai buoc moi truong nay, full luong memory/TCP/concurrency/reconnect/timer da duoc chay va xac nhan.
+Ngoai buoc LAN, build, self-test, migration, JDBC read-only va production server smoke test da duoc chay. Repository production chi con MySQL/JDBC.
+
+## 8. npm development runner
+
+Da xac nhan tren Windows ngay 2026-08-24:
+
+- Node.js `v24.13.0`, npm `11.6.2`.
+- `npm run dev:server -- --skip-setup` build va chay MySQL/JDBC server thanh cong.
+- Runner in local `127.0.0.1:8888` va LAN `172.11.65.246:8888`.
+- `npm run dev -- --skip-setup` mo them mot Swing client local va client ket noi TCP thanh cong.
+- `Ctrl+C` dung cac Java process do runner tao; khong con BTL16 process va cong 8888 duoc giai phong.
+- `npm test` chay toan bo self-test va tra ve `ALL SELF-TESTS PASSED`.
+
+Dia chi runner in ra la dia chi TCP, khong phai URL trinh duyet. Web client HTTP/WebSocket chua nam trong kien truc hien tai.

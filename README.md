@@ -16,8 +16,20 @@ Day la ban ma nguon day du cua project Java desktop cho mon Lap trinh mang:
 - Ket thuc phien dung mot lan, luu winner va ket qua.
 - Disconnect, reconnect, resume va RESYNC snapshot moi nhat.
 - JDBC + Laragon MySQL database `btl_16`.
-- Che do memory de chay ngay khong can database.
 - Server dashboard, client Swing va cong cu test concurrency.
+
+## Mo hinh san tu phuc vu
+
+He thong duoc coi la mot san dau gia trung tam, khong tach role `ADMIN`, `SELLER` hay `BUYER`:
+
+- Moi tai khoan da dang nhap co the tao san pham va mo phien dau gia cua minh.
+- Cung tai khoan do co the tham gia dat gia trong phien cua nguoi khac.
+- Quyen so huu duoc xet theo tung product; quyen chu tri duoc xet theo tung auction.
+- Chu san pham chi sua/an duoc san pham cua minh.
+- Chu tri chi gia han, ket thuc, huy hoac kick trong phong cua minh.
+- Chu tri khong duoc tu dat gia trong chinh phong do, nhung van duoc bid o phong nguoi khac.
+
+Client chi dong vai tro nguoi dung/nguoi ban/chu tri theo tung phong. Client **khong tro thanh TCP server**; tat ca van qua Java central server de kiem tra quyen, timer, bid va MySQL.
 
 ## Tai khoan demo
 
@@ -30,27 +42,72 @@ bob   / bob123
 ## Yeu cau
 
 - JDK 17 tro len.
+- Node.js 20 tro len de dung lenh `npm run dev`.
 - NetBeans hoac VSCode Java Extension Pack.
-- Maven khi chay che do JDBC de tai MySQL Connector/J.
-- Laragon MySQL 8.x port 3306 cho che do JDBC.
+- Maven de build va tai MySQL Connector/J.
+- Laragon MySQL 8.x port 3306. Server chi chay voi MySQL/JDBC.
 
-## Cach nhanh nhat de xem project chay
+## Chay nhanh bang npm
+
+Tai thu muc goc, tren may server:
+
+```bash
+npm run dev
+```
+
+Lenh nay se:
+
+1. Kiem tra MySQL port 3306, thu mo Laragon neu MySQL dang tat.
+2. Build Maven va tai MySQL Connector/J.
+3. Setup/migrate/seed database `btl_16`.
+4. Chay mot `ServerMain` MySQL/JDBC trong terminal hien tai.
+5. Mo mot Swing client local ket noi `127.0.0.1:8888`.
+6. In cac dia chi TCP LAN de may khac ket noi.
+
+Nhan `Ctrl+C` de dung server va client do runner tao. MySQL duoc giu chay de tranh dung dot ngot database.
+
+Chi chay server, khong mo client local:
+
+```bash
+npm run dev:server
+```
+
+Bo qua setup/seed khi database da san sang:
+
+```bash
+npm run dev -- --skip-setup
+```
+
+Tren mot may client co bo source/JDK/Node:
+
+```bash
+npm run client -- --host=IP_MAY_SERVER
+```
+
+Vi client hien tai la Java Swing dung raw TCP, dia chi `IP:8888` **khong phai link web** va khong mo truc tiep trong trinh duyet. Muon nguoi choi bam mot URL va dau gia ngay can xay them web client HTTP/WebSocket.
+
+## Chay thu cong
 
 Mo `START_HERE.txt`, hoac double-click theo thu tu:
 
 ```text
-01_TEST_KHONG_CAN_MYSQL.cmd
-02_DEMO_NGAY_KHONG_CAN_MYSQL.cmd
+01_BUILD_VA_TEST.cmd
+02_TAO_DATABASE_MYSQL.cmd
+03_CHAY_SERVER_MYSQL.cmd
+04_CHAY_CLIENT.cmd
 ```
 
-Tu terminal, cac lenh tuong ung la:
+Tu terminal:
 
 ```bat
-scripts\run-self-tests-jdk-only.cmd
-scripts\run-local-demo-memory.cmd
+scripts\run-self-tests.cmd
+scripts\setup-db.cmd
+scripts\run-server-dashboard.cmd
+scripts\run-client.cmd
 ```
 
-Lenh demo mo mot server memory va ba cua so client.
+Moi script thu cong chi chay mot thanh phan de de quan ly terminal.
+Server khong tu seed du lieu khi khoi dong; chi `02_TAO_DATABASE_MYSQL.cmd` tao du lieu demo.
 
 ## Chay dung Laragon + MySQL
 
@@ -76,12 +133,6 @@ scripts\run-server-dashboard.cmd
 
 ```bat
 scripts\run-client.cmd
-```
-
-Hoac mot lenh demo:
-
-```bat
-scripts\run-local-demo-jdbc.cmd
 ```
 
 ## Main class
@@ -152,6 +203,6 @@ Doc theo thu tu:
 
 ## Trang thai kiem thu
 
-Ma nguon da duoc bien dich bang `javac --release 17` va chay thanh cong cac self-test memory end-to-end. Xem `VERIFICATION.md`.
+Ma nguon da duoc bien dich bang `javac --release 17` va chay thanh cong cac self-test end-to-end bang repository test tach biet. Xem `VERIFICATION.md`.
 
-Duong JDBC da duoc bien dich, nhung can chay `DatabaseSetupMain` tren may co Laragon/MySQL de xac nhan password va cau hinh MySQL cu the cua nhom.
+Runtime server chi khoi tao `JdbcUserRepository` va `JdbcAuctionRepository`. Can bat Laragon/MySQL truoc khi chay server.

@@ -23,7 +23,7 @@ Moi file can tra loi duoc:
 ## Ngay 2 - Do Tien va Tran Van Phuoc
 
 - Do Tien: protocol, route, composition, migration schema.
-- Phuoc: Product/Auction model, repository memory/JDBC, owner/host mapping.
+- Phuoc: Product/Auction model, repository contract/JDBC, owner/host mapping.
 - Pair review `DatabaseSchema` va `JdbcAuctionRepository`.
 
 ## Ngay 3 - Product va tao phong
@@ -91,5 +91,5 @@ Mai Trung Duc <-> Do Tien: lifecycle/manual close/timer
 
 - Moi nguoi giai thich duoc phan cu va phan nang cap.
 - Khong co logic authorization chi nam tren client.
-- Memory va JDBC co cung hanh vi.
+- Test repository va JDBC tuan theo cung `AuctionRepository` contract.
 - `FullNetworkAuctionSelfTest` va `AuctionManagementSelfTest` deu pass.

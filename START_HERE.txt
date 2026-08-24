@@ -11,41 +11,56 @@ DAY LA FULL PROJECT JAVA DESKTOP:
 - reconnect/resume/resync
 - Laragon MySQL database btl_16
 
-A. CHAY NGAY KHONG CAN MYSQL
-----------------------------
-1. Cai JDK 17 tro len.
-2. Double-click: 01_TEST_KHONG_CAN_MYSQL.cmd
-3. Double-click: 02_DEMO_NGAY_KHONG_CAN_MYSQL.cmd
-4. Dang nhap cac client:
+A. CHAY NHANH TREN MAY SERVER
+-----------------------------
+1. Cai Node.js, JDK 17, Maven va Laragon.
+2. Mo terminal tai thu muc goc.
+3. Chay: npm run dev
+4. Runner se kiem tra MySQL, build, setup DB, chay server va mo mot client local.
+5. Nhan Ctrl+C de dung server/client.
+6. Dang nhap:
    demo/demo123
    alice/alice123
    bob/bob123
 
-B. CHAY VOI LARAGON + MYSQL
----------------------------
-1. Bat MySQL trong Laragon, port 3306.
-2. Kiem tra config/server.properties:
+B. CAC LENH NPM
+---------------
+npm run dev                         server + mot client local
+npm run dev:server                  chi server
+npm run dev -- --skip-setup         khong setup/seed lai DB
+npm run client -- --host=IP_SERVER  chay client toi may server
+
+C. CAU HINH MYSQL
+-----------------
+Kiem tra config/server.properties:
    db.name=btl_16
    db.user=root
    db.password=
-3. NetBeans/VSCode phai load Maven de tai MySQL Connector/J.
-4. Double-click: 03_TAO_DATABASE_LARAGON.cmd
-5. Double-click: 04_CHAY_SERVER_LARAGON.cmd
-6. Moi may client double-click: 05_CHAY_CLIENT.cmd
 
-C. CHAY TRONG LAN
+Project khong con che do repository thay the va khong con script tu dong mo nhieu cua so.
+Server khong tu tao du lieu demo; chi lenh `02_TAO_DATABASE_MYSQL.cmd` thuc hien setup/seed.
+
+D. CHAY TRONG LAN
 -----------------
 - May server giu server.bindAddress=0.0.0.0 va mo Windows Firewall TCP 8888.
-- May client sua config/client.properties:
-  client.serverHost=IPv4_CUA_MAY_SERVER
+- May client chay: npm run client -- --host=IPv4_CUA_MAY_SERVER
 - Client KHONG ket noi truc tiep MySQL 3306.
+- Chi may server can truy cap MySQL.
+- Dia chi IP:8888 la TCP, khong phai link trinh duyet.
 
-D. HOC CODE
+E. CHAY THU CONG KHI KHONG DUNG NPM
+----------------------------------
+01_BUILD_VA_TEST.cmd
+02_TAO_DATABASE_MYSQL.cmd
+03_CHAY_SERVER_MYSQL.cmd
+04_CHAY_CLIENT.cmd
+
+F. HOC CODE
 -----------
 Mo README.md, sau do docs/00_BAT_DAU.md.
 Moi nguoi doc file rieng trong docs/members/.
 
-E. FILE QUAN TRONG
+G. FILE QUAN TRONG
 ------------------
 - README.md: tong quan va cach chay
 - VERIFICATION.md: nhung gi da bien dich/kiem thu

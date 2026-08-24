@@ -61,7 +61,7 @@
 | `extended` | BidService/BidOutcome | Co gia han hay khong |
 | `bidSequence` | BidService | Thu tu chinh thuc cua bid |
 | `newEndTime` | BidCommit | End time sau khi xu ly bid |
-| `bidIds` | InMemoryAuctionRepository | Sinh bid ID memory |
+| `bidIds` | TestAuctionRepository | Sinh bid ID trong self-test tach biet |
 | `server_sequence` | bids table | Thu tu bid luu DB |
 | `DATABASE_CONFLICT` | ErrorCode | State DB da thay doi |
 

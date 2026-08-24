@@ -1,6 +1,5 @@
 package vn.ptit.btl16.common.config;
 
-import java.util.Locale;
 import java.util.Objects;
 
 public final class ServerConfig {
@@ -11,7 +10,6 @@ public final class ServerConfig {
     private final int maxFrameBytes;
     private final int resumeGraceSeconds;
     private final int cleanupIntervalSeconds;
-    private final String repositoryMode;
     private final String dbDriver;
     private final String dbHost;
     private final int dbPort;
@@ -27,7 +25,6 @@ public final class ServerConfig {
     private final int timerCheckMillis;
     private final int tickBroadcastMillis;
     private final int bidHistoryLimit;
-    private final boolean demoAutoSeed;
     private final int demoShortAuctionSeconds;
     private final int demoMediumAuctionSeconds;
     private final int demoLongAuctionSeconds;
@@ -41,7 +38,6 @@ public final class ServerConfig {
                 p.getInt("server.maxFrameBytes", 2_097_152, 1024, 64 * 1024 * 1024),
                 p.getInt("session.resumeGraceSeconds", 120, 0, 86400),
                 p.getInt("session.cleanupIntervalSeconds", 15, 1, 3600),
-                p.get("repository.mode", "jdbc").toLowerCase(Locale.ROOT),
                 p.get("db.driver", "com.mysql.cj.jdbc.Driver"),
                 p.get("db.host", "127.0.0.1"),
                 p.getInt("db.port", 3306, 1, 65535),
@@ -57,7 +53,6 @@ public final class ServerConfig {
                 p.getInt("auction.timerCheckMillis", 200, 20, 60_000),
                 p.getInt("auction.tickBroadcastMillis", 1000, 100, 60_000),
                 p.getInt("auction.bidHistoryLimit", 50, 1, 1000),
-                p.getBoolean("demo.autoSeed", true),
                 p.getInt("demo.shortAuctionSeconds", 90, 15, 86400),
                 p.getInt("demo.mediumAuctionSeconds", 300, 15, 86400),
                 p.getInt("demo.longAuctionSeconds", 480, 15, 86400));
@@ -71,7 +66,6 @@ public final class ServerConfig {
             int maxFrameBytes,
             int resumeGraceSeconds,
             int cleanupIntervalSeconds,
-            String repositoryMode,
             String dbDriver,
             String dbHost,
             int dbPort,
@@ -87,7 +81,6 @@ public final class ServerConfig {
             int timerCheckMillis,
             int tickBroadcastMillis,
             int bidHistoryLimit,
-            boolean demoAutoSeed,
             int demoShortAuctionSeconds,
             int demoMediumAuctionSeconds,
             int demoLongAuctionSeconds) {
@@ -98,7 +91,6 @@ public final class ServerConfig {
         this.maxFrameBytes = maxFrameBytes;
         this.resumeGraceSeconds = resumeGraceSeconds;
         this.cleanupIntervalSeconds = cleanupIntervalSeconds;
-        this.repositoryMode = Objects.requireNonNull(repositoryMode, "repositoryMode");
         this.dbDriver = Objects.requireNonNull(dbDriver, "dbDriver");
         this.dbHost = Objects.requireNonNull(dbHost, "dbHost");
         this.dbPort = dbPort;
@@ -114,14 +106,9 @@ public final class ServerConfig {
         this.timerCheckMillis = timerCheckMillis;
         this.tickBroadcastMillis = tickBroadcastMillis;
         this.bidHistoryLimit = bidHistoryLimit;
-        this.demoAutoSeed = demoAutoSeed;
         this.demoShortAuctionSeconds = demoShortAuctionSeconds;
         this.demoMediumAuctionSeconds = demoMediumAuctionSeconds;
         this.demoLongAuctionSeconds = demoLongAuctionSeconds;
-
-        if (!repositoryMode.equals("jdbc") && !repositoryMode.equals("memory")) {
-            throw new IllegalArgumentException("repository.mode must be jdbc or memory");
-        }
     }
 
     public static ServerConfig loadDefault() {
@@ -147,7 +134,6 @@ public final class ServerConfig {
                 2_097_152,
                 2,
                 1,
-                "memory",
                 "com.mysql.cj.jdbc.Driver",
                 "127.0.0.1",
                 3306,
@@ -163,7 +149,6 @@ public final class ServerConfig {
                 50,
                 200,
                 100,
-                true,
                 shortAuctionSeconds,
                 Math.max(shortAuctionSeconds + 10, 15),
                 Math.max(shortAuctionSeconds + 20, 30));
@@ -198,7 +183,6 @@ public final class ServerConfig {
     public int getMaxFrameBytes() { return maxFrameBytes; }
     public int getResumeGraceSeconds() { return resumeGraceSeconds; }
     public int getCleanupIntervalSeconds() { return cleanupIntervalSeconds; }
-    public String getRepositoryMode() { return repositoryMode; }
     public String getDbDriver() { return dbDriver; }
     public String getDbHost() { return dbHost; }
     public int getDbPort() { return dbPort; }
@@ -212,7 +196,6 @@ public final class ServerConfig {
     public int getTimerCheckMillis() { return timerCheckMillis; }
     public int getTickBroadcastMillis() { return tickBroadcastMillis; }
     public int getBidHistoryLimit() { return bidHistoryLimit; }
-    public boolean isDemoAutoSeed() { return demoAutoSeed; }
     public int getDemoShortAuctionSeconds() { return demoShortAuctionSeconds; }
     public int getDemoMediumAuctionSeconds() { return demoMediumAuctionSeconds; }
     public int getDemoLongAuctionSeconds() { return demoLongAuctionSeconds; }

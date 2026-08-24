@@ -209,7 +209,7 @@ Muc tieu: hoan thien quyen dieu khien thoi gian cua host va hoc quan he giua cre
 | 2 | Pair voi Tien hoc host authorization va error contract | Checklist extend/end/cancel |
 | 3 | Pair voi Phuoc hoc endTime, host, result va repository | Bang field runtime/DB |
 | 4 | Pair voi Dung hoc anti-sniping va race bid/close | Ma tran thu tu bid/extend/end |
-| 5 | Hoan thien host extend, manual end, cancel no-bid, close-once | Service/commit memory va JDBC |
+| 5 | Hoan thien host extend, manual end, cancel no-bid, close-once | Service/commit JDBC va test double |
 | 6 | Pair voi Thuan bind nut host, countdown va status | UI dung quyen/trang thai |
 | 7 | Them assertion extend/end/cancel va timer/manual race | Test lifecycle |
 | 8 | Chay JDBC, kiem tra result duy nhat va rollback | Bien ban transaction |
@@ -223,7 +223,7 @@ Muc tieu: hoan thien quyen dieu khien thoi gian cua host va hoc quan he giua cre
 
 ### Dau ra ban giao
 
-- Host extend, manual end va cancel no-bid dong bo memory/JDBC.
+- Host extend, manual end va cancel no-bid dong bo JDBC/test double.
 - Test close-once va kich ban demo lifecycle.
 
 ### Nguoi review

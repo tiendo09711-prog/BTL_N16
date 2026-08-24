@@ -24,11 +24,9 @@ public final class ServerMain {
         System.out.println("====================================================");
         System.out.println(" BTL 16 - REALTIME AUCTION TCP SERVER");
         System.out.println(" Bind: " + config.getBindAddress() + ':' + config.getPort());
-        System.out.println(" Repository: " + config.getRepositoryMode());
-        if ("jdbc".equals(config.getRepositoryMode())) {
-            System.out.println(" Database: " + config.getDbName()
-                    + " @ " + config.getDbHost() + ':' + config.getDbPort());
-        }
+        System.out.println(" Repository: MySQL/JDBC");
+        System.out.println(" Database: " + config.getDbName()
+                + " @ " + config.getDbHost() + ':' + config.getDbPort());
         System.out.println(" Accounts: demo/demo123, alice/alice123, bob/bob123");
         System.out.println(" Anti-sniping: last " + config.getAntiSnipingWindowSeconds()
                 + "s -> +" + config.getExtensionSeconds() + "s");

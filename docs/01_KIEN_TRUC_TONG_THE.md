@@ -30,6 +30,15 @@ Swing Client       Swing Client       Swing Client
 
 Client khong duoc ket noi truc tiep vao MySQL.
 
+## Mo hinh san dau gia tu phuc vu
+
+- Khong co role toan cuc `ADMIN`, `SELLER`, `BUYER` trong pham vi hien tai.
+- Moi user da dang nhap co the tao product va auction cua minh.
+- Mot user co the la host o auction A nhung la bidder o auction B.
+- Ownership va host authorization duoc kiem tra theo tung resource tren central server.
+- Client la host logic cua mot phong, khong phai mot TCP server rieng.
+- Central server van la nguon su that duy nhat ve quyen, gia, winner, end time va status.
+
 ## So do package
 
 ```text

@@ -43,7 +43,7 @@
 | `Pbkdf2PasswordHasher` | Hash va verify mat khau |
 | `UserRepository` | Hop dong persistence user |
 | `JdbcUserRepository` | SQL, PreparedStatement, login transaction |
-| `InMemoryUserRepository` | Du lieu test khong DB |
+| `TestUserRepository` (`src/test`) | Test double user, khong duoc production khoi tao |
 | `AccountService` | Register/login/profile/password rule |
 | `AccountController` | Protocol adapter account |
 | `UserSession` | Snapshot session |
@@ -60,7 +60,7 @@
 | `AuctionRuntime` | State mutable tren server + lock |
 | `AuctionRepository` | Hop dong list/detail/bid/result |
 | `JdbcAuctionRepository` | SQL auction, bid history, transaction |
-| `InMemoryAuctionRepository` | Demo/test memory |
+| `TestAuctionRepository` (`src/test`) | Test double auction cho self-test |
 | `AuctionManager` | Cache runtime theo auctionId |
 | `AuctionQueryService` | List, snapshot, history |
 | `AuctionWireData` | Chuyen state thanh map protocol |

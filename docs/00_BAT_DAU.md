@@ -16,14 +16,14 @@ Client UI
 
 ## Viec can lam ngay
 
-1. Cai JDK 17.
-2. Chay `scripts\run-self-tests-jdk-only.cmd`.
-3. Chay `scripts\run-local-demo-memory.cmd`.
-4. Dang nhap ba client bang demo, alice, bob.
-5. Cho ca ba vao cung mot auction.
-6. Dat gia tu hai client.
-7. Quan sat broadcast, outbid va countdown.
-8. Tat mot client, mo lai va quan sat reconnect/resync.
+1. Cai Node.js, JDK 17, Maven va Laragon.
+2. Kiem tra `config/server.properties`.
+3. Tai thu muc goc chay `npm run dev` tren may server.
+4. Lay dia chi LAN ma runner in ra.
+5. May khac chay `npm run client -- --host=IP_MAY_SERVER` neu co bo source.
+6. Dang nhap demo, alice, bob va cho vao cung mot auction.
+7. Dat gia tu hai client, quan sat broadcast/outbid/countdown.
+8. Nhan `Ctrl+C` tai may server de dung server/client local.
 
 ## 12 bat bien kien truc can thuoc
 
@@ -60,17 +60,12 @@ MessageType
 
 ## Che do chay
 
-### Memory mode
-
-- Khong can Laragon.
-- Du lieu reset moi lan restart server.
-- Phu hop hoc network, thread va concurrency.
-
-### JDBC mode
+### MySQL/JDBC
 
 - Dung Laragon MySQL.
-- Luu user, bid, result.
-- Phu hop demo cuoi va bao ve transaction.
+- La repository runtime duy nhat cua server.
+- Luu user, product, auction, bid, blocked user va result.
+- Self-test dung repository test rieng trong `src/test`, khong tao them che do chay server.
 
 ## Quy tac lam viec nhom
 

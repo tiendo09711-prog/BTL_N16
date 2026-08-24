@@ -208,7 +208,7 @@ Muc tieu: dong bo day du tinh nang server moi len client va hoc duoc protocol, s
 | 5 | Pair voi Duc xu ly extend/end/cancel va `CANCELLED` | Host controls va state UI |
 | 6 | Hoan thien dialog, callback async va cap nhat tren EDT | UI khong block reader thread |
 | 7 | Chu tri `AuctionManagementSelfTest`, gom assertion ca nhom | Test product, room, bid, host va kick |
-| 8 | Kiem tra payload memory/JDBC co cung cach parse | Checklist field va fallback |
+| 8 | Kiem tra payload self-test/JDBC co cung cach parse | Checklist field va fallback |
 | 9 | Thu reconnect/resume/resync sau create, extend, cancel va kick | Bao cao regression realtime |
 | 10 | Demo client bi kick, reconnect va bi chan join lai | Kich ban OP07 end-to-end |
 

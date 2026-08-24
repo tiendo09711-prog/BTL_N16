@@ -38,8 +38,8 @@ JOIN_AUCTION
 3. `AuctionSnapshot.java`
 4. `AuctionRuntime.java`
 5. `AuctionRepository.java`
-6. `InMemoryAuctionRepository.java`
-7. `JdbcAuctionRepository.findAllAuctions/findAuctionById/findRecentBids`
+6. `JdbcAuctionRepository.findAllAuctions/findAuctionById/findRecentBids`
+7. `TestAuctionRepository.java` trong `src/test`
 8. `AuctionManager.java`
 9. `AuctionQueryService.java`
 10. `RoomManager.java`
@@ -190,7 +190,7 @@ Khong; JTable va detail chi de quan sat luong network va state.
 
 - Chu tri Product ownership, update va soft delete.
 - Them host/min increment vao snapshot/runtime.
-- Dong bo `AuctionRepository`, memory/JDBC, create product/create room/my lists.
+- Dong bo `AuctionRepository`, JDBC/test double, create product/create room/my lists.
 - Them runtime moi bang `AuctionManager.addRuntime`.
 - Phu trach `ClientProduct`, host column va product/auction data tren UI.
 
@@ -203,13 +203,13 @@ Muc tieu: hoan thien product/create room va persistence, dong thoi hoc cach du l
 | Ngay | Noi dung hoc va thuc hanh | Dau ra ban giao |
 |---|---|---|
 | 1 | Doc ma tinh nang moi, ve user -> product -> auction -> blocked user | So do model/ownership |
-| 2 | Hoan thien model, repository, memory/JDBC va runtime fields | Contract du lieu SV01-SV08 |
+| 2 | Hoan thien model, repository, JDBC/test double va runtime fields | Contract du lieu SV01-SV08 |
 | 3 | Hoan thien CRUD, my products, create/my auctions | OP01/OP02 va tao phong |
 | 4 | Pair voi Tien review owner/host tu session va migration | Checklist auth/persistence |
 | 5 | Pair voi Dung hoan thien blocked user va kick/rejoin | Repository behavior OP07 |
 | 6 | Pair voi Duc doi chieu endTime/status/result | Commit phuc vu lifecycle |
 | 7 | Pair voi Thuan dong bo client model, bang va dialog | Field server-client nhat quan |
-| 8 | Chay test CRUD/create/list va migrate JDBC | Memory/JDBC cung hanh vi |
+| 8 | Chay test CRUD/create/list va migrate JDBC | Test double/JDBC cung contract |
 | 9 | Tao product/phong khi server chay, reconnect va tai lai | Runtime moi khong can restart |
 | 10 | Demo product -> room -> join -> kick -> reload | Luong du lieu end-to-end |
 
@@ -220,7 +220,7 @@ Muc tieu: hoan thien product/create room va persistence, dong thoi hoc cach du l
 
 ### Dau ra ban giao
 
-- Product ownership, update, soft delete va create room dong bo memory/JDBC.
+- Product ownership, update, soft delete va create room dong bo JDBC/test double.
 - Runtime moi, my lists va blocked user persistence.
 
 ### Nguoi review
@@ -233,4 +233,4 @@ Muc tieu: hoan thien product/create room va persistence, dong thoi hoc cach du l
 - Chi owner sua/an product; soft delete khong mat lich su.
 - Chi product active cua owner duoc dung tao phong.
 - Phong moi xuat hien khong can restart server.
-- Memory va JDBC tra cung snapshot, my lists va block behavior.
+- Test double va JDBC tra cung snapshot, my lists va block behavior.
