@@ -142,3 +142,13 @@ Nhiem vu moi:
 | Pham Anh Dung | bid/concurrency | min increment, self-bid, kick/bid/archive safety |
 | Mai Trung Duc | timer/result | extend/end/cancel va retention lifecycle |
 | Tran Van Phuoc | data/list/room | product CRUD, host/create room, archive visibility |
+
+## Ownership nang cap
+
+| Thanh vien | Pham vi JavaFX + WebSocket |
+|---|---|
+| Do Tien | `ServerConnection`, WS server, JSON codec, config/composition/schema |
+| Vu Tri Thuan | JavaFX, `ClientTransport`, WS client, reconnect, packaging |
+| Pham Anh Dung | private join, grant/block safety, bid TCP-WS concurrency |
+| Mai Trung Duc | timer/anti-sniping/lifecycle event qua WS, host controls |
+| Tran Van Phuoc | image BLOB/protocol/UI, visibility/create room/search |

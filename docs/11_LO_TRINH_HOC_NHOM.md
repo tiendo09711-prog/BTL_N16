@@ -103,3 +103,15 @@ Mai Trung Duc <-> Do Tien: lifecycle/manual close/timer
 - Test repository va JDBC tuan theo cung `AuctionRepository` contract.
 - `FullNetworkAuctionSelfTest` va `AuctionManagementSelfTest` deu pass.
 - Phong dong tu an sau 120 giay tren client/dashboard, room duoc don va lich su DB khong bi xoa.
+
+## Phase nang cap ngay 12-20
+
+- Ngay 12: transport abstraction va map lai kien truc.
+- Ngay 13: JavaFX skeleton, login va application thread.
+- Ngay 14: WebSocket server + JSON `WireMessage`.
+- Ngay 15: WebSocket client, reconnect/resume/resync.
+- Ngay 16: product image end-to-end.
+- Ngay 17: public/private room, PBKDF2 va session grant.
+- Ngay 18: search product name/Auction ID.
+- Ngay 19: TCP-WS cross test, concurrency va lifecycle.
+- Ngay 20: jpackage, LAN, docs va demo ba may.

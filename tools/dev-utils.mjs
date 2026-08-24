@@ -10,6 +10,7 @@ const toolsDirectory = path.dirname(fileURLToPath(import.meta.url));
 export const projectRoot = path.resolve(toolsDirectory, '..');
 export const mysqlPort = 3306;
 export const serverPort = 8888;
+export const webSocketPort = 8890;
 
 export function runtimeClasspath() {
   return [

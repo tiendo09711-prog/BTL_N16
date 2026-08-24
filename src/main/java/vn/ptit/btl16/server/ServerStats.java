@@ -3,7 +3,10 @@ package vn.ptit.btl16.server;
 /** Immutable status snapshot used by the optional server dashboard. */
 public final class ServerStats {
     private final int port;
+    private final int webSocketPort;
     private final int activeConnections;
+    private final int tcpConnections;
+    private final int webSocketConnections;
     private final int activeSessions;
     private final int detachedSessions;
     private final int rooms;
@@ -15,7 +18,10 @@ public final class ServerStats {
 
     public ServerStats(
             int port,
+            int webSocketPort,
             int activeConnections,
+            int tcpConnections,
+            int webSocketConnections,
             int activeSessions,
             int detachedSessions,
             int rooms,
@@ -25,7 +31,10 @@ public final class ServerStats {
             long serverSequence,
             String repositoryName) {
         this.port = port;
+        this.webSocketPort = webSocketPort;
         this.activeConnections = activeConnections;
+        this.tcpConnections = tcpConnections;
+        this.webSocketConnections = webSocketConnections;
         this.activeSessions = activeSessions;
         this.detachedSessions = detachedSessions;
         this.rooms = rooms;
@@ -37,7 +46,10 @@ public final class ServerStats {
     }
 
     public int getPort() { return port; }
+    public int getWebSocketPort() { return webSocketPort; }
     public int getActiveConnections() { return activeConnections; }
+    public int getTcpConnections() { return tcpConnections; }
+    public int getWebSocketConnections() { return webSocketConnections; }
     public int getActiveSessions() { return activeSessions; }
     public int getDetachedSessions() { return detachedSessions; }
     public int getRooms() { return rooms; }

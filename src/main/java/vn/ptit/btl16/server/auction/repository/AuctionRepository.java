@@ -4,6 +4,7 @@ import vn.ptit.btl16.server.auction.model.AuctionResult;
 import vn.ptit.btl16.server.auction.model.AuctionSnapshot;
 import vn.ptit.btl16.server.auction.model.BidRecord;
 import vn.ptit.btl16.server.auction.model.Product;
+import vn.ptit.btl16.server.auction.model.ProductImage;
 
 import java.util.List;
 import java.util.Optional;
@@ -20,6 +21,8 @@ public interface AuctionRepository {
     Optional<Product> findProductById(long productId);
 
     Optional<Product> findProductByCode(String code);
+
+    Optional<ProductImage> findProductImage(long productId);
 
     boolean hasOpenAuctionForProduct(long productId);
 

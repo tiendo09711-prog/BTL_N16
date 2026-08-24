@@ -1,196 +1,170 @@
-# VERIFICATION - TRANG THAI BIEN DICH VA KIEM THU
+# VERIFICATION - TRẠNG THÁI BUILD VÀ KIỂM THỬ
 
-Ngay kiem tra: 2026-08-24
+Ngày kiểm tra: 2026-08-24
 
-## 1. Moi truong da dung
+## 1. Môi trường
 
 ```text
-OpenJDK 21.0.11
-javac 21.0.11
+OpenJDK 26.0.1
 Compile target: --release 17
+Node.js v24.13.0
+npm 11.6.2
+MySQL 127.0.0.1:3306
+jpackage: C:\Apache NetBeans\jdk\bin\jpackage.exe
 ```
 
-Project chi dung API Java chuan o compile-time. MySQL Connector/J la runtime dependency bat buoc cua server.
+Project dùng JavaFX 21.0.4, Java-WebSocket 1.6.0, Jackson 2.17.2, MySQL Connector/J 8.4.0 và SLF4J NOP runtime binding.
 
-## 2. Bien dich toan bo source
+## 2. Maven clean test
 
-Da bien dich:
+Lệnh:
+
+```bash
+mvn clean test
+```
+
+Kết quả thật:
 
 ```text
-107 file Java trong src/main/java
-9 file Java trong src/test/java
-Tong cong 116 file Java
+Compiling 120 source files with release 17
+Compiling 11 test source files with release 17
+BUILD SUCCESS
 ```
 
-Lenh:
+Hai repository fixture có tên theo convention JUnit 3 nhưng không chứa method `test*`, vì vậy Surefire báo `Tests run: 0`. Main-based self-test bắt buộc được chạy riêng bằng `npm test`.
+
+## 3. Self-test
+
+Lệnh:
 
 ```bash
-./scripts/compile-jdk-only.sh
+npm test
 ```
 
-Ket qua: thanh cong.
-
-Kiem tra them voi `javac -Xlint:all` khong co loi; chi co canh bao serialization thong thuong cua cac lop Swing/JTable model, khong anh huong chay chuong trinh.
-
-## 3. Self-test end-to-end
-
-Lenh:
-
-```bash
-./scripts/run-self-tests-jdk-only.sh
-```
-
-Ket qua cuoi:
+Kết quả:
 
 ```text
 [PASS] ProtocolCodecSelfTest
+[PASS] JsonWireMessageCodecSelfTest
 [PASS] PasswordHasherSelfTest
 [PASS] SessionManagerSelfTest
 [PASS] FullNetworkAuctionSelfTest
 [PASS] AuctionManagementSelfTest
+[PASS] WebSocketUpgradeSelfTest
 ALL SELF-TESTS PASSED
 ```
 
-`FullNetworkAuctionSelfTest` mo TCP server that tren mot port ngau nhien va kiem tra:
+`FullNetworkAuctionSelfTest` xác minh TCP login/list/join/bid, concurrent bid, outbid, resume/resync, timer, ended và archive.
+
+`WebSocketUpgradeSelfTest` xác minh:
 
 ```text
-2 client TCP that
--> login
--> list auction
--> JOIN cung room
--> bid va BID_UPDATE realtime
--> OUTBID_NOTIFICATION
--> gui bid gan dong thoi
--> state cuoi authoritative
--> disconnect
--> RESUME_SESSION tren socket moi
--> RESYNC snapshot moi nhat
--> timer dong phien
--> AUCTION_ENDED
--> giu ket qua trong visibility window
--> AUCTION_ARCHIVED
--> an khoi client list va server dashboard
--> don room subscription va chan RESYNC phong da archive
--> bid sau khi het gio bi tu choi
+WebSocket connect + CONNECTION_WELCOME
+register/login/ping/logout
+WebSocket tạo product có ảnh và private auction
+TCP nhận AUCTION_CREATED từ WebSocket
+join private thiếu/sai/đúng password
+TCP bid và WebSocket nhận BID_UPDATE
+search product name case-insensitive
+search exact Auction ID
+GET_PRODUCT_IMAGE roundtrip
+AUCTION_LIST không chứa imageBase64
+disconnect TCP -> resume session qua WebSocket
+RESYNC private room không hỏi lại password
+kick revoke grant và block không bị bypass
 ```
 
-`AuctionManagementSelfTest` kiem tra:
+## 4. npm build
 
-```text
-create/list/update/deactivate product
--> create/my auctions
--> owner tro thanh host
--> tai khoan vua bid phong nguoi khac, vua tao product/phong cua minh
--> host phong A co the sang phong B lam bidder
--> host khong duoc bid
--> minimum bid increment
--> host extend
--> non-host bi tu choi host control
--> kick + AUCTION_KICKED + block rejoin
--> cancel phien co bid bi tu choi
--> manual end
--> cancel phien chua co bid
+Lệnh:
+
+```bash
+npm run build
 ```
 
-Kich ban tren xac nhan he thong la san tu phuc vu: khong can role toan cuc
-`ADMIN`, `SELLER` hay `BUYER`; server cap quyen theo `ownerId` cua product va
-`hostUserId` cua tung auction.
+Kết quả: exit code 0; Maven package và copy runtime dependencies thành công.
 
-## 4. Kiem thu cross-process
+## 5. MySQL setup/migration
 
-Da chay `ServerMain`, `ConsoleClientMain` va load-test trong cac process Java tach biet.
-
-Console client da hoan thanh:
-
-```text
-CONNECTION_WELCOME
-LOGIN
-AUCTION_LIST co 3 phien
-JOIN_AUCTION
-PLACE_BID
-BID_UPDATE event
-PING/PONG
-LOGOUT
-```
-
-Load test 5 socket dong thoi da hoan thanh; moi request di qua TCP server, per-auction lock va final RESYNC. Lan kiem tra gan nhat:
-
-```text
-Clients: 5
-Accepted: 5, rejected: 0
-Authoritative final price: 1,150,000 VND
-Winner: client co bid cao nhat
-```
-
-So accepted co the thay doi theo thu tu thread va muc gia; dieu can bao dam la moi bid duoc kiem tra lai trong critical section va snapshot cuoi dung voi bid cao nhat da duoc chap nhan.
-
-## 5. Kiem thu giao dien
-
-Da khoi dong giao dien trong smoke test truoc khi chuyen sang MySQL-only:
-
-```text
-ServerDashboardMain
-ClientMain Swing
-```
-
-Hai cua so khoi dong, client tao TCP connection toi server, khong co Java exception trong smoke test.
-
-## 6. Phan JDBC/Laragon
-
-Da xac nhan truc tiep tren MySQL ngay 2026-08-24:
-
-- `DatabaseSchema`, `DemoDataSeeder`, `JdbcUserRepository`, `JdbcAuctionRepository` bien dich thanh cong.
-- MySQL lang nghe tai `127.0.0.1:3306`; JDBC `SELECT 1` tra ve thanh cong.
-- `scripts\setup-db.cmd` chay thanh cong, khong reset database.
-- Schema co du `users`, `login_history`, `products`, `auctions`, `bids`, `auction_results`, `auction_blocked_users`.
-- `DatabaseSchema` co migration bo sung owner/host/min increment/active cho database cu.
-- Password seed demo/alice/bob da duoc doi chieu dung PBKDF2-HMAC-SHA256 120000 vong.
-- `ServerMain` production khoi dong voi `MySQL/JDBC`, lang nghe `0.0.0.0:8888`, sau do da duoc dung va giai phong cong.
-- Server khong con tu seed demo khi khoi dong; seed chi chay qua lenh setup/reset chu dong.
-
-Quy trinh chay:
+Lệnh:
 
 ```bat
-02_TAO_DATABASE_MYSQL.cmd
-03_CHAY_SERVER_MYSQL.cmd
-04_CHAY_CLIENT.cmd
+scripts\setup-db.cmd
 ```
 
-Sau do kiem tra:
+Kết quả:
 
-```sql
-USE btl_16;
-SELECT * FROM users;
-SELECT * FROM auctions;
-SELECT * FROM bids ORDER BY server_sequence DESC;
-SELECT * FROM auction_results;
-SELECT * FROM auction_blocked_users;
+```text
+DATABASE SETUP COMPLETE
+Database: btl_16
+MySQL: 127.0.0.1:3306
 ```
 
-## 7. Buoc con phu thuoc may nhom
+Đã query trực tiếp `information_schema.COLUMNS`; các cột migration tồn tại:
 
-1. Test LAN giua it nhat hai may vat ly sau khi mo Windows Firewall TCP 8888.
+```text
+auctions.room_password_hash
+auctions.room_password_iterations
+auctions.room_password_salt
+auctions.visibility
+products.image_data
+products.image_mime
+products.image_name
+products.image_size
+products.image_version
+```
 
-Ngoai buoc LAN, build, self-test, migration, JDBC read-only va production server smoke test da duoc chay. Repository production chi con MySQL/JDBC.
+## 6. Development runner
 
-## 8. npm development runner
+Lệnh server-only đã chạy:
 
-Da xac nhan tren Windows ngay 2026-08-24:
+```bash
+npm run dev:server -- --skip-setup
+```
 
-- Node.js `v24.13.0`, npm `11.6.2`.
-- `npm run dev:server -- --skip-setup` build va chay MySQL/JDBC server thanh cong.
-- Runner in local `127.0.0.1:8888` va LAN `172.11.65.246:8888`.
-- `npm run dev -- --skip-setup` mo them mot Swing client local va client ket noi TCP thanh cong.
-- `Ctrl+C` dung cac Java process do runner tao; khong con BTL16 process va cong 8888 duoc giai phong.
-- `npm test` chay toan bo self-test va tra ve `ALL SELF-TESTS PASSED`.
+Xác nhận:
 
-Dia chi runner in ra la dia chi TCP, khong phai URL trinh duyet. Web client HTTP/WebSocket chua nam trong kien truc hien tai.
+```text
+MySQL ready
+TCP listening 0.0.0.0:8888
+WebSocket listening 0.0.0.0:8890/ws
+Runner in local và LAN endpoint
+Ctrl+C dừng WebSocket và TCP sạch
+```
 
-## 9. Retention phong da dong
+Lệnh đầy đủ đã chạy:
 
-- Production dung `auction.closedVisibilitySeconds=120`.
-- Phong het han van chuyen `ENDED` ngay lap tuc va khong nhan bid moi.
-- Sau 120 giay, server phat `AUCTION_ARCHIVED`, an khoi `AUCTION_LIST`, `MY_AUCTIONS` va dashboard.
-- Client xoa phong khoi model; `RoomManager` don subscriber; `RESYNC` phong da archive tra `AUCTION_NOT_FOUND`.
-- MySQL khong xoa auction, bid hoac result.
-- `FullNetworkAuctionSelfTest` dung visibility 1 giay de kiem tra tu dong trong test.
+```bash
+npm run dev -- --skip-setup
+```
+
+Xác nhận JavaFX client local được mở và server ghi nhận một WebSocket connection tại `/ws`. Sau smoke test, runner dừng client/server sạch. JDK 26 in cảnh báo JavaFX classpath/native-access, nhưng ứng dụng vẫn khởi động và kết nối; đây không phải compilation/runtime failure.
+
+## 7. jpackage
+
+Lệnh:
+
+```bash
+npm run dist:client
+```
+
+Kết quả:
+
+```text
+dist/BTL16-Auction-Client/
+BTL16-Auction-Client.exe
+app/
+runtime/
+```
+
+App-image có 329 file, tổng kích thước 147.883.628 byte (xấp xỉ 141,03 MiB hoặc 148 MB hệ thập phân). Packaged executable được start hidden trong 6 giây, process vẫn chạy (`PACKAGED_CLIENT_RUNNING=True`) rồi được dừng bằng process tree cleanup. Điều này xác minh launcher/runtime image không thoát lỗi ngay khi khởi động.
+
+## 8. Phần chưa runtime verify
+
+- Chưa demo bằng ba máy vật lý trong cùng LAN.
+- Chưa kiểm tra Windows Firewall thực tế trên máy khác.
+- Chưa kiểm tra kết nối từ Internet, `wss://`, reverse proxy hoặc VPN mesh.
+- Chưa tạo MSI/installer; đã tạo app-image self-contained không cần WiX trên máy client.
+- GUI đã smoke-test khởi động/kết nối, nhưng chưa thực hiện toàn bộ thao tác thủ công bằng chuột trên packaged app.
+
+Các phần trên không được đánh dấu pass trong checklist bàn giao; mã nguồn, automated self-test, MySQL migration, runner và packaging đã được thực thi thật.

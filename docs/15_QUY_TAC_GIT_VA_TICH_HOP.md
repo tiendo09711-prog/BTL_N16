@@ -45,3 +45,12 @@ config/client-local.properties
 - `ServerApplication.java`: Do Tien merge.
 - `ClientController.java`: Thuan va Do Tien pair merge.
 - `JdbcAuctionRepository.java`: Phuoc/Dung/Duc review chung.
+
+## File hotspot sau nang cap
+
+- `MessageType.java`, `JsonWireMessageCodec.java`, `ServerConnection.java`: Do Tien merge.
+- `ClientTransport.java`, `WebSocketClientTransport.java`, `FxClientController.java`: Thuan merge, Do Tien review.
+- `AuctionManagementService.java`, `SessionManager.java`: Dung review private grant/block.
+- `AuctionWireData.java`, timer/lifecycle event: Duc review.
+- Product/image/search/repository/schema: Phuoc implementation, Do Tien review migration.
+- Moi merge transport phai chay ca TCP self-test va `WebSocketUpgradeSelfTest`.

@@ -8,6 +8,7 @@
     "dev:server": "node tools/dev-runner.mjs --server-only",
     "client": "node tools/client-runner.mjs",
     "build": "mvn -q -DskipTests package dependency:copy-dependencies -DincludeScope=runtime",
-    "test": "scripts\\run-self-tests.cmd"
+    "test": "scripts\\run-self-tests.cmd",
+    "dist:client": "node tools/package-client.mjs"
   }
 }

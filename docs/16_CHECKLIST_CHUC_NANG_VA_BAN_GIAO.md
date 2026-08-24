@@ -96,3 +96,15 @@ Tai lieu nay cho biet tinh nang da nam o dau, ai hoc chinh va cach kiem tra.
 - [ ] Nhom thu LAN voi it nhat hai may vat ly va mo firewall TCP 8888.
 
 Muc LAN cuoi cung can hai may vat ly va cau hinh Windows Firewall cua nhom.
+
+## Checklist nang cap JavaFX + WebSocket
+
+- [x] JavaFX la client entrypoint mac dinh; Swing duoc giu legacy.
+- [x] TCP va WebSocket cung router/business core.
+- [x] JSON codec, request correlation, timeout va realtime event.
+- [x] Product image BLOB + message tai rieng + cache version.
+- [x] Public/private room + PBKDF2 + session grant reconnect.
+- [x] Search product name va Auction ID qua server.
+- [x] Self-test WebSocket basic/cross transport/private/image/search.
+- [x] `npm run build`, `npm run client`, `npm run dev:server`, `npm run dist:client` da co script.
+- [ ] Nhom runtime demo JavaFX tren ba may vat ly va mo firewall 8890.

@@ -6,6 +6,7 @@ import vn.ptit.btl16.server.auction.model.AuctionSnapshot;
 import vn.ptit.btl16.server.auction.model.AuctionStatus;
 import vn.ptit.btl16.server.auction.model.BidRecord;
 import vn.ptit.btl16.server.auction.model.Product;
+import vn.ptit.btl16.server.auction.model.ProductImage;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -19,6 +20,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public final class TestAuctionRepository implements AuctionRepository {
     private final ConcurrentHashMap<Long, Product> products = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Long, ProductImage> productImages = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Long, AuctionSnapshot> auctions = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Long, List<BidRecord>> bidsByAuction = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Long, AuctionResult> results = new ConcurrentHashMap<>();
@@ -94,8 +96,15 @@ public final class TestAuctionRepository implements AuctionRepository {
         Product product = new Product(
                 productId, commit.getOwnerId(), commit.getOwnerUsername(),
                 commit.getCode(), commit.getName(), commit.getDescription(),
-                true, commit.getCreatedAt(), commit.getCreatedAt());
+                true, commit.getCreatedAt(), commit.getCreatedAt(), commit.hasImage(),
+                commit.getImageMime(), commit.getImageName(),
+                commit.hasImage() ? commit.getImageData().length : 0,
+                commit.hasImage() ? 1L : 0L);
         products.put(productId, product);
+        if (commit.hasImage()) {
+            productImages.put(productId, new ProductImage(
+                    productId, commit.getImageData(), commit.getImageMime(), commit.getImageName(), 1L));
+        }
         return product;
     }
 
@@ -109,10 +118,25 @@ public final class TestAuctionRepository implements AuctionRepository {
         if (duplicate.isPresent() && duplicate.get().getProductId() != commit.getProductId()) {
             throw new AuctionRepositoryException("Product code already exists");
         }
+        long imageVersion = current.getImageVersion();
+        boolean hasImage = current.hasImage();
+        String imageMime = current.getImageMime();
+        String imageName = current.getImageName();
+        int imageSize = current.getImageSize();
+        if (commit.isReplaceImage()) {
+            imageVersion++;
+            hasImage = true;
+            imageMime = commit.getImageMime();
+            imageName = commit.getImageName();
+            imageSize = commit.getImageData().length;
+            productImages.put(current.getProductId(), new ProductImage(
+                    current.getProductId(), commit.getImageData(), imageMime, imageName, imageVersion));
+        }
         Product updated = new Product(
                 current.getProductId(), current.getOwnerId(), current.getOwnerUsername(),
                 commit.getCode(), commit.getName(), commit.getDescription(),
-                current.isActive(), current.getCreatedAt(), commit.getUpdatedAt());
+                current.isActive(), current.getCreatedAt(), commit.getUpdatedAt(), hasImage,
+                imageMime, imageName, imageSize, imageVersion);
         products.put(updated.getProductId(), updated);
         return updated;
     }
@@ -126,7 +150,9 @@ public final class TestAuctionRepository implements AuctionRepository {
         Product updated = new Product(
                 current.getProductId(), current.getOwnerId(), current.getOwnerUsername(),
                 current.getCode(), current.getName(), current.getDescription(),
-                false, current.getCreatedAt(), Instant.now());
+                false, current.getCreatedAt(), Instant.now(), current.hasImage(),
+                current.getImageMime(), current.getImageName(), current.getImageSize(),
+                current.getImageVersion());
         products.put(productId, updated);
         return Optional.of(updated);
     }
@@ -153,6 +179,11 @@ public final class TestAuctionRepository implements AuctionRepository {
     }
 
     @Override
+    public Optional<ProductImage> findProductImage(long productId) {
+        return Optional.ofNullable(productImages.get(productId));
+    }
+
+    @Override
     public boolean hasOpenAuctionForProduct(long productId) {
         return auctions.values().stream().anyMatch(value ->
                 value.getProduct().getProductId() == productId
@@ -170,7 +201,9 @@ public final class TestAuctionRepository implements AuctionRepository {
                 auctionId, product, commit.getHostUserId(), commit.getHostUsername(),
                 commit.getStartPrice(), commit.getMinBidIncrement(), commit.getStartPrice(),
                 null, "", commit.getStartTime(), commit.getEndTime(),
-                AuctionStatus.OPEN, null, 0L);
+                AuctionStatus.OPEN, null, 0L, commit.getVisibility(),
+                commit.getRoomPasswordHash(), commit.getRoomPasswordSalt(),
+                commit.getRoomPasswordIterations() == null ? 0 : commit.getRoomPasswordIterations());
         addAuction(snapshot);
         return snapshot;
     }
@@ -298,7 +331,9 @@ public final class TestAuctionRepository implements AuctionRepository {
                 current.getHostUserId(), current.getHostUsername(),
                 current.getStartPrice(), current.getMinBidIncrement(), currentPrice,
                 winnerId, winnerUsername, current.getStartTime(), endTime,
-                status, endedAt, current.getVersion() + 1);
+                status, endedAt, current.getVersion() + 1, current.getVisibility(),
+                current.getRoomPasswordHash(), current.getRoomPasswordSalt(),
+                current.getRoomPasswordIterations());
     }
 
     @Override

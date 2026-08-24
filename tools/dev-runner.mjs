@@ -4,6 +4,7 @@ import {
   isPortOpen,
   lanIpv4Addresses,
   serverPort,
+  webSocketPort,
   setupDatabase,
   startJava,
   stopProcessTree,
@@ -47,6 +48,9 @@ try {
   if (await isPortOpen('127.0.0.1', serverPort)) {
     throw new Error(`Port ${serverPort} is already occupied. Stop the old server first.`);
   }
+  if (await isPortOpen('127.0.0.1', webSocketPort)) {
+    throw new Error(`Port ${webSocketPort} is already occupied. Stop the old server first.`);
+  }
 
   console.log('[DEV] Starting MySQL/JDBC auction server...');
   serverProcess = startJava('vn.ptit.btl16.server.ServerMain');
@@ -64,23 +68,31 @@ try {
   if (!await waitForPort('127.0.0.1', serverPort, 20_000)) {
     throw new Error(`Server did not listen on port ${serverPort}.`);
   }
+  if (!await waitForPort('127.0.0.1', webSocketPort, 20_000)) {
+    throw new Error(`Server did not listen on WebSocket port ${webSocketPort}.`);
+  }
 
   const addresses = lanIpv4Addresses();
   console.log('');
   console.log('[DEV] Server is ready.');
-  console.log(`[DEV] Local TCP address: 127.0.0.1:${serverPort}`);
+  console.log(`[DEV] Local TCP address:       127.0.0.1:${serverPort}`);
+  console.log(`[DEV] Local WebSocket endpoint: ws://127.0.0.1:${webSocketPort}/ws`);
   for (const address of addresses) {
-    console.log(`[DEV] LAN TCP address:   ${address}:${serverPort}`);
-    console.log(`[DEV] Remote command:    npm run client -- --host=${address}`);
+    console.log(`[DEV] LAN TCP address:         ${address}:${serverPort}`);
+    console.log(`[DEV] LAN WebSocket endpoint:  ws://${address}:${webSocketPort}/ws`);
+    console.log(`[DEV] Remote command:          npm run client -- --url=ws://${address}:${webSocketPort}/ws`);
   }
-  console.log('[DEV] These are TCP addresses, not browser links.');
-  console.log('[DEV] Remote computers need the Java client and inbound firewall TCP 8888.');
+  console.log('[DEV] ws:// is a WebSocket endpoint, not a website.');
+  console.log('[DEV] Remote computers need the packaged JavaFX client and firewall TCP 8890.');
 
   if (!serverOnly) {
-    console.log('[DEV] Starting one local Swing client...');
+    console.log('[DEV] Starting one local JavaFX client...');
     clientProcess = startJava(
       'vn.ptit.btl16.client.ClientMain',
-      ['-Dbtl16.client.host=127.0.0.1', `-Dbtl16.client.port=${serverPort}`]
+      [
+        '-Dbtl16.client.transport=websocket',
+        `-Dbtl16.client.url=ws://127.0.0.1:${webSocketPort}/ws`
+      ]
     );
     clientProcess.once('error', (error) => {
       console.error('[DEV] Cannot start local client:', error.message);

@@ -267,3 +267,29 @@ Muc tieu: hoan thien OP03 va phan an toan cua OP07, dong thoi hoc cach bid lien 
 - Retention 120 giay khong mo them cua so cho bid muon.
 - Archive khong lam thay doi winner, final price hoac bid history trong MySQL.
 - Giai thich duoc su khac nhau giua close nghiep vu va an khoi san.
+
+## Phan nang cap JavaFX + WebSocket
+
+### Muc tieu hoc
+
+- Private-room authorization, session grant va block safety.
+- Bid dong thoi giua TCP/WS nhung van mot per-auction lock/transaction.
+
+### File bat buoc doc/sua
+
+```text
+server/auction/service/AuctionManagementService.java
+server/session/SessionManager.java
+server/auction/service/BidService.java
+server/auction/repository/JdbcAuctionRepository.java
+client/fx/FxClientController.java
+selftest/WebSocketUpgradeSelfTest.java
+```
+
+### Thu tu va ban giao
+
+1. Join private: missing/wrong/correct password.
+2. Grant session-scoped qua reconnect/resync.
+3. Kick revoke grant va block check truoc grant.
+4. TCP bid -> WS event va concurrency regression.
+5. Giai thich tai sao client validation khong phai security boundary.

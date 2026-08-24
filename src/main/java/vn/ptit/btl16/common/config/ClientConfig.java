@@ -1,6 +1,8 @@
 package vn.ptit.btl16.common.config;
 
 public final class ClientConfig {
+    private final String transport;
+    private final String webSocketUrl;
     private final String serverHost;
     private final int serverPort;
     private final int connectTimeoutMillis;
@@ -12,6 +14,14 @@ public final class ClientConfig {
     private final int reconnectMaxAttempts;
 
     private ClientConfig(AppProperties p) {
+        this.transport = stringOverride(
+                "btl16.client.transport",
+                "BTL16_CLIENT_TRANSPORT",
+                p.get("client.transport", "websocket")).toLowerCase();
+        this.webSocketUrl = stringOverride(
+                "btl16.client.url",
+                "BTL16_CLIENT_URL",
+                p.get("client.websocketUrl", "ws://127.0.0.1:8890/ws"));
         this.serverHost = stringOverride(
                 "btl16.client.host",
                 "BTL16_CLIENT_HOST",
@@ -76,6 +86,8 @@ public final class ClientConfig {
     }
 
     public String getServerHost() { return serverHost; }
+    public String getTransport() { return transport; }
+    public String getWebSocketUrl() { return webSocketUrl; }
     public int getServerPort() { return serverPort; }
     public int getConnectTimeoutMillis() { return connectTimeoutMillis; }
     public int getRequestTimeoutMillis() { return requestTimeoutMillis; }

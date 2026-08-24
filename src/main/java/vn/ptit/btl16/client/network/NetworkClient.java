@@ -36,7 +36,7 @@ import java.util.function.Consumer;
  * Client-side TCP core. One reader thread receives both responses and realtime events.
  * Responses are paired with requests through requestId.
  */
-public final class NetworkClient implements AutoCloseable {
+public class NetworkClient implements ClientTransport {
     private final MessageCodec codec;
     private final int connectTimeoutMillis;
     private final int requestTimeoutMillis;
@@ -56,6 +56,7 @@ public final class NetworkClient implements AutoCloseable {
     private volatile DataInputStream input;
     private volatile DataOutputStream output;
     private volatile Thread readerThread;
+    private volatile String endpoint = "tcp://127.0.0.1:8888";
 
     public NetworkClient(int maxFrameBytes, int connectTimeoutMillis, int requestTimeoutMillis) {
         this.codec = new LengthPrefixedMessageCodec(maxFrameBytes);
@@ -69,6 +70,19 @@ public final class NetworkClient implements AutoCloseable {
         this.timeoutScheduler = Executors.newSingleThreadScheduledExecutor(factory);
     }
 
+    @Override
+    public CompletableFuture<Void> connect() {
+        String current = endpoint;
+        return CompletableFuture.runAsync(() -> {
+            HostPort value = parseEndpoint(current);
+            try {
+                connect(value.host, value.port);
+            } catch (IOException exception) {
+                throw new java.util.concurrent.CompletionException(exception);
+            }
+        });
+    }
+
     public void connect(String host, int port) throws IOException {
         Objects.requireNonNull(host, "host");
         synchronized (lifecycleLock) {
@@ -80,6 +94,7 @@ public final class NetworkClient implements AutoCloseable {
                 return;
             }
 
+            endpoint = "tcp://" + host + ':' + port;
             changeState(ConnectionState.CONNECTING, host + ':' + port);
             Socket newSocket = new Socket();
             try {
@@ -252,6 +267,20 @@ public final class NetworkClient implements AutoCloseable {
         return state.get() == ConnectionState.CONNECTED;
     }
 
+    @Override
+    public String getEndpoint() {
+        return endpoint;
+    }
+
+    @Override
+    public void setEndpoint(String endpoint) {
+        if (isConnected()) {
+            throw new IllegalStateException("Disconnect before changing TCP endpoint");
+        }
+        HostPort value = parseEndpoint(endpoint);
+        this.endpoint = "tcp://" + value.host + ':' + value.port;
+    }
+
     private void changeState(ConnectionState newState, String detail) {
         state.set(newState);
         for (ConnectionStateListener listener : stateListeners) {
@@ -291,6 +320,37 @@ public final class NetworkClient implements AutoCloseable {
             failAllPending(new IOException("NetworkClient closed"));
             timeoutScheduler.shutdownNow();
             changeState(ConnectionState.CLOSED, "Application closed");
+        }
+    }
+
+    private HostPort parseEndpoint(String value) {
+        String raw = value == null ? "" : value.trim();
+        if (raw.startsWith("tcp://")) {
+            raw = raw.substring("tcp://".length());
+        }
+        int separator = raw.lastIndexOf(':');
+        if (separator <= 0 || separator == raw.length() - 1) {
+            throw new IllegalArgumentException("TCP endpoint must be tcp://host:port");
+        }
+        String host = raw.substring(0, separator).trim();
+        try {
+            int port = Integer.parseInt(raw.substring(separator + 1));
+            if (host.isBlank() || port < 1 || port > 65535) {
+                throw new IllegalArgumentException("Invalid TCP endpoint: " + value);
+            }
+            return new HostPort(host, port);
+        } catch (NumberFormatException exception) {
+            throw new IllegalArgumentException("Invalid TCP endpoint: " + value, exception);
+        }
+    }
+
+    private static final class HostPort {
+        private final String host;
+        private final int port;
+
+        private HostPort(String host, int port) {
+            this.host = host;
+            this.port = port;
         }
     }
 }

@@ -24,8 +24,10 @@ import vn.ptit.btl16.server.db.DatabaseSchema;
 import vn.ptit.btl16.server.module.AuctionModule;
 import vn.ptit.btl16.server.module.CoreAccountModule;
 import vn.ptit.btl16.server.network.ConnectionRegistry;
+import vn.ptit.btl16.server.network.ConnectionLifecycleListener;
 import vn.ptit.btl16.server.network.ServerMessagingService;
 import vn.ptit.btl16.server.network.TcpServer;
+import vn.ptit.btl16.server.network.WebSocketServerTransport;
 import vn.ptit.btl16.server.routing.MessageRouter;
 import vn.ptit.btl16.server.session.SessionCleanupService;
 import vn.ptit.btl16.server.session.SessionManager;
@@ -44,6 +46,7 @@ public final class ServerApplication implements AutoCloseable {
     private final AuctionManager auctions;
     private final ServerSequence sequence;
     private final TcpServer tcpServer;
+    private final WebSocketServerTransport webSocketServer;
     private final SessionCleanupService sessionCleanup;
     private final AuctionTimerService auctionTimer;
     private final AtomicBoolean started = new AtomicBoolean(false);
@@ -56,6 +59,7 @@ public final class ServerApplication implements AutoCloseable {
             AuctionManager auctions,
             ServerSequence sequence,
             TcpServer tcpServer,
+            WebSocketServerTransport webSocketServer,
             SessionCleanupService sessionCleanup,
             AuctionTimerService auctionTimer) {
         this.config = config;
@@ -65,6 +69,7 @@ public final class ServerApplication implements AutoCloseable {
         this.auctions = auctions;
         this.sequence = sequence;
         this.tcpServer = tcpServer;
+        this.webSocketServer = webSocketServer;
         this.sessionCleanup = sessionCleanup;
         this.auctionTimer = auctionTimer;
     }
@@ -126,7 +131,9 @@ public final class ServerApplication implements AutoCloseable {
                 auctions,
                 auctionRepository,
                 rooms,
-                broadcasts);
+                broadcasts,
+                hasher,
+                sessions);
         AuctionController auctionController = new AuctionController(
                 queryService,
                 bidService,
@@ -152,16 +159,26 @@ public final class ServerApplication implements AutoCloseable {
                 broadcasts,
                 config);
 
+        ConnectionLifecycleListener lifecycle = connection -> {
+            String connectionId = connection.getConnectionId();
+            rooms.removeConnection(connectionId);
+            sessions.detachByConnection(connectionId);
+        };
         TcpServer tcpServer = new TcpServer(
                 config,
                 new LengthPrefixedMessageCodec(config.getMaxFrameBytes()),
                 router,
                 connections,
-                connection -> {
-                    String connectionId = connection.getConnectionId();
-                    rooms.removeConnection(connectionId);
-                    sessions.detachByConnection(connectionId);
-                },
+                lifecycle,
+                sequence);
+        WebSocketServerTransport webSocketServer = new WebSocketServerTransport(
+                config.getWebSocketBindAddress(),
+                config.getWebSocketPort(),
+                config.getWebSocketPath(),
+                config.getMaxFrameBytes(),
+                router,
+                connections,
+                lifecycle,
                 sequence);
 
         return new ServerApplication(
@@ -172,6 +189,7 @@ public final class ServerApplication implements AutoCloseable {
                 auctions,
                 sequence,
                 tcpServer,
+                webSocketServer,
                 cleanup,
                 timer);
     }
@@ -183,7 +201,15 @@ public final class ServerApplication implements AutoCloseable {
         sessionCleanup.start();
         auctionTimer.start();
         try {
-            tcpServer.start();
+            if (!config.isTcpEnabled() && !config.isWebSocketEnabled()) {
+                throw new IOException("At least one server transport must be enabled");
+            }
+            if (config.isTcpEnabled()) {
+                tcpServer.start();
+            }
+            if (config.isWebSocketEnabled()) {
+                webSocketServer.startAndAwait();
+            }
         } catch (IOException exception) {
             close();
             throw exception;
@@ -191,11 +217,19 @@ public final class ServerApplication implements AutoCloseable {
     }
 
     public void awaitTermination() throws InterruptedException {
-        tcpServer.awaitTermination();
+        if (config.isTcpEnabled()) {
+            tcpServer.awaitTermination();
+        } else if (config.isWebSocketEnabled()) {
+            webSocketServer.awaitTermination();
+        }
     }
 
     public int getBoundPort() {
-        return tcpServer.getBoundPort();
+        return config.isTcpEnabled() ? tcpServer.getBoundPort() : 0;
+    }
+
+    public int getWebSocketBoundPort() {
+        return config.isWebSocketEnabled() ? webSocketServer.getBoundPort() : 0;
     }
 
     public ServerConfig getConfig() {
@@ -208,8 +242,11 @@ public final class ServerApplication implements AutoCloseable {
 
     public ServerStats stats() {
         return new ServerStats(
-                tcpServer.getBoundPort(),
+                config.isTcpEnabled() ? tcpServer.getBoundPort() : 0,
+                config.isWebSocketEnabled() ? webSocketServer.getBoundPort() : 0,
                 connections.size(),
+                connections.countTransport("TCP"),
+                connections.countTransport("WEBSOCKET"),
                 sessions.activeCount(),
                 sessions.detachedCount(),
                 rooms.roomCount(),
@@ -225,6 +262,7 @@ public final class ServerApplication implements AutoCloseable {
         if (!started.compareAndSet(true, false)) {
             return;
         }
+        webSocketServer.close();
         tcpServer.close();
         auctionTimer.close();
         sessionCleanup.close();

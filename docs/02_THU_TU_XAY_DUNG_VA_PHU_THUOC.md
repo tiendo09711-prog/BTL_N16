@@ -130,3 +130,13 @@ auction.closedVisibilitySeconds=120
 - Sua auction rule phai them self-test.
 - Sua retention/archive phai doi chieu server list, dashboard, room va client model.
 - Khong merge UI neu request/response chua chay bang console.
+
+## Giai doan 10 - JavaFX va transport abstraction
+
+1. `ServerConnection`/`ClientTransport`, giu TCP test pass.
+2. JSON codec va WebSocket server/client.
+3. JavaFX feature parity, callback qua `Platform.runLater`.
+4. Image, private grant va search.
+5. Cross-transport test, packaging, LAN va docs.
+
+Protocol/schema abstraction phai merge truoc UI feature phu thuoc.

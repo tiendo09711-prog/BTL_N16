@@ -189,3 +189,14 @@ OPEN
 ```
 
 Archive chi la chinh sach hien thi/runtime. Cac bang `auctions`, `bids`, `auction_results` va `auction_blocked_users` khong bi xoa khoi MySQL.
+
+## Kien truc sau nang cap JavaFX + WebSocket
+
+```text
+JavaFX -> ClientTransport -> WebSocketClientTransport ----+
+Swing/TCP legacy -> TcpClientTransport -------------------+-> ServerConnection
+                                                          -> MessageRouter
+                                                          -> Services/Repository/MySQL
+```
+
+`ServerApplication` start ca `TcpServer` va `WebSocketServerTransport`. Cross-transport broadcast dung chung `ConnectionRegistry`.

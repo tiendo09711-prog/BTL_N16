@@ -141,3 +141,13 @@ Bao gom:
 - [ ] Da test them/sua/an san pham va tao phong.
 - [ ] Da test host extend/end/cancel/kick.
 - [ ] Da test phong tu an sau 120 giay va du lieu MySQL van con.
+
+## Demo 11 - WebSocket va cross transport
+
+1. Client A TCP, client B/C WebSocket.
+2. B tao private room co anh; A nhan `AUCTION_CREATED`.
+3. A bid; B/C nhan `BID_UPDATE`.
+4. C reconnect/resume/resync private room khong nhap lai password.
+5. Host kick C; grant khong bypass block.
+
+Self-test moi: `JsonWireMessageCodecSelfTest` va `WebSocketUpgradeSelfTest`.

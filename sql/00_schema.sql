@@ -44,6 +44,11 @@ CREATE TABLE IF NOT EXISTS products (
     code VARCHAR(30) NOT NULL UNIQUE,
     name VARCHAR(150) NOT NULL,
     description TEXT NULL,
+    image_data MEDIUMBLOB NULL,
+    image_mime VARCHAR(50) NULL,
+    image_name VARCHAR(255) NULL,
+    image_size INT NULL,
+    image_version BIGINT NOT NULL DEFAULT 0,
     active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3)
@@ -66,6 +71,10 @@ CREATE TABLE IF NOT EXISTS auctions (
     status VARCHAR(16) NOT NULL,
     ended_at DATETIME(3) NULL,
     version BIGINT NOT NULL DEFAULT 0,
+    visibility VARCHAR(16) NOT NULL DEFAULT 'PUBLIC',
+    room_password_hash VARCHAR(255) NULL,
+    room_password_salt VARCHAR(255) NULL,
+    room_password_iterations INT NULL,
     created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3)
         ON UPDATE CURRENT_TIMESTAMP(3),

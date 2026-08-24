@@ -12,6 +12,10 @@ public final class AuctionRuntime {
     private final BigDecimal startPrice;
     private final BigDecimal minBidIncrement;
     private final Instant startTime;
+    private final RoomVisibility visibility;
+    private final String roomPasswordHash;
+    private final String roomPasswordSalt;
+    private final int roomPasswordIterations;
     private final ReentrantLock lock = new ReentrantLock(true);
 
     private BigDecimal currentPrice;
@@ -33,6 +37,10 @@ public final class AuctionRuntime {
         this.currentWinnerId = snapshot.getCurrentWinnerId();
         this.currentWinnerUsername = snapshot.getCurrentWinnerUsername();
         this.startTime = snapshot.getStartTime();
+        this.visibility = snapshot.getVisibility();
+        this.roomPasswordHash = snapshot.getRoomPasswordHash();
+        this.roomPasswordSalt = snapshot.getRoomPasswordSalt();
+        this.roomPasswordIterations = snapshot.getRoomPasswordIterations();
         this.endTime = snapshot.getEndTime();
         this.status = snapshot.getStatus();
         this.endedAt = snapshot.getEndedAt();
@@ -103,7 +111,11 @@ public final class AuctionRuntime {
                     endTime,
                     status,
                     endedAt,
-                    version);
+                    version,
+                    visibility,
+                    roomPasswordHash,
+                    roomPasswordSalt,
+                    roomPasswordIterations);
         } finally {
             lock.unlock();
         }

@@ -17,7 +17,7 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public final class ClientConnection implements Runnable, AutoCloseable {
+public final class ClientConnection implements Runnable, ServerConnection {
     private final String connectionId = UUID.randomUUID().toString();
     private final Socket socket;
     private final MessageCodec codec;
@@ -85,6 +85,7 @@ public final class ClientConnection implements Runnable, AutoCloseable {
 
     public String getConnectionId() { return connectionId; }
     public String getRemoteAddress() { return String.valueOf(socket.getRemoteSocketAddress()); }
+    public String getTransportName() { return "TCP"; }
     public boolean isClosed() { return closed.get(); }
     public Instant getLastReadAt() { return lastReadAt; }
     public Instant getLastWriteAt() { return lastWriteAt; }

@@ -54,7 +54,7 @@ npm run client -- --host=192.168.x.x
 
 - Server hien tai dung raw TCP, khong phai HTTP/WebSocket.
 - Dia chi `192.168.x.x:8888` la dia chi ket noi, khong phai URL cho trinh duyet.
-- Nguoi choi can Java Swing client va JDK phu hop.
+- Nguoi choi dung packaged JavaFX app-image, khong can JDK hay source code.
 - Muon bam link va choi ngay tren web can bo sung web frontend va WebSocket/HTTP gateway.
 - TCP hien tai khong co TLS; chi nen demo trong LAN/VPN tin cay, khong public truc tiep ra Internet.
 
@@ -89,3 +89,11 @@ npm run client -- --host=192.168.x.x
 9. Het retention, tat ca client nhan `AUCTION_ARCHIVED` va dashboard tu an phong.
 
 Du lieu lich su van nam tren MySQL cua may server; cac may client khong duoc truy cap port 3306.
+
+## LAN voi JavaFX/WebSocket
+
+- Mo firewall TCP 8890 cho JavaFX WebSocket va 8888 neu demo TCP legacy.
+- May client dung packaged app, nhap `ws://IP_MAY_SERVER:8890/ws`.
+- Khong can clone source, IDE, Maven, Node hoac JDK.
+- `ws://` la endpoint network, khong phai website.
+- LAN IP khong truy cap tu Internet neu khong co port forwarding/VPN/tunnel/reverse proxy.

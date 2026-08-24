@@ -1,6 +1,6 @@
 package vn.ptit.btl16.client.service;
 
-import vn.ptit.btl16.client.network.NetworkClient;
+import vn.ptit.btl16.client.network.ClientTransport;
 import vn.ptit.btl16.common.protocol.MessageType;
 
 import java.util.LinkedHashMap;
@@ -8,9 +8,9 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 public final class AccountApi {
-    private final NetworkClient network;
+    private final ClientTransport network;
 
-    public AccountApi(NetworkClient network) {
+    public AccountApi(ClientTransport network) {
         this.network = network;
     }
 

@@ -11,7 +11,7 @@ import vn.ptit.btl16.server.account.repository.RepositoryException;
 import vn.ptit.btl16.server.account.service.AccountException;
 import vn.ptit.btl16.server.auction.repository.AuctionRepositoryException;
 import vn.ptit.btl16.server.auction.service.AuctionException;
-import vn.ptit.btl16.server.network.ClientConnection;
+import vn.ptit.btl16.server.network.ServerConnection;
 import vn.ptit.btl16.server.session.SessionException;
 import vn.ptit.btl16.server.session.SessionManager;
 import vn.ptit.btl16.server.session.UserSession;
@@ -38,7 +38,7 @@ public final class MessageRouter {
         }
     }
 
-    public void route(ClientConnection connection, WireMessage request) {
+    public void route(ServerConnection connection, WireMessage request) {
         RequestContext context = new RequestContext(connection, request, null, sequence);
         try {
             if (request.getVersion() != ProtocolLimits.CURRENT_VERSION) {

@@ -6,6 +6,8 @@ import vn.ptit.btl16.server.auction.model.AuctionSnapshot;
 import vn.ptit.btl16.server.auction.model.AuctionStatus;
 import vn.ptit.btl16.server.auction.model.BidRecord;
 import vn.ptit.btl16.server.auction.model.Product;
+import vn.ptit.btl16.server.auction.model.ProductImage;
+import vn.ptit.btl16.server.auction.model.RoomVisibility;
 
 import java.math.BigDecimal;
 import java.sql.Connection;
@@ -26,7 +28,9 @@ public final class JdbcAuctionRepository implements AuctionRepository {
                    owner.username AS product_owner_username,
                    p.code AS product_code, p.name AS product_name,
                    p.description AS product_description, p.active AS product_active,
-                   p.created_at AS product_created_at, p.updated_at AS product_updated_at
+                   p.created_at AS product_created_at, p.updated_at AS product_updated_at,
+                   p.image_mime AS product_image_mime, p.image_name AS product_image_name,
+                   p.image_size AS product_image_size, p.image_version AS product_image_version
             FROM products p
             JOIN users owner ON owner.user_id = p.created_by
             """;
@@ -38,9 +42,13 @@ public final class JdbcAuctionRepository implements AuctionRepository {
                    p.code AS product_code, p.name AS product_name,
                    p.description AS product_description, p.active AS product_active,
                    p.created_at AS product_created_at, p.updated_at AS product_updated_at,
+                   p.image_mime AS product_image_mime, p.image_name AS product_image_name,
+                   p.image_size AS product_image_size, p.image_version AS product_image_version,
                    a.start_price, a.min_bid_increment, a.current_price,
                    a.current_winner_id, winner.username AS current_winner_username,
-                   a.start_time, a.end_time, a.status, a.ended_at, a.version
+                   a.start_time, a.end_time, a.status, a.ended_at, a.version,
+                   a.visibility, a.room_password_hash, a.room_password_salt,
+                   a.room_password_iterations
             FROM auctions a
             JOIN products p ON p.product_id = a.product_id
             JOIN users owner ON owner.user_id = p.created_by
@@ -57,8 +65,10 @@ public final class JdbcAuctionRepository implements AuctionRepository {
     @Override
     public Product createProduct(CreateProductCommit commit) {
         String sql = """
-                INSERT INTO products(created_by, code, name, description, active, created_at, updated_at)
-                VALUES(?, ?, ?, ?, TRUE, ?, ?)
+                INSERT INTO products(
+                    created_by, code, name, description, image_data, image_mime,
+                    image_name, image_size, image_version, active, created_at, updated_at)
+                VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, TRUE, ?, ?)
                 """;
         try (Connection connection = connectionFactory.openDatabase();
              PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
@@ -66,8 +76,18 @@ public final class JdbcAuctionRepository implements AuctionRepository {
             statement.setString(2, commit.getCode());
             statement.setString(3, commit.getName());
             statement.setString(4, commit.getDescription());
-            statement.setTimestamp(5, Timestamp.from(commit.getCreatedAt()));
-            statement.setTimestamp(6, Timestamp.from(commit.getCreatedAt()));
+            byte[] image = commit.getImageData();
+            statement.setBytes(5, image);
+            statement.setString(6, commit.hasImage() ? commit.getImageMime() : null);
+            statement.setString(7, commit.hasImage() ? commit.getImageName() : null);
+            if (commit.hasImage()) {
+                statement.setInt(8, image.length);
+            } else {
+                statement.setNull(8, Types.INTEGER);
+            }
+            statement.setLong(9, commit.hasImage() ? 1L : 0L);
+            statement.setTimestamp(10, Timestamp.from(commit.getCreatedAt()));
+            statement.setTimestamp(11, Timestamp.from(commit.getCreatedAt()));
             statement.executeUpdate();
             try (ResultSet keys = statement.getGeneratedKeys()) {
                 if (!keys.next()) {
@@ -76,7 +96,9 @@ public final class JdbcAuctionRepository implements AuctionRepository {
                 return new Product(
                         keys.getLong(1), commit.getOwnerId(), commit.getOwnerUsername(),
                         commit.getCode(), commit.getName(), commit.getDescription(), true,
-                        commit.getCreatedAt(), commit.getCreatedAt());
+                        commit.getCreatedAt(), commit.getCreatedAt(), commit.hasImage(),
+                        commit.getImageMime(), commit.getImageName(),
+                        commit.hasImage() ? image.length : 0, commit.hasImage() ? 1L : 0L);
             }
         } catch (SQLException exception) {
             throw new AuctionRepositoryException("Cannot create product", exception);
@@ -85,7 +107,13 @@ public final class JdbcAuctionRepository implements AuctionRepository {
 
     @Override
     public Product updateProduct(UpdateProductCommit commit) {
-        String sql = """
+        String sql = commit.isReplaceImage() ? """
+                UPDATE products
+                SET code = ?, name = ?, description = ?, updated_at = ?,
+                    image_data = ?, image_mime = ?, image_name = ?, image_size = ?,
+                    image_version = image_version + 1
+                WHERE product_id = ? AND created_by = ?
+                """ : """
                 UPDATE products
                 SET code = ?, name = ?, description = ?, updated_at = ?
                 WHERE product_id = ? AND created_by = ?
@@ -96,8 +124,16 @@ public final class JdbcAuctionRepository implements AuctionRepository {
             statement.setString(2, commit.getName());
             statement.setString(3, commit.getDescription());
             statement.setTimestamp(4, Timestamp.from(commit.getUpdatedAt()));
-            statement.setLong(5, commit.getProductId());
-            statement.setLong(6, commit.getOwnerId());
+            int index = 5;
+            if (commit.isReplaceImage()) {
+                byte[] image = commit.getImageData();
+                statement.setBytes(index++, image);
+                statement.setString(index++, commit.getImageMime());
+                statement.setString(index++, commit.getImageName());
+                statement.setInt(index++, image == null ? 0 : image.length);
+            }
+            statement.setLong(index++, commit.getProductId());
+            statement.setLong(index, commit.getOwnerId());
             if (statement.executeUpdate() != 1) {
                 throw new AuctionRepositoryException("Product was not found for owner");
             }
@@ -175,6 +211,31 @@ public final class JdbcAuctionRepository implements AuctionRepository {
     }
 
     @Override
+    public Optional<ProductImage> findProductImage(long productId) {
+        String sql = """
+                SELECT product_id, image_data, image_mime, image_name, image_version
+                FROM products WHERE product_id = ? AND image_data IS NOT NULL
+                """;
+        try (Connection connection = connectionFactory.openDatabase();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setLong(1, productId);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (!resultSet.next()) {
+                    return Optional.empty();
+                }
+                return Optional.of(new ProductImage(
+                        resultSet.getLong("product_id"),
+                        resultSet.getBytes("image_data"),
+                        resultSet.getString("image_mime"),
+                        resultSet.getString("image_name"),
+                        resultSet.getLong("image_version")));
+            }
+        } catch (SQLException exception) {
+            throw new AuctionRepositoryException("Cannot load product image " + productId, exception);
+        }
+    }
+
+    @Override
     public boolean hasOpenAuctionForProduct(long productId) {
         String sql = "SELECT 1 FROM auctions WHERE product_id = ? AND status = 'OPEN' LIMIT 1";
         return exists(sql, productId);
@@ -186,8 +247,9 @@ public final class JdbcAuctionRepository implements AuctionRepository {
                 INSERT INTO auctions(
                     host_user_id, product_id, start_price, min_bid_increment,
                     current_price, current_winner_id, start_time, end_time,
-                    status, ended_at, version)
-                VALUES(?, ?, ?, ?, ?, NULL, ?, ?, 'OPEN', NULL, 0)
+                    status, ended_at, version, visibility, room_password_hash,
+                    room_password_salt, room_password_iterations)
+                VALUES(?, ?, ?, ?, ?, NULL, ?, ?, 'OPEN', NULL, 0, ?, ?, ?, ?)
                 """;
         try (Connection connection = connectionFactory.openDatabase();
              PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
@@ -198,6 +260,16 @@ public final class JdbcAuctionRepository implements AuctionRepository {
             statement.setBigDecimal(5, commit.getStartPrice());
             statement.setTimestamp(6, Timestamp.from(commit.getStartTime()));
             statement.setTimestamp(7, Timestamp.from(commit.getEndTime()));
+            statement.setString(8, commit.getVisibility().name());
+            statement.setString(9, commit.getRoomPasswordHash().isBlank()
+                    ? null : commit.getRoomPasswordHash());
+            statement.setString(10, commit.getRoomPasswordSalt().isBlank()
+                    ? null : commit.getRoomPasswordSalt());
+            if (commit.getRoomPasswordIterations() == null) {
+                statement.setNull(11, Types.INTEGER);
+            } else {
+                statement.setInt(11, commit.getRoomPasswordIterations());
+            }
             statement.executeUpdate();
             try (ResultSet keys = statement.getGeneratedKeys()) {
                 if (!keys.next()) {
@@ -551,7 +623,12 @@ public final class JdbcAuctionRepository implements AuctionRepository {
                 resultSet.getString("product_description"),
                 resultSet.getBoolean("product_active"),
                 createdAt == null ? null : createdAt.toInstant(),
-                updatedAt == null ? null : updatedAt.toInstant());
+                updatedAt == null ? null : updatedAt.toInstant(),
+                resultSet.getLong("product_image_version") > 0,
+                resultSet.getString("product_image_mime"),
+                resultSet.getString("product_image_name"),
+                resultSet.getInt("product_image_size"),
+                resultSet.getLong("product_image_version"));
     }
 
     private AuctionSnapshot mapAuction(ResultSet resultSet) throws SQLException {
@@ -573,6 +650,10 @@ public final class JdbcAuctionRepository implements AuctionRepository {
                 resultSet.getTimestamp("end_time").toInstant(),
                 AuctionStatus.valueOf(resultSet.getString("status")),
                 endedAt == null ? null : endedAt.toInstant(),
-                resultSet.getLong("version"));
+                resultSet.getLong("version"),
+                RoomVisibility.valueOf(resultSet.getString("visibility")),
+                resultSet.getString("room_password_hash"),
+                resultSet.getString("room_password_salt"),
+                resultSet.getInt("room_password_iterations"));
     }
 }

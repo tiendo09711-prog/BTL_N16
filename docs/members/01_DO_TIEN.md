@@ -299,7 +299,7 @@ Muc tieu: vua hoan thanh network/core, vua hoc cach SV01-SV08 va OP01/02/03/07 d
 - Chu tri them `AUCTION_ARCHIVED` trong `MessageType` va doi chieu protocol server-client.
 - Quan ly `auction.closedVisibilitySeconds=120` trong `ServerConfig`/`server.properties`.
 - Noi config vao `AuctionManager` tai `ServerApplication` va review khong co client nao ket noi MySQL.
-- Review tai lieu kien truc: mot TCP server trung tam mo san cho nhieu client LAN.
+- Review tai lieu kien truc: mot Java server trung tam mo ca TCP va WebSocket cho nhieu client LAN.
 
 ### Ngay 11 trong lo trinh
 
@@ -315,3 +315,31 @@ Muc tieu: vua hoan thanh network/core, vua hoc cach SV01-SV08 va OP01/02/03/07 d
 - Config production mac dinh dung 120 giay va test co the rut ngan.
 - Event archive duoc khai bao mot lan, client/server cung hieu.
 - Archive chi an khoi san, khong xoa lich su MySQL.
+
+## Phan nang cap JavaFX + WebSocket
+
+### Muc tieu hoc
+
+- TCP vs WebSocket, request/response/event va cross-transport routing.
+- `ServerConnection`, JSON codec, config/composition va migration.
+
+### File bat buoc doc/sua
+
+```text
+common/protocol/JsonWireMessageCodec.java
+common/protocol/MessageType.java
+server/network/ServerConnection.java
+server/network/WebSocketServerTransport.java
+server/ServerApplication.java
+common/config/ServerConfig.java
+server/db/DatabaseSchema.java
+tools/dev-runner.mjs
+```
+
+### Thu tu va ban giao
+
+1. Tach abstraction ma TCP cu van pass.
+2. Start/stop WS listener va route chung.
+3. Validate JSON/size/version.
+4. Review security, schema va `npm run dev`.
+5. Ban giao so do kien truc va test TCP-WS.

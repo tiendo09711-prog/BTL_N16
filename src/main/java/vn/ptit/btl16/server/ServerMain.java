@@ -2,7 +2,7 @@ package vn.ptit.btl16.server;
 
 import vn.ptit.btl16.common.config.ServerConfig;
 
-/** Console entry point for the central TCP server. */
+/** Console entry point for the central TCP + WebSocket server. */
 public final class ServerMain {
     private ServerMain() {
     }
@@ -22,8 +22,12 @@ public final class ServerMain {
 
     private static void printBanner(ServerConfig config) {
         System.out.println("====================================================");
-        System.out.println(" BTL 16 - REALTIME AUCTION TCP SERVER");
-        System.out.println(" Bind: " + config.getBindAddress() + ':' + config.getPort());
+        System.out.println(" BTL 16 - REALTIME AUCTION SERVER");
+        System.out.println(" TCP: " + config.getBindAddress() + ':' + config.getPort()
+                + " enabled=" + config.isTcpEnabled());
+        System.out.println(" WebSocket: ws://" + config.getWebSocketBindAddress() + ':'
+                + config.getWebSocketPort() + config.getWebSocketPath()
+                + " enabled=" + config.isWebSocketEnabled());
         System.out.println(" Repository: MySQL/JDBC");
         System.out.println(" Database: " + config.getDbName()
                 + " @ " + config.getDbHost() + ':' + config.getDbPort());

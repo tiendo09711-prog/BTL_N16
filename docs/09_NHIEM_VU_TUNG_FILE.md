@@ -139,3 +139,15 @@
 | `ServerDashboardMain` | Server GUI entry |
 | `ServerDashboardFrame` | Hien stats va auction state |
 | `ServerStats` | Snapshot dashboard |
+
+## File nang cap JavaFX + WebSocket
+
+| File | Nhiem vu |
+|---|---|
+| `ClientTransport` | Contract transport client |
+| `WebSocketClientTransport` | Java `HttpClient.WebSocket`, correlation, timeout |
+| `ServerConnection` | Contract connection server |
+| `WebSocketServerTransport` | Listener 8890 `/ws` |
+| `JsonWireMessageCodec` | JSON codec Jackson |
+| `JavaFxClientApp` / `FxClientController` | UI va presentation flow JavaFX |
+| `ProductImageValidator` | Gioi han/MIME/magic bytes |

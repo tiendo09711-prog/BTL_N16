@@ -9,10 +9,10 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 public final class ConnectionRegistry {
-    private final ConcurrentHashMap<String, ClientConnection> connections = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, ServerConnection> connections = new ConcurrentHashMap<>();
 
-    public void add(ClientConnection connection) {
-        ClientConnection previous = connections.putIfAbsent(connection.getConnectionId(), connection);
+    public void add(ServerConnection connection) {
+        ServerConnection previous = connections.putIfAbsent(connection.getConnectionId(), connection);
         if (previous != null) {
             throw new IllegalStateException("Duplicate connectionId: " + connection.getConnectionId());
         }
@@ -22,11 +22,11 @@ public final class ConnectionRegistry {
         connections.remove(connectionId);
     }
 
-    public Optional<ClientConnection> find(String connectionId) {
+    public Optional<ServerConnection> find(String connectionId) {
         return Optional.ofNullable(connections.get(connectionId));
     }
 
-    public List<ClientConnection> snapshot() {
+    public List<ServerConnection> snapshot() {
         return List.copyOf(connections.values());
     }
 
@@ -34,8 +34,18 @@ public final class ConnectionRegistry {
         return connections.size();
     }
 
+    public int countTransport(String transportName) {
+        int count = 0;
+        for (ServerConnection connection : connections.values()) {
+            if (connection.getTransportName().equalsIgnoreCase(transportName)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
     public boolean sendTo(String connectionId, WireMessage message) {
-        ClientConnection connection = connections.get(connectionId);
+        ServerConnection connection = connections.get(connectionId);
         if (connection == null || connection.isClosed()) {
             return false;
         }
@@ -49,8 +59,8 @@ public final class ConnectionRegistry {
     }
 
     public void closeAll() {
-        Collection<ClientConnection> copy = List.copyOf(connections.values());
-        for (ClientConnection connection : copy) {
+        Collection<ServerConnection> copy = List.copyOf(connections.values());
+        for (ServerConnection connection : copy) {
             connection.close();
         }
     }

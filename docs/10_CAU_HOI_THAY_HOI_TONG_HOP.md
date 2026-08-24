@@ -197,3 +197,25 @@ He thong giu `ENDED`/`CANCELLED` trong 120 giay de nguoi choi xem winner, gia cu
 ### 43. Archive co xoa lich su dau gia khong?
 
 Khong. Archive chi an phong khoi san dang hoat dong. Du lieu trong MySQL van con de xem `auctions`, `bids` va `auction_results`.
+
+## Cau hoi nang cap
+
+### 44. TCP khac WebSocket the nao?
+
+TCP la byte stream nen can framing. WebSocket co message boundary, handshake va text/binary frame; project dung TEXT JSON.
+
+### 45. Tai sao `ws://` khong phai web UI?
+
+Do la endpoint de JavaFX trao doi message, khong phai trang HTML cho nguoi dung.
+
+### 46. Tai sao can `Platform.runLater`?
+
+Network callback khong chay tren JavaFX Application Thread; update Node tu thread khac la khong an toan.
+
+### 47. Tai sao khong nhat Base64 anh vao list?
+
+List realtime se phinh payload. Anh duoc tai rieng va cache theo version.
+
+### 48. Private room reconnect tai sao khong hoi lai password?
+
+Quyen da xac minh thuoc session token, con trong resume window va bi xoa khi logout/expired/kick.

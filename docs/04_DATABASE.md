@@ -180,3 +180,11 @@ SELECT * FROM products ORDER BY product_id DESC;
 SELECT * FROM auction_blocked_users;
 SELECT * FROM login_history ORDER BY login_id DESC;
 ```
+
+## Migration JavaFX/WebSocket feature
+
+`products` them `image_data`, `image_mime`, `image_name`, `image_size`, `image_version`.
+
+`auctions` them `visibility`, `room_password_hash`, `room_password_salt`, `room_password_iterations`.
+
+`DatabaseSchema.addColumnIfMissing(...)` nang cap DB cu; product cu khong anh va auction cu `PUBLIC`. Room password dung PBKDF2, khong luu plaintext.

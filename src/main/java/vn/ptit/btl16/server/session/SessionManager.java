@@ -10,12 +10,15 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.Set;
 import java.util.concurrent.locks.ReentrantLock;
 
 public final class SessionManager {
     private final ConcurrentHashMap<String, SessionRecord> byToken = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, String> tokenByConnection = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Long, String> tokenByUser = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Set<Long>> privateRoomGrantsByToken =
+            new ConcurrentHashMap<>();
     private final ReentrantLock mutationLock = new ReentrantLock();
     private final SecureRandom secureRandom = new SecureRandom();
     private final Duration resumeGrace;
@@ -167,6 +170,7 @@ public final class SessionManager {
             }
             SessionRecord record = byToken.remove(token);
             if (record != null) {
+                privateRoomGrantsByToken.remove(token);
                 tokenByUser.remove(record.userId, token);
                 return Optional.of(record.snapshot());
             }
@@ -224,6 +228,31 @@ public final class SessionManager {
         return byToken.size();
     }
 
+    public void grantPrivateRoomAccess(UserSession session, long auctionId) {
+        if (session == null || !byToken.containsKey(session.getSessionToken())) {
+            throw new SessionException(ErrorCode.SESSION_NOT_FOUND, "Session was not found");
+        }
+        privateRoomGrantsByToken
+                .computeIfAbsent(session.getSessionToken(), key -> ConcurrentHashMap.newKeySet())
+                .add(auctionId);
+    }
+
+    public boolean hasPrivateRoomAccess(UserSession session, long auctionId) {
+        if (session == null) {
+            return false;
+        }
+        Set<Long> grants = privateRoomGrantsByToken.get(session.getSessionToken());
+        return grants != null && grants.contains(auctionId);
+    }
+
+    public void revokePrivateRoomAccess(long userId, long auctionId) {
+        String token = tokenByUser.get(userId);
+        Set<Long> grants = token == null ? null : privateRoomGrantsByToken.get(token);
+        if (grants != null) {
+            grants.remove(auctionId);
+        }
+    }
+
     private boolean isExpired(SessionRecord record, Instant now) {
         return record != null
                 && record.status == SessionStatus.DETACHED
@@ -236,6 +265,7 @@ public final class SessionManager {
             return;
         }
         byToken.remove(token, record);
+        privateRoomGrantsByToken.remove(token);
         if (record.connectionId != null && !record.connectionId.isBlank()) {
             tokenByConnection.remove(record.connectionId, token);
         }

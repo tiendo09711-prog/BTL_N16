@@ -67,7 +67,7 @@ public final class ServerMessagingService {
     public int broadcastAll(MessageType type, Map<String, String> data) {
         WireMessage event = WireMessage.event(type, sequence.next(), data);
         int sent = 0;
-        for (ClientConnection connection : connections.snapshot()) {
+        for (ServerConnection connection : connections.snapshot()) {
             if (connections.sendTo(connection.getConnectionId(), event)) {
                 sent++;
             }

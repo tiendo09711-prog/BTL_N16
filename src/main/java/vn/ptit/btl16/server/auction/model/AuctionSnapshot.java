@@ -20,6 +20,10 @@ public final class AuctionSnapshot {
     private final AuctionStatus status;
     private final Instant endedAt;
     private final long version;
+    private final RoomVisibility visibility;
+    private final String roomPasswordHash;
+    private final String roomPasswordSalt;
+    private final int roomPasswordIterations;
 
     public AuctionSnapshot(
             long auctionId,
@@ -47,7 +51,11 @@ public final class AuctionSnapshot {
                 endTime,
                 status,
                 endedAt,
-                version);
+                version,
+                RoomVisibility.PUBLIC,
+                "",
+                "",
+                0);
     }
 
     public AuctionSnapshot(
@@ -65,6 +73,30 @@ public final class AuctionSnapshot {
             AuctionStatus status,
             Instant endedAt,
             long version) {
+        this(auctionId, product, hostUserId, hostUsername, startPrice, minBidIncrement,
+                currentPrice, currentWinnerId, currentWinnerUsername, startTime, endTime,
+                status, endedAt, version, RoomVisibility.PUBLIC, "", "", 0);
+    }
+
+    public AuctionSnapshot(
+            long auctionId,
+            Product product,
+            long hostUserId,
+            String hostUsername,
+            BigDecimal startPrice,
+            BigDecimal minBidIncrement,
+            BigDecimal currentPrice,
+            Long currentWinnerId,
+            String currentWinnerUsername,
+            Instant startTime,
+            Instant endTime,
+            AuctionStatus status,
+            Instant endedAt,
+            long version,
+            RoomVisibility visibility,
+            String roomPasswordHash,
+            String roomPasswordSalt,
+            int roomPasswordIterations) {
         this.auctionId = auctionId;
         this.product = Objects.requireNonNull(product, "product");
         this.hostUserId = hostUserId;
@@ -79,6 +111,10 @@ public final class AuctionSnapshot {
         this.status = Objects.requireNonNull(status, "status");
         this.endedAt = endedAt;
         this.version = version;
+        this.visibility = visibility == null ? RoomVisibility.PUBLIC : visibility;
+        this.roomPasswordHash = roomPasswordHash == null ? "" : roomPasswordHash;
+        this.roomPasswordSalt = roomPasswordSalt == null ? "" : roomPasswordSalt;
+        this.roomPasswordIterations = roomPasswordIterations;
     }
 
     public long getAuctionId() { return auctionId; }
@@ -95,6 +131,11 @@ public final class AuctionSnapshot {
     public AuctionStatus getStatus() { return status; }
     public Instant getEndedAt() { return endedAt; }
     public long getVersion() { return version; }
+    public RoomVisibility getVisibility() { return visibility; }
+    public boolean requiresPassword() { return visibility == RoomVisibility.PRIVATE; }
+    public String getRoomPasswordHash() { return roomPasswordHash; }
+    public String getRoomPasswordSalt() { return roomPasswordSalt; }
+    public int getRoomPasswordIterations() { return roomPasswordIterations; }
 
     public long remainingMillis(Instant now) {
         return Math.max(0L, Duration.between(now, endTime).toMillis());

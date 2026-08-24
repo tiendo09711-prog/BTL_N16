@@ -255,3 +255,12 @@ AuctionPanel
 -> optional AUCTION_EXTENDED
 -> BID_ACCEPTED response
 ```
+
+## WebSocket JSON va protocol moi
+
+- TCP van dung length-prefixed binary codec.
+- WebSocket dung mot TEXT JSON frame cho mot `WireMessage` qua `JsonWireMessageCodec`.
+- Message moi: `GET_PRODUCT_IMAGE`, `GET_PRODUCT_IMAGE_RESULT`, `SEARCH_AUCTIONS`, `SEARCH_AUCTIONS_RESULT`.
+- Field mo rong: image metadata, `visibility`, `requiresPassword`, `roomPassword` chi trong request join/create.
+- Error moi: room password, image validation va invalid search query.
+- `AUCTION_LIST_RESULT` khong duoc chua `imageBase64`.

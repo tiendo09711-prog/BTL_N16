@@ -23,6 +23,11 @@ public final class ClientAuction {
     private final Instant endedAt;
     private final long version;
     private final int watcherCount;
+    private final String visibility;
+    private final boolean requiresPassword;
+    private final boolean hasImage;
+    private final String imageMime;
+    private final long imageVersion;
 
     public ClientAuction(
             long auctionId,
@@ -43,6 +48,36 @@ public final class ClientAuction {
             Instant endedAt,
             long version,
             int watcherCount) {
+        this(auctionId, productId, productCode, productName, description, hostUserId,
+                hostUsername, startPrice, minBidIncrement, currentPrice, currentWinnerId,
+                currentWinnerUsername, startTime, endTime, status, endedAt, version,
+                watcherCount, "PUBLIC", false, false, "", 0L);
+    }
+
+    public ClientAuction(
+            long auctionId,
+            long productId,
+            String productCode,
+            String productName,
+            String description,
+            long hostUserId,
+            String hostUsername,
+            BigDecimal startPrice,
+            BigDecimal minBidIncrement,
+            BigDecimal currentPrice,
+            Long currentWinnerId,
+            String currentWinnerUsername,
+            Instant startTime,
+            Instant endTime,
+            String status,
+            Instant endedAt,
+            long version,
+            int watcherCount,
+            String visibility,
+            boolean requiresPassword,
+            boolean hasImage,
+            String imageMime,
+            long imageVersion) {
         this.auctionId = auctionId;
         this.productId = productId;
         this.productCode = text(productCode);
@@ -61,6 +96,11 @@ public final class ClientAuction {
         this.endedAt = endedAt;
         this.version = version;
         this.watcherCount = watcherCount;
+        this.visibility = text(visibility).isBlank() ? "PUBLIC" : text(visibility);
+        this.requiresPassword = requiresPassword;
+        this.hasImage = hasImage;
+        this.imageMime = text(imageMime);
+        this.imageVersion = imageVersion;
     }
 
     public ClientAuction withTiming(Instant newEndTime, String newStatus, int newWatcherCount) {
@@ -82,7 +122,12 @@ public final class ClientAuction {
                 newStatus == null || newStatus.isBlank() ? status : newStatus,
                 endedAt,
                 version,
-                newWatcherCount < 0 ? watcherCount : newWatcherCount);
+                newWatcherCount < 0 ? watcherCount : newWatcherCount,
+                visibility,
+                requiresPassword,
+                hasImage,
+                imageMime,
+                imageVersion);
     }
 
     private String text(String value) { return value == null ? "" : value; }
@@ -105,6 +150,11 @@ public final class ClientAuction {
     public Instant getEndedAt() { return endedAt; }
     public long getVersion() { return version; }
     public int getWatcherCount() { return watcherCount; }
+    public String getVisibility() { return visibility; }
+    public boolean requiresPassword() { return requiresPassword; }
+    public boolean hasImage() { return hasImage; }
+    public String getImageMime() { return imageMime; }
+    public long getImageVersion() { return imageVersion; }
     public boolean isOpen() { return "OPEN".equals(status); }
     public boolean isHostedBy(long userId) { return hostUserId == userId; }
 }

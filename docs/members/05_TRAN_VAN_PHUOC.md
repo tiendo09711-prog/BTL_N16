@@ -258,3 +258,32 @@ Muc tieu: hoan thien product/create room va persistence, dong thoi hoc cach du l
 - Phong archive khong con trong `AUCTION_LIST`, `MY_AUCTIONS` hay dashboard.
 - `requireRuntime` tra `AUCTION_NOT_FOUND` cho phong da archive.
 - Room/subscription duoc don hai chieu, du lieu MySQL van truy van duoc.
+
+## Phan nang cap JavaFX + WebSocket
+
+### Muc tieu hoc
+
+- Product image end-to-end, BLOB, metadata va cache version.
+- `RoomVisibility`, create private/public va search authoritative.
+
+### File bat buoc doc/sua
+
+```text
+server/auction/model/Product.java
+server/auction/model/ProductImage.java
+server/auction/model/RoomVisibility.java
+server/auction/repository/JdbcAuctionRepository.java
+server/auction/service/ProductImageValidator.java
+server/auction/service/AuctionQueryService.java
+client/model/ClientProduct.java
+client/model/ClientAuction.java
+client/fx/FxClientController.java
+```
+
+### Thu tu va ban giao
+
+1. Migration image/private columns.
+2. Upload/validate/store/get image; list khong chua Base64.
+3. Public/private create form va privacy metadata.
+4. Search product name/Auction ID qua server.
+5. Test image roundtrip, invalid payload va search.

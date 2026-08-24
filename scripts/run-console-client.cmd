@@ -1,12 +1,12 @@
 @echo off
 setlocal
 pushd "%~dp0.."
-call scripts\compile-jdk-only.cmd
+call scripts\build.cmd
 if errorlevel 1 (
   popd
   exit /b 1
 )
-java -cp "out\main" vn.ptit.btl16.client.ConsoleClientMain
+java -cp "target\classes;target\dependency\*" vn.ptit.btl16.client.ConsoleClientMain
 set code=%errorlevel%
 popd
 exit /b %code%

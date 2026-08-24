@@ -76,3 +76,10 @@ MessageType
 - Khong ai tin `userId` do client gui.
 - Moi module phai co request, response va event ro rang.
 - Merge theo thu tu trong `02_THU_TU_XAY_DUNG_VA_PHU_THUOC.md`.
+
+## Nang cap JavaFX + WebSocket
+
+- UI mac dinh hien tai la JavaFX; Swing chi con `LegacySwingClientMain`.
+- WebSocket `ws://127.0.0.1:8890/ws` la transport mac dinh; TCP 8888 duoc giu cho legacy/test.
+- Doc tiep `17_JAVAFX_WEBSOCKET_UPGRADE.md`, `18_PRODUCT_IMAGE_PRIVATE_ROOM_SEARCH.md` va `19_MULTI_MACHINE_AND_PACKAGING.md`.
+- Client van khong ket noi MySQL; server van la authority.

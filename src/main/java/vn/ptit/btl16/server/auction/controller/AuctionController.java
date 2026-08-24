@@ -5,6 +5,8 @@ import vn.ptit.btl16.common.protocol.WireValues;
 import vn.ptit.btl16.server.auction.model.AuctionSnapshot;
 import vn.ptit.btl16.server.auction.model.BidRecord;
 import vn.ptit.btl16.server.auction.model.Product;
+import vn.ptit.btl16.server.auction.model.ProductImage;
+import vn.ptit.btl16.server.auction.model.RoomVisibility;
 import vn.ptit.btl16.server.auction.service.AuctionException;
 import vn.ptit.btl16.server.auction.service.AuctionManagementService;
 import vn.ptit.btl16.server.auction.service.AuctionQueryService;
@@ -18,6 +20,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Base64;
 
 /** Protocol adapter for auction list, room, bid, history and resync. */
 public final class AuctionController {
@@ -38,11 +41,15 @@ public final class AuctionController {
     }
 
     public void handleCreateProduct(RequestContext context) throws Exception {
-        Product product = management.createProduct(
-                context.requireSession(),
-                context.value("code"),
-                context.value("name"),
-                context.value("description"));
+        byte[] image = decodeImage(context.value("imageBase64"));
+        Product product = image == null
+                ? management.createProduct(
+                        context.requireSession(), context.value("code"),
+                        context.value("name"), context.value("description"))
+                : management.createProduct(
+                        context.requireSession(), context.value("code"),
+                        context.value("name"), context.value("description"), image,
+                        context.value("imageMime"), context.value("imageName"));
         context.replySuccess(
                 MessageType.CREATE_PRODUCT_RESULT,
                 AuctionWireData.product(product, Instant.now()));
@@ -57,12 +64,16 @@ public final class AuctionController {
     }
 
     public void handleUpdateProduct(RequestContext context) throws Exception {
-        Product product = management.updateProduct(
-                context.requireSession(),
-                WireValues.requireLong(context.getRequest().getData(), "productId"),
-                context.value("code"),
-                context.value("name"),
-                context.value("description"));
+        long productId = WireValues.requireLong(context.getRequest().getData(), "productId");
+        byte[] image = decodeImage(context.value("imageBase64"));
+        Product product = image == null
+                ? management.updateProduct(
+                        context.requireSession(), productId, context.value("code"),
+                        context.value("name"), context.value("description"))
+                : management.updateProduct(
+                        context.requireSession(), productId, context.value("code"),
+                        context.value("name"), context.value("description"), image,
+                        context.value("imageMime"), context.value("imageName"));
         context.replySuccess(
                 MessageType.UPDATE_PRODUCT_RESULT,
                 AuctionWireData.product(product, Instant.now()));
@@ -77,13 +88,38 @@ public final class AuctionController {
                 AuctionWireData.product(product, Instant.now()));
     }
 
+    public void handleGetProductImage(RequestContext context) throws Exception {
+        ProductImage image = management.getProductImage(
+                WireValues.requireLong(context.getRequest().getData(), "productId"));
+        context.replySuccess(
+                MessageType.GET_PRODUCT_IMAGE_RESULT,
+                Map.of(
+                        "productId", Long.toString(image.getProductId()),
+                        "imageMime", image.getMime(),
+                        "imageName", image.getName(),
+                        "imageSize", Integer.toString(image.getSize()),
+                        "imageVersion", Long.toString(image.getVersion()),
+                        "imageBase64", Base64.getEncoder().encodeToString(image.getData())));
+    }
+
     public void handleCreateAuction(RequestContext context) throws Exception {
+        RoomVisibility visibility;
+        try {
+            String raw = context.value("visibility");
+            visibility = raw.isBlank() ? RoomVisibility.PUBLIC : RoomVisibility.valueOf(raw);
+        } catch (IllegalArgumentException exception) {
+            throw new AuctionException(
+                    vn.ptit.btl16.common.protocol.ErrorCode.VALIDATION_ERROR,
+                    "Loai phong khong hop le");
+        }
         AuctionSnapshot snapshot = management.createAuction(
                 context.requireSession(),
                 WireValues.requireLong(context.getRequest().getData(), "productId"),
                 WireValues.requireDecimal(context.getRequest().getData(), "startPrice"),
                 WireValues.requireDecimal(context.getRequest().getData(), "minBidIncrement"),
-                WireValues.requireInt(context.getRequest().getData(), "durationMinutes"));
+                WireValues.requireInt(context.getRequest().getData(), "durationMinutes"),
+                visibility,
+                context.value("roomPassword"));
         context.replySuccess(
                 MessageType.CREATE_AUCTION_RESULT,
                 AuctionWireData.snapshot(snapshot, List.of(), 0, Instant.now()));
@@ -104,12 +140,22 @@ public final class AuctionController {
                 AuctionWireData.auctionList(queries.listAuctions(), rooms, Instant.now()));
     }
 
+    public void handleSearch(RequestContext context) throws Exception {
+        context.replySuccess(
+                MessageType.SEARCH_AUCTIONS_RESULT,
+                AuctionWireData.auctionList(
+                        queries.searchAuctions(context.value("mode"), context.value("query")),
+                        rooms,
+                        Instant.now()));
+    }
+
     public void handleJoin(RequestContext context) throws Exception {
         long auctionId = auctionId(context);
         AuctionSnapshot snapshot = management.joinAuction(
                 context.requireSession(),
                 context.getConnection().getConnectionId(),
-                auctionId);
+                auctionId,
+                context.value("roomPassword"));
         List<BidRecord> history = queries.getRecentBids(auctionId);
         context.replySuccess(
                 MessageType.AUCTION_SNAPSHOT,
@@ -221,10 +267,13 @@ public final class AuctionController {
             return;
         }
         long auctionId = Long.parseLong(rawAuctionId);
-        AuctionSnapshot snapshot = management.joinAuction(
-                context.requireSession(),
-                context.getConnection().getConnectionId(),
-                auctionId);
+        AuctionSnapshot current = queries.getSnapshot(auctionId);
+        AuctionSnapshot snapshot = current.isOpenAt(Instant.now())
+                ? management.joinAuction(
+                        context.requireSession(),
+                        context.getConnection().getConnectionId(),
+                        auctionId)
+                : current;
         context.replySuccess(
                 MessageType.RESYNC_RESULT,
                 AuctionWireData.snapshot(
@@ -244,5 +293,18 @@ public final class AuctionController {
                 MessageType.BID_REJECTED,
                 exception.getErrorCode(),
                 exception.getMessage());
+    }
+
+    private byte[] decodeImage(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return Base64.getDecoder().decode(value);
+        } catch (IllegalArgumentException exception) {
+            throw new AuctionException(
+                    vn.ptit.btl16.common.protocol.ErrorCode.PRODUCT_IMAGE_INVALID,
+                    "Du lieu Base64 cua anh khong hop le");
+        }
     }
 }

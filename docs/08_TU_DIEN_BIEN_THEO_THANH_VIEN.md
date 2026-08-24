@@ -107,3 +107,14 @@
 | `archivedAuctionIds` | AuctionManager | Cac phong da an khoi list/runtime access |
 | `connectionsByAuction` | RoomManager | auction -> connection set |
 | `auctionsByConnection` | RoomManager | connection -> auction set |
+
+## Bien nang cap JavaFX + WebSocket
+
+| Bien | Lop | Y nghia |
+|---|---|---|
+| `pendingRequests` | WebSocketClientTransport | requestId -> future |
+| `endpoint` | WebSocketClientTransport | URL ws/wss hien tai |
+| `adapters` | WebSocketServerTransport | WebSocket -> ServerConnection |
+| `privateRoomGrantsByToken` | SessionManager | session -> auction da xac minh |
+| `imageVersion` | Product/ClientProduct | khoa cache anh |
+| `visibility` | AuctionSnapshot/ClientAuction | PUBLIC/PRIVATE |

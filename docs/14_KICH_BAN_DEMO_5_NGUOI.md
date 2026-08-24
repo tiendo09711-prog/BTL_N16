@@ -67,3 +67,12 @@ Client chi gui request va hien thi.
 Server quyet dinh moi state chinh thuc.
 Do wow nam o TCP, realtime, concurrency, timer va reconnect.
 ```
+
+## Kich ban nang cap ba may
+
+- May A chay `npm run dev:server`, in TCP va WebSocket endpoint.
+- May B dung JavaFX tao product co anh va private room.
+- May C search, join bang password va bid realtime.
+- Mot client TCP tao bid de chung minh cross-transport.
+- Ngat mang C, resume/resync khong hoi password; host kick va end room.
+- Nhan manh server authoritative, PBKDF2, lock/transaction va MySQL ownership.

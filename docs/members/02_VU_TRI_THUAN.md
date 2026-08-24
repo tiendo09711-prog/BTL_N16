@@ -258,3 +258,31 @@ Muc tieu: dong bo day du tinh nang server moi len client va hoc duoc protocol, s
 - Client tu xoa phong ma khong can bam Refresh.
 - Neu dang join phong bi archive, joined state va bid history cache duoc don.
 - Swing chi duoc cap nhat tren EDT; event khong lam treo reader thread.
+
+## Phan nang cap JavaFX + WebSocket
+
+### Muc tieu hoc
+
+- JavaFX Application Thread, `Platform.runLater`, `TableView` va dialog.
+- `ClientTransport`, Java WebSocket client, pending request, timeout va reconnect.
+
+### File bat buoc doc/sua
+
+```text
+client/fx/JavaFxClientApp.java
+client/fx/FxClientController.java
+client/network/ClientTransport.java
+client/network/WebSocketClientTransport.java
+client/network/TcpClientTransport.java
+client/model/ClientAppModel.java
+tools/client-runner.mjs
+tools/package-client.mjs
+```
+
+### Thu tu va ban giao
+
+1. JavaFX login/list/join/bid feature parity.
+2. Connection indicator va RTT.
+3. Reconnect -> resume -> resync -> rejoin.
+4. Realtime notification tren FX thread.
+5. `jpackage` app-image va huong dan LAN.

@@ -158,3 +158,16 @@ ClientAppModel.removeAuction
 ReconnectCoordinator
 ClientController.resumeAfterReconnect
 ```
+
+## Lenh chay sau nang cap
+
+```bash
+npm run dev
+npm run dev:server
+npm run client
+npm run client -- --url=ws://IP_SERVER:8890/ws
+npm run client -- --transport=tcp --host=IP_SERVER --port=8888
+npm run dist:client
+```
+
+JavaFX la client mac dinh. Neu debug Swing cu, chay `vn.ptit.btl16.client.LegacySwingClientMain`.

@@ -7,6 +7,8 @@ import vn.ptit.btl16.server.auction.model.AuctionRuntime;
 import vn.ptit.btl16.server.auction.model.AuctionSnapshot;
 import vn.ptit.btl16.server.auction.model.AuctionStatus;
 import vn.ptit.btl16.server.auction.model.Product;
+import vn.ptit.btl16.server.auction.model.ProductImage;
+import vn.ptit.btl16.server.auction.model.RoomVisibility;
 import vn.ptit.btl16.server.auction.repository.BlockAuctionUserCommit;
 import vn.ptit.btl16.server.auction.repository.CancelAuctionCommit;
 import vn.ptit.btl16.server.auction.repository.CloseAuctionCommit;
@@ -16,6 +18,9 @@ import vn.ptit.btl16.server.auction.repository.ExtendAuctionCommit;
 import vn.ptit.btl16.server.auction.repository.AuctionRepository;
 import vn.ptit.btl16.server.auction.repository.UpdateProductCommit;
 import vn.ptit.btl16.server.session.UserSession;
+import vn.ptit.btl16.server.session.SessionManager;
+import vn.ptit.btl16.server.account.security.PasswordHash;
+import vn.ptit.btl16.server.account.security.PasswordHasher;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -25,6 +30,7 @@ import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
+import java.util.Arrays;
 
 public final class AuctionManagementService {
     private static final Pattern PRODUCT_CODE = Pattern.compile("[A-Z0-9_-]{2,30}");
@@ -38,16 +44,23 @@ public final class AuctionManagementService {
     private final AuctionRepository repository;
     private final RoomManager rooms;
     private final AuctionBroadcastService broadcasts;
+    private final PasswordHasher passwordHasher;
+    private final SessionManager sessions;
+    private final ProductImageValidator imageValidator = new ProductImageValidator();
 
     public AuctionManagementService(
             AuctionManager auctions,
             AuctionRepository repository,
             RoomManager rooms,
-            AuctionBroadcastService broadcasts) {
+            AuctionBroadcastService broadcasts,
+            PasswordHasher passwordHasher,
+            SessionManager sessions) {
         this.auctions = auctions;
         this.repository = repository;
         this.rooms = rooms;
         this.broadcasts = broadcasts;
+        this.passwordHasher = passwordHasher;
+        this.sessions = sessions;
     }
 
     public Product createProduct(
@@ -64,6 +77,26 @@ public final class AuctionManagementService {
         Instant now = Instant.now();
         return repository.createProduct(new CreateProductCommit(
                 session.getUserId(), session.getUsername(), code, name, description, now));
+    }
+
+    public Product createProduct(
+            UserSession session,
+            String rawCode,
+            String rawName,
+            String rawDescription,
+            byte[] imageData,
+            String imageMime,
+            String imageName) {
+        String code = cleanCode(rawCode);
+        if (repository.findProductByCode(code).isPresent()) {
+            throw new AuctionException(ErrorCode.PRODUCT_CODE_EXISTS, "Ma san pham da ton tai");
+        }
+        ProductImageValidator.ValidatedImage image = imageValidator.validate(
+                imageData, imageMime, imageName);
+        Instant now = Instant.now();
+        return repository.createProduct(new CreateProductCommit(
+                session.getUserId(), session.getUsername(), code, cleanName(rawName),
+                cleanDescription(rawDescription), now, image.getData(), image.getMime(), image.getName()));
     }
 
     public List<Product> myProducts(UserSession session) {
@@ -94,6 +127,40 @@ public final class AuctionManagementService {
                 cleanName(rawName),
                 cleanDescription(rawDescription),
                 Instant.now()));
+    }
+
+    public Product updateProduct(
+            UserSession session,
+            long productId,
+            String rawCode,
+            String rawName,
+            String rawDescription,
+            byte[] imageData,
+            String imageMime,
+            String imageName) {
+        requireOwnedProduct(session, productId);
+        if (repository.hasOpenAuctionForProduct(productId)) {
+            throw new AuctionException(ErrorCode.PRODUCT_IN_USE,
+                    "Khong the sua san pham dang co phien dau gia mo");
+        }
+        String code = cleanCode(rawCode);
+        Optional<Product> duplicate = repository.findProductByCode(code);
+        if (duplicate.isPresent() && duplicate.get().getProductId() != productId) {
+            throw new AuctionException(ErrorCode.PRODUCT_CODE_EXISTS, "Ma san pham da ton tai");
+        }
+        ProductImageValidator.ValidatedImage image = imageValidator.validate(
+                imageData, imageMime, imageName);
+        return repository.updateProduct(new UpdateProductCommit(
+                productId, session.getUserId(), code, cleanName(rawName),
+                cleanDescription(rawDescription), Instant.now(), image.getData(),
+                image.getMime(), image.getName(), true));
+    }
+
+    public ProductImage getProductImage(long productId) {
+        repository.findProductById(productId).orElseThrow(() -> new AuctionException(
+                ErrorCode.PRODUCT_NOT_FOUND, "Khong tim thay san pham"));
+        return repository.findProductImage(productId).orElseThrow(() -> new AuctionException(
+                ErrorCode.PRODUCT_IMAGE_INVALID, "San pham chua co anh"));
     }
 
     public Product deactivateProduct(UserSession session, long productId) {
@@ -147,6 +214,55 @@ public final class AuctionManagementService {
         return snapshot;
     }
 
+    public AuctionSnapshot createAuction(
+            UserSession session,
+            long productId,
+            BigDecimal rawStartPrice,
+            BigDecimal rawMinIncrement,
+            int durationMinutes,
+            RoomVisibility visibility,
+            String rawRoomPassword) {
+        Product product = requireOwnedProduct(session, productId);
+        if (!product.isActive()) {
+            throw new AuctionException(ErrorCode.PRODUCT_INACTIVE, "San pham da bi vo hieu hoa");
+        }
+        if (repository.hasOpenAuctionForProduct(productId)) {
+            throw new AuctionException(ErrorCode.AUCTION_ALREADY_EXISTS,
+                    "San pham da co phien dau gia dang mo");
+        }
+        if (durationMinutes < MIN_DURATION_MINUTES || durationMinutes > MAX_DURATION_MINUTES) {
+            throw new AuctionException(ErrorCode.INVALID_DURATION,
+                    "Thoi luong phai tu 1 den 180 phut");
+        }
+        RoomVisibility safeVisibility = visibility == null ? RoomVisibility.PUBLIC : visibility;
+        PasswordHash passwordHash = null;
+        char[] password = rawRoomPassword == null ? new char[0] : rawRoomPassword.toCharArray();
+        try {
+            if (safeVisibility == RoomVisibility.PRIVATE) {
+                if (password.length < 4 || password.length > 100) {
+                    throw new AuctionException(ErrorCode.ROOM_PASSWORD_REQUIRED,
+                            "Mat khau phong rieng phai co 4-100 ky tu");
+                }
+                passwordHash = passwordHasher.hash(password);
+            }
+        } finally {
+            Arrays.fill(password, '\0');
+        }
+        BigDecimal startPrice = normalizeMoney(rawStartPrice, ErrorCode.INVALID_AMOUNT);
+        BigDecimal minIncrement = normalizeMoney(rawMinIncrement, ErrorCode.INVALID_INCREMENT);
+        Instant startTime = Instant.now();
+        AuctionSnapshot snapshot = repository.createAuction(new CreateAuctionCommit(
+                session.getUserId(), session.getUsername(), productId, startPrice, minIncrement,
+                startTime, startTime.plusSeconds(durationMinutes * 60L), safeVisibility,
+                passwordHash == null ? "" : passwordHash.getHashBase64(),
+                passwordHash == null ? "" : passwordHash.getSaltBase64(),
+                passwordHash == null ? null : passwordHash.getIterations()));
+        auctions.addRuntime(snapshot);
+        broadcasts.broadcastAll(MessageType.AUCTION_CREATED,
+                AuctionWireData.snapshot(snapshot, List.of(), 0, Instant.now()));
+        return snapshot;
+    }
+
     public List<AuctionSnapshot> myAuctions(UserSession session) {
         return auctions.snapshotsByHost(session.getUserId());
     }
@@ -155,11 +271,46 @@ public final class AuctionManagementService {
             UserSession session,
             String connectionId,
             long auctionId) {
+        return joinAuction(session, connectionId, auctionId, "");
+    }
+
+    public AuctionSnapshot joinAuction(
+            UserSession session,
+            String connectionId,
+            long auctionId,
+            String roomPassword) {
         AuctionSnapshot snapshot = auctions.requireRuntime(auctionId).snapshot();
         if (repository.isAuctionUserBlocked(auctionId, session.getUserId())) {
             throw new AuctionException(
                     ErrorCode.USER_BLOCKED_FROM_AUCTION,
                     "Ban da bi chu tri moi khoi phong nay");
+        }
+        if (!snapshot.isOpenAt(Instant.now())) {
+            throw new AuctionException(ErrorCode.AUCTION_NOT_OPEN, "Phien dau gia khong con mo");
+        }
+        if (snapshot.getVisibility() == RoomVisibility.PRIVATE
+                && !snapshot.isHostedBy(session.getUserId())
+                && !sessions.hasPrivateRoomAccess(session, auctionId)) {
+            if (roomPassword == null || roomPassword.isBlank()) {
+                throw new AuctionException(ErrorCode.ROOM_PASSWORD_REQUIRED,
+                        "Phong nay yeu cau mat khau");
+            }
+            char[] password = roomPassword.toCharArray();
+            boolean valid;
+            try {
+                valid = passwordHasher.verify(
+                        password,
+                        snapshot.getRoomPasswordSalt(),
+                        snapshot.getRoomPasswordHash(),
+                        snapshot.getRoomPasswordIterations());
+            } finally {
+                Arrays.fill(password, '\0');
+            }
+            if (!valid) {
+                throw new AuctionException(ErrorCode.ROOM_PASSWORD_INVALID,
+                        "Mat khau phong khong dung");
+            }
+            sessions.grantPrivateRoomAccess(session, auctionId);
         }
         rooms.join(
                 auctionId,
@@ -291,6 +442,7 @@ public final class AuctionManagementService {
             repository.blockAuctionUser(new BlockAuctionUserCommit(
                     auctionId, member.getUserId(), session.getUserId(), Instant.now()));
             Set<String> removedConnections = rooms.kickUser(auctionId, member.getUserId());
+            sessions.revokePrivateRoomAccess(member.getUserId(), auctionId);
             outcome = new KickOutcome(member.getUserId(), member.getUsername(), removedConnections);
         } finally {
             runtime.getLock().unlock();

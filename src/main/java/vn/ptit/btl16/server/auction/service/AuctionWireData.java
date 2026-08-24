@@ -202,6 +202,11 @@ public final class AuctionWireData {
         data.put(prefix + "endedAt", Times.wire(value.getEndedAt()));
         data.put(prefix + "version", Long.toString(value.getVersion()));
         data.put(prefix + "watcherCount", Integer.toString(watcherCount));
+        data.put(prefix + "visibility", value.getVisibility().name());
+        data.put(prefix + "requiresPassword", Boolean.toString(value.requiresPassword()));
+        data.put(prefix + "hasImage", Boolean.toString(value.getProduct().hasImage()));
+        data.put(prefix + "imageMime", value.getProduct().getImageMime());
+        data.put(prefix + "imageVersion", Long.toString(value.getProduct().getImageVersion()));
     }
 
     private static void putProduct(Map<String, String> data, String prefix, Product product) {
@@ -214,6 +219,11 @@ public final class AuctionWireData {
         data.put(prefix + "active", Boolean.toString(product.isActive()));
         data.put(prefix + "createdAt", Times.wire(product.getCreatedAt()));
         data.put(prefix + "updatedAt", Times.wire(product.getUpdatedAt()));
+        data.put(prefix + "hasImage", Boolean.toString(product.hasImage()));
+        data.put(prefix + "imageMime", product.getImageMime());
+        data.put(prefix + "imageName", product.getImageName());
+        data.put(prefix + "imageSize", Integer.toString(product.getImageSize()));
+        data.put(prefix + "imageVersion", Long.toString(product.getImageVersion()));
     }
 
     private static void putBids(Map<String, String> data, List<BidRecord> bids) {

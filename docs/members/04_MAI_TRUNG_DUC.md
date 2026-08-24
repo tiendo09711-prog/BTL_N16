@@ -261,3 +261,28 @@ Muc tieu: hoan thien quyen dieu khien thoi gian cua host va hoc quan he giua cre
 - `AUCTION_ENDED` van phat dung mot lan va truoc `AUCTION_ARCHIVED`.
 - Phong con hien dung visibility window, sau do bien mat khoi dashboard/list.
 - Scheduler khong xoa du lieu MySQL va khong broadcast archive lap lai.
+
+## Phan nang cap JavaFX + WebSocket
+
+### Muc tieu hoc
+
+- Server authoritative clock qua TCP/WS.
+- Anti-sniping, ended/result/archive dong bo tren JavaFX.
+
+### File bat buoc doc/sua
+
+```text
+server/auction/service/AuctionTimerService.java
+server/auction/service/AuctionBroadcastService.java
+server/auction/service/AuctionWireData.java
+client/fx/FxClientController.java
+server/dashboard/ServerDashboardFrame.java
+selftest/FullNetworkAuctionSelfTest.java
+```
+
+### Thu tu va ban giao
+
+1. Tick/extended/ended/archive event khong phu thuoc transport.
+2. JavaFX countdown noi suy tu server time.
+3. Host extend/end/cancel UI nhung server van authorize.
+4. Kiem tra lifecycle va winner qua WebSocket.

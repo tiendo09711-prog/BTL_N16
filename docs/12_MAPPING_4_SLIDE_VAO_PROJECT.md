@@ -139,5 +139,7 @@ SELECT FOR UPDATE + INSERT bid + UPDATE auction
 |---|---|---|
 | I/O | Stream, buffer, data stream | Frame TCP gui/nhan dung |
 | Thread | Multi-thread va shared state | Nhieu client, timer, race condition |
-| MVC | Tach Model/View/Controller | Swing client de doc va mo rong |
+| MVC | Tach Model/View/Controller | JavaFX client, API/model va presentation controller |
 | JDBC | SQL, ResultSet, transaction | Bid va result luu MySQL |
+
+WebSocket bo sung vi du message boundary/JSON, reconnect va cross-transport; TCP van la vi du framing byte stream.

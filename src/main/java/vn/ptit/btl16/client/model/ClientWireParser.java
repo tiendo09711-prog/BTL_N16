@@ -39,7 +39,12 @@ public final class ClientWireParser {
                 text(data, prefix + "status"),
                 instant(data, prefix + "endedAt"),
                 longValue(data, prefix + "version", 0L),
-                integer(data, prefix + "watcherCount", 0));
+                integer(data, prefix + "watcherCount", 0),
+                text(data, prefix + "visibility"),
+                Boolean.parseBoolean(text(data, prefix + "requiresPassword")),
+                Boolean.parseBoolean(text(data, prefix + "hasImage")),
+                text(data, prefix + "imageMime"),
+                longValue(data, prefix + "imageVersion", 0L));
     }
 
     public static List<ClientProduct> products(Map<String, String> data) {
@@ -61,7 +66,12 @@ public final class ClientWireParser {
                 text(data, prefix + "description"),
                 Boolean.parseBoolean(text(data, prefix + "active")),
                 instant(data, prefix + "createdAt"),
-                instant(data, prefix + "updatedAt"));
+                instant(data, prefix + "updatedAt"),
+                Boolean.parseBoolean(text(data, prefix + "hasImage")),
+                text(data, prefix + "imageMime"),
+                text(data, prefix + "imageName"),
+                integer(data, prefix + "imageSize", 0),
+                longValue(data, prefix + "imageVersion", 0L));
     }
 
     public static List<ClientBid> bids(Map<String, String> data) {

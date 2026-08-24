@@ -30,6 +30,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public final class ServerDashboardFrame extends JFrame {
     private final ServerApplication application;
     private final JLabel portValue = new JLabel("-");
+    private final JLabel webSocketPortValue = new JLabel("-");
     private final JLabel repositoryValue = new JLabel("-");
     private final JLabel connectionsValue = new JLabel("0");
     private final JLabel sessionsValue = new JLabel("0");
@@ -46,9 +47,10 @@ public final class ServerDashboardFrame extends JFrame {
         setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
         setLayout(new BorderLayout(8, 8));
 
-        JPanel stats = new JPanel(new GridLayout(1, 7, 6, 4));
+        JPanel stats = new JPanel(new GridLayout(1, 8, 6, 4));
         stats.setBorder(BorderFactory.createTitledBorder("Trang thai server"));
         addStat(stats, "TCP port", portValue);
+        addStat(stats, "WS port", webSocketPortValue);
         addStat(stats, "Repository", repositoryValue);
         addStat(stats, "Connections", connectionsValue);
         addStat(stats, "Sessions", sessionsValue);
@@ -64,7 +66,8 @@ public final class ServerDashboardFrame extends JFrame {
         add(scroll, BorderLayout.CENTER);
 
         JTextArea note = new JTextArea(
-                "May nay la server trung tam. Client LAN chi ket noi TCP port 8888; "
+                "May nay la server trung tam. JavaFX client dung WebSocket 8890; "
+                        + "TCP 8888 duoc giu cho legacy/test; "
                         + "khong ket noi truc tiep MySQL 3306.\n"
                         + "Tai khoan demo: demo/demo123, alice/alice123, bob/bob123.");
         note.setEditable(false);
@@ -105,8 +108,11 @@ public final class ServerDashboardFrame extends JFrame {
     private void refresh() {
         ServerStats stats = application.stats();
         portValue.setText(Integer.toString(stats.getPort()));
+        webSocketPortValue.setText(Integer.toString(stats.getWebSocketPort()));
         repositoryValue.setText(stats.getRepositoryName());
-        connectionsValue.setText(Integer.toString(stats.getActiveConnections()));
+        connectionsValue.setText(stats.getActiveConnections()
+                + " (TCP " + stats.getTcpConnections()
+                + "/WS " + stats.getWebSocketConnections() + ")");
         sessionsValue.setText(stats.getActiveSessions() + "/" + stats.getDetachedSessions());
         roomsValue.setText(stats.getRooms() + "/" + stats.getSubscriptions());
         auctionsValue.setText(stats.getOpenAuctions() + "/" + stats.getEndedAuctions());
@@ -126,7 +132,7 @@ public final class ServerDashboardFrame extends JFrame {
 
     private static final class AuctionServerTableModel extends AbstractTableModel {
         private static final String[] COLUMNS = {
-                "ID", "San pham", "Chu tri", "Buoc gia", "Gia hien tai",
+                "ID", "San pham", "Chu tri", "Loai phong", "Buoc gia", "Gia hien tai",
                 "Dan dau", "End time", "Status", "Version"
         };
         private List<AuctionSnapshot> values = new ArrayList<>();
@@ -152,13 +158,14 @@ public final class ServerDashboardFrame extends JFrame {
                 case 0 -> value.getAuctionId();
                 case 1 -> value.getProduct().getName();
                 case 2 -> value.getHostUsername();
-                case 3 -> Money.display(value.getMinBidIncrement());
-                case 4 -> Money.display(value.getCurrentPrice());
-                case 5 -> value.getCurrentWinnerUsername().isBlank()
+                case 3 -> value.getVisibility();
+                case 4 -> Money.display(value.getMinBidIncrement());
+                case 5 -> Money.display(value.getCurrentPrice());
+                case 6 -> value.getCurrentWinnerUsername().isBlank()
                         ? "Chua co" : value.getCurrentWinnerUsername();
-                case 6 -> Times.display(value.getEndTime());
-                case 7 -> value.getStatus();
-                case 8 -> value.getVersion();
+                case 7 -> Times.display(value.getEndTime());
+                case 8 -> value.getStatus();
+                case 9 -> value.getVersion();
                 default -> "";
             };
         }

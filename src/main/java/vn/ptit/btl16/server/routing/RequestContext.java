@@ -4,7 +4,7 @@ import vn.ptit.btl16.common.protocol.ErrorCode;
 import vn.ptit.btl16.common.protocol.MessageType;
 import vn.ptit.btl16.common.protocol.WireMessage;
 import vn.ptit.btl16.server.ServerSequence;
-import vn.ptit.btl16.server.network.ClientConnection;
+import vn.ptit.btl16.server.network.ServerConnection;
 import vn.ptit.btl16.server.session.UserSession;
 
 import java.io.IOException;
@@ -13,13 +13,13 @@ import java.util.Map;
 import java.util.Optional;
 
 public final class RequestContext {
-    private final ClientConnection connection;
+    private final ServerConnection connection;
     private final WireMessage request;
     private final UserSession session;
     private final ServerSequence sequence;
 
     public RequestContext(
-            ClientConnection connection,
+            ServerConnection connection,
             WireMessage request,
             UserSession session,
             ServerSequence sequence) {
@@ -29,7 +29,7 @@ public final class RequestContext {
         this.sequence = sequence;
     }
 
-    public ClientConnection getConnection() { return connection; }
+    public ServerConnection getConnection() { return connection; }
     public WireMessage getRequest() { return request; }
     public Optional<UserSession> getSession() { return Optional.ofNullable(session); }
 
