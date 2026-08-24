@@ -233,3 +233,28 @@ Muc tieu: dong bo day du tinh nang server moi len client va hoc duoc protocol, s
 - Client khong tu quyet dinh quyen, gia toi thieu hay trang thai ket thuc.
 - Event den truoc/sau response khong lam trung state hoac treo UI.
 - Demo reconnect/resync va kick chay bang hai client that.
+
+## Bo sung moi - Client dong bo phong archive
+
+### Nhiem vu
+
+- Xu ly `AUCTION_ARCHIVED` trong `ClientController` tren event reader thread va render tren EDT.
+- Them `ClientAppModel.removeAuction` de xoa list, joined room va bid cache lien quan.
+- Mo rong `FullNetworkAuctionSelfTest`: cho event archive, tai lai list, kiem tra dashboard va RESYNC.
+- Kiem tra event den khi client dang join phong va khi client chi dang xem danh sach.
+- Dung tombstone `archivedAuctionIds` de response `AUCTION_LIST` cu khong them lai phong sau event.
+
+### Ngay 11 trong lo trinh
+
+| Noi dung hoc va thuc hanh | Dau ra ban giao |
+|---|---|
+| Doc payload `AUCTION_ARCHIVED` va luong broadcastAll | Contract event client |
+| Pair voi Phuoc kiem tra model/list/joined room | State client khong con phong cu |
+| Pair voi Duc chay retention 1 giay trong self-test | Regression test tu dong |
+| Demo retention 120 giay hoac rut ngan tam thoi | Kich ban realtime archive |
+
+### Tieu chi bo sung
+
+- Client tu xoa phong ma khong can bam Refresh.
+- Neu dang join phong bi archive, joined state va bid history cache duoc don.
+- Swing chi duoc cap nhat tren EDT; event khong lam treo reader thread.

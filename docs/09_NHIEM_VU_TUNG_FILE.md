@@ -55,16 +55,16 @@
 | File | Giai quyet van de gi |
 |---|---|
 | `Product` | Du lieu san pham |
-| `AuctionStatus` | OPEN/ENDED |
+| `AuctionStatus` | OPEN/ENDED/CANCELLED |
 | `AuctionSnapshot` | State bat bien gui ra ngoai |
 | `AuctionRuntime` | State mutable tren server + lock |
 | `AuctionRepository` | Hop dong list/detail/bid/result |
 | `JdbcAuctionRepository` | SQL auction, bid history, transaction |
 | `TestAuctionRepository` (`src/test`) | Test double auction cho self-test |
-| `AuctionManager` | Cache runtime theo auctionId |
+| `AuctionManager` | Cache runtime, giu visibility window va an phong da archive |
 | `AuctionQueryService` | List, snapshot, history |
 | `AuctionWireData` | Chuyen state thanh map protocol |
-| `RoomManager` | Subscriber theo auction |
+| `RoomManager` | Subscriber theo auction va don room khi archive |
 | `AuctionController` | List/join/leave/history/resync/bid route |
 | `CreateProductCommit`, `UpdateProductCommit` | Du lieu ghi product |
 | `CreateAuctionCommit` | Du lieu tao room moi |
@@ -87,12 +87,12 @@
 
 | File | Giai quyet van de gi |
 |---|---|
-| `AuctionTimerService` | Tick, detect expiry, close once |
+| `AuctionTimerService` | Tick, detect expiry, close once, archive sau retention |
 | `ExtendAuctionCommit` | Compare-and-set end time |
 | `CancelAuctionCommit` | Chuyen OPEN sang CANCELLED |
 | `CloseAuctionCommit` | Du lieu transaction close |
 | `AuctionResult` | Winner/final price/endedAt |
-| `AuctionBroadcastService` | Phat extension/tick/end vao room |
+| `AuctionBroadcastService` | Phat extension/tick/end vao room va archive toan san |
 
 ## Client realtime/integration - Vu Tri Thuan
 
@@ -106,7 +106,7 @@
 | `ClientProduct` | Product owner/active tren client |
 | `ClientBid` | Bid cache tren client |
 | `ClientWireParser` | Map protocol -> model |
-| `ClientAppModel` | State chung thread-safe |
+| `ClientAppModel` | Xoa auction khi archive va dung tombstone chan response cu them lai |
 | `HeartbeatService` | PING/PONG va detect connection loi |
 | `ReconnectCoordinator` | Exponential backoff |
 | `ClientController` | MVC + realtime + resume/resync |

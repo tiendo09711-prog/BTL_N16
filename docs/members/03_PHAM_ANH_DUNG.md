@@ -243,3 +243,27 @@ Muc tieu: hoan thien OP03 va phan an toan cua OP07, dong thoi hoc cach bid lien 
 - Host khong the bid ke ca khi goi API ngoai UI.
 - User bi kick khong the chen bid hoac join lai.
 - Snapshot va bid history co cung winner/current price sau test dong thoi.
+
+## Bo sung moi - An toan bid tai ranh gioi archive
+
+### Nhiem vu
+
+- Review invariant: bid bi chan ngay khi `endTime` qua, khong doi den luc archive.
+- Kiem tra sau visibility window, request bid/join/resync khong truy cap lai phong da archive.
+- Review race giua bid, timer close va timer archive; archive chi xay ra khi status khong con `OPEN`.
+- Them checklist phan biet `BID_AFTER_END`/`AUCTION_NOT_OPEN` truoc archive va `AUCTION_NOT_FOUND` sau archive.
+
+### Ngay 11 trong lo trinh
+
+| Noi dung hoc va thuc hanh | Dau ra ban giao |
+|---|---|
+| Ve timeline bid truoc end, sau end, sau archive | Ma tran error code |
+| Pair voi Duc review lock close/archive | Invariant concurrency |
+| Pair voi Phuoc review `AuctionManager.requireRuntime` | Quyen truy cap runtime sau archive |
+| Review regression test cua Thuan | Checklist race va ket qua |
+
+### Tieu chi bo sung
+
+- Retention 120 giay khong mo them cua so cho bid muon.
+- Archive khong lam thay doi winner, final price hoac bid history trong MySQL.
+- Giai thich duoc su khac nhau giua close nghiep vu va an khoi san.

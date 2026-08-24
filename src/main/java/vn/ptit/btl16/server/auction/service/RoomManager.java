@@ -58,6 +58,22 @@ public final class RoomManager {
         }
     }
 
+    public void removeAuction(long auctionId) {
+        ConcurrentHashMap<String, RoomMember> room = membersByAuction.remove(auctionId);
+        if (room == null) {
+            return;
+        }
+        for (String connectionId : room.keySet()) {
+            Set<Long> subscriptions = auctionsByConnection.get(connectionId);
+            if (subscriptions != null) {
+                subscriptions.remove(auctionId);
+                if (subscriptions.isEmpty()) {
+                    auctionsByConnection.remove(connectionId, subscriptions);
+                }
+            }
+        }
+    }
+
     public boolean isMember(long auctionId, String connectionId) {
         ConcurrentHashMap<String, RoomMember> room = membersByAuction.get(auctionId);
         return room != null && room.containsKey(connectionId);

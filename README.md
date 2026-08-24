@@ -14,6 +14,7 @@ Day la ban ma nguon day du cua project Java desktop cho mon Lap trinh mang:
 - Timer chinh thuc tren server.
 - Anti-sniping: bid hop le trong 10 giay cuoi se gia han 10 giay.
 - Ket thuc phien dung mot lan, luu winner va ket qua.
+- Phien `ENDED`/`CANCELLED` duoc giu 120 giay de xem ket qua, sau do tu an khoi san va dashboard.
 - Disconnect, reconnect, resume va RESYNC snapshot moi nhat.
 - JDBC + Laragon MySQL database `btl_16`.
 - Server dashboard, client Swing va cong cu test concurrency.
@@ -30,6 +31,8 @@ He thong duoc coi la mot san dau gia trung tam, khong tach role `ADMIN`, `SELLER
 - Chu tri khong duoc tu dat gia trong chinh phong do, nhung van duoc bid o phong nguoi khac.
 
 Client chi dong vai tro nguoi dung/nguoi ban/chu tri theo tung phong. Client **khong tro thanh TCP server**; tat ca van qua Java central server de kiem tra quyen, timer, bid va MySQL.
+
+May mo TCP server la may van hanh san. Khi phong dong, du lieu lich su van con trong MySQL; server chi ngung hien thi phong sau `auction.closedVisibilitySeconds=120` va gui `AUCTION_ARCHIVED` de cac client tu xoa khoi danh sach.
 
 ## Tai khoan demo
 

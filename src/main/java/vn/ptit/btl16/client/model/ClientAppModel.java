@@ -6,9 +6,11 @@ import vn.ptit.btl16.client.service.ApiResponse;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /** Thread-safe client state. Swing renders snapshots of this model. */
 public final class ClientAppModel {
@@ -23,6 +25,7 @@ public final class ClientAppModel {
     private String createdAt = "";
     private String lastLoginAt = "";
     private final Map<Long, ClientAuction> auctions = new LinkedHashMap<>();
+    private final Set<Long> archivedAuctionIds = new HashSet<>();
     private List<ClientBid> currentBids = new ArrayList<>();
     private Long joinedAuctionId;
     private long serverClockOffsetMillis;
@@ -52,13 +55,16 @@ public final class ClientAppModel {
         lastLoginAt = "";
         joinedAuctionId = null;
         currentBids = new ArrayList<>();
+        archivedAuctionIds.clear();
     }
 
     public synchronized void replaceAuctions(List<ClientAuction> values, Instant serverNow) {
         updateServerClock(serverNow);
         auctions.clear();
         for (ClientAuction value : values) {
-            auctions.put(value.getAuctionId(), value);
+            if (!archivedAuctionIds.contains(value.getAuctionId())) {
+                auctions.put(value.getAuctionId(), value);
+            }
         }
     }
 
@@ -68,6 +74,9 @@ public final class ClientAppModel {
             Instant serverNow,
             boolean markJoined) {
         updateServerClock(serverNow);
+        if (archivedAuctionIds.contains(auction.getAuctionId())) {
+            return;
+        }
         auctions.put(auction.getAuctionId(), auction);
         if (markJoined) {
             joinedAuctionId = auction.getAuctionId();
@@ -82,6 +91,9 @@ public final class ClientAppModel {
             ClientBid bid,
             Instant serverNow) {
         updateServerClock(serverNow);
+        if (archivedAuctionIds.contains(auction.getAuctionId())) {
+            return;
+        }
         ClientAuction previous = auctions.get(auction.getAuctionId());
         if (previous == null || auction.getVersion() >= previous.getVersion()) {
             auctions.put(auction.getAuctionId(), auction);
@@ -117,6 +129,16 @@ public final class ClientAppModel {
     public synchronized void leaveJoinedAuction() {
         joinedAuctionId = null;
         currentBids = new ArrayList<>();
+    }
+
+    public synchronized void removeAuction(long auctionId, Instant serverNow) {
+        updateServerClock(serverNow);
+        archivedAuctionIds.add(auctionId);
+        auctions.remove(auctionId);
+        if (joinedAuctionId != null && joinedAuctionId.longValue() == auctionId) {
+            joinedAuctionId = null;
+            currentBids = new ArrayList<>();
+        }
     }
 
     public synchronized void setConnectionState(ConnectionState state, String detail) {

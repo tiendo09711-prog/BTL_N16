@@ -56,6 +56,7 @@ public final class AuctionTimerService implements AutoCloseable {
             for (AuctionRuntime runtime : auctions.runtimes()) {
                 closeIfExpired(runtime, now);
             }
+            archiveClosedAuctions(now);
             long currentMillis = System.currentTimeMillis();
             if (currentMillis - lastTickAt >= tickMillis) {
                 lastTickAt = currentMillis;
@@ -63,6 +64,16 @@ public final class AuctionTimerService implements AutoCloseable {
             }
         } catch (RuntimeException exception) {
             System.err.println("[TIMER] Error: " + exception.getMessage());
+        }
+    }
+
+    private void archiveClosedAuctions(Instant now) {
+        for (AuctionSnapshot snapshot : auctions.archiveClosedAuctions(now)) {
+            rooms.removeAuction(snapshot.getAuctionId());
+            broadcasts.broadcastAll(
+                    MessageType.AUCTION_ARCHIVED,
+                    AuctionWireData.archived(snapshot, now));
+            System.out.println("[TIMER] Auction archived: " + snapshot.getAuctionId());
         }
     }
 

@@ -1,6 +1,7 @@
 package vn.ptit.btl16.selftest;
 
 import vn.ptit.btl16.client.model.ClientAuction;
+import vn.ptit.btl16.client.model.ClientAppModel;
 import vn.ptit.btl16.client.model.ClientWireParser;
 import vn.ptit.btl16.client.network.NetworkClient;
 import vn.ptit.btl16.client.service.AccountApi;
@@ -27,7 +28,7 @@ public final class FullNetworkAuctionSelfTest {
     }
 
     public static void run() throws Exception {
-        ServerConfig config = ServerConfig.forTests(0, 2, 2, 1);
+        ServerConfig config = ServerConfig.forTests(0, 2, 2, 1, 1);
         PasswordHasher hasher = new Pbkdf2PasswordHasher(config.getPasswordIterations());
         TestUserRepository users = TestUserRepository.withDemoUsers(hasher);
         TestAuctionRepository auctionRepository =
@@ -44,6 +45,7 @@ public final class FullNetworkAuctionSelfTest {
             AtomicBoolean clientOneOutbid = new AtomicBoolean(false);
             AtomicInteger bidUpdateEvents = new AtomicInteger();
             CountDownLatch endedEvent = new CountDownLatch(1);
+            CountDownLatch archivedEvent = new CountDownLatch(1);
 
             String demoToken;
             long auctionId;
@@ -135,6 +137,11 @@ public final class FullNetworkAuctionSelfTest {
                     if (message.getType() == MessageType.AUCTION_ENDED) {
                         endedEvent.countDown();
                     }
+                    if (message.getType() == MessageType.AUCTION_ARCHIVED
+                            && Long.toString(auctionId).equals(
+                                    message.getData().getOrDefault("auctionId", ""))) {
+                        archivedEvent.countDown();
+                    }
                 });
                 resumedClient.connect("127.0.0.1", port);
                 AccountApi account = new AccountApi(resumedClient);
@@ -155,6 +162,30 @@ public final class FullNetworkAuctionSelfTest {
                 ClientAuction ended = ClientWireParser.auction(
                         endedSnapshot.getWireMessage().getData(), "");
                 TestSupport.equals("ENDED", ended.getStatus(), "auction ended exactly once");
+
+                TestSupport.check(
+                        archivedEvent.await(4, TimeUnit.SECONDS),
+                        "closed auction is archived after visibility window");
+                ApiResponse visibleAuctions = auction.listAuctions().get(8, TimeUnit.SECONDS);
+                requireSuccess(visibleAuctions, "auction list after archive");
+                TestSupport.check(
+                        ClientWireParser.auctions(visibleAuctions.getWireMessage().getData()).stream()
+                                .noneMatch(value -> value.getAuctionId() == auctionId),
+                        "archived auction is hidden from client list");
+                ApiResponse archivedResync = auction.resync(auctionId).get(8, TimeUnit.SECONDS);
+                requireFailure(archivedResync, "AUCTION_NOT_FOUND", "archived auction resync");
+                TestSupport.check(
+                        server.auctionSnapshots().stream()
+                                .noneMatch(value -> value.getAuctionId() == auctionId),
+                        "archived auction is hidden from server dashboard");
+                TestSupport.equals(0, server.stats().getRooms(), "archived room subscriptions removed");
+
+                ClientAppModel staleListModel = new ClientAppModel();
+                staleListModel.removeAuction(auctionId, java.time.Instant.now());
+                staleListModel.replaceAuctions(List.of(ended), java.time.Instant.now());
+                TestSupport.check(
+                        staleListModel.auctionSnapshot().isEmpty(),
+                        "stale list response cannot restore archived auction");
             }
         }
         System.out.println("[PASS] FullNetworkAuctionSelfTest");
@@ -169,6 +200,11 @@ public final class FullNetworkAuctionSelfTest {
             throw new AssertionError(label + " failed: "
                     + response.getErrorCode() + " " + response.getMessageText());
         }
+    }
+
+    private static void requireFailure(ApiResponse response, String errorCode, String label) {
+        TestSupport.check(!response.isSuccess(), label + " must fail");
+        TestSupport.equals(errorCode, response.getErrorCode(), label + " error code");
     }
 
     private static void await(CountDownLatch latch) {

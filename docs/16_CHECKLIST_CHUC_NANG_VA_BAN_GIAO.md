@@ -26,6 +26,7 @@ Tai lieu nay cho biet tinh nang da nam o dau, ai hoc chinh va cach kiem tra.
 | Product CRUD | `CREATE_PRODUCT`, `UPDATE_PRODUCT`, `DEACTIVATE_PRODUCT` | `AuctionManagementService` + repository | dialog product | owner moi sua/an duoc |
 | Tao phong | `CREATE_AUCTION`, `AUCTION_CREATED` | management + `AuctionManager.addRuntime` | nut Tao phong | phong xuat hien realtime |
 | Phong cua toi | `MY_AUCTIONS` | manager filter host | nut Phong cua toi | chi hien phong host |
+| An phong dong | `AUCTION_ARCHIVED` | `AuctionManager`, `RoomManager` | xoa khoi bang | sau 120 giay khong con list/dashboard |
 
 ## 3. Bid va concurrency - Pham Anh Dung
 
@@ -53,6 +54,7 @@ Tai lieu nay cho biet tinh nang da nam o dau, ai hoc chinh va cach kiem tra.
 | Host extend | `EXTEND_AUCTION` | `AuctionManagementService` | nut Gia han | source HOST |
 | Manual end | `END_AUCTION` | close transaction | nut Ket thuc | chot winner som |
 | Cancel no-bid | `CANCEL_AUCTION` | repository cancel | nut Huy phong | status CANCELLED |
+| Retention 2 phut | `AUCTION_ARCHIVED` | `AuctionTimerService` | notification | ENDED/CANCELLED con hien 120 giay |
 
 ## 5. Realtime, reconnect va integration - Vu Tri Thuan
 
@@ -66,6 +68,7 @@ Tai lieu nay cho biet tinh nang da nam o dau, ai hoc chinh va cach kiem tra.
 | End-to-end test | nhieu message | toan he thong | test clients | `FullNetworkAuctionSelfTest` |
 | Management test | product/host/kick | toan he thong | API clients | `AuctionManagementSelfTest` |
 | Kick event | `AUCTION_KICKED` | broadcast to removed connection | client roi room | join lai bi chan |
+| Archive event | `AUCTION_ARCHIVED` | broadcast toan bo connection | remove + tombstone model | client tu xoa, response cu khong them lai |
 
 ## 6. Dieu kien coi la san sang demo
 
@@ -75,6 +78,7 @@ Tai lieu nay cho biet tinh nang da nam o dau, ai hoc chinh va cach kiem tra.
 - [x] Test race condition va final state authoritative.
 - [x] Test disconnect, resume va RESYNC.
 - [x] Test timer dong auction va broadcast winner.
+- [x] Test archive sau visibility window, an client/dashboard va don room.
 - [x] Co client Swing day du cho luong demo.
 - [x] Co server dashboard.
 - [x] Co schema MySQL `btl_16` va JDBC repository.
@@ -88,6 +92,7 @@ Tai lieu nay cho biet tinh nang da nam o dau, ai hoc chinh va cach kiem tra.
 - [x] `AuctionManagementSelfTest` pass voi repository test tach biet.
 - [x] `DatabaseSetupMain` da chay tren Laragon/MySQL va schema JDBC da duoc xac nhan.
 - [x] `npm run dev` chay MySQL, server va mot client local; `Ctrl+C` don process.
+- [x] Lich su auction/bid/result van luu MySQL sau khi phong bi an.
 - [ ] Nhom thu LAN voi it nhat hai may vat ly va mo firewall TCP 8888.
 
 Muc LAN cuoi cung can hai may vat ly va cau hinh Windows Firewall cua nhom.

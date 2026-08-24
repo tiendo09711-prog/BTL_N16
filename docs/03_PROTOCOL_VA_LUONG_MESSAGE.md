@@ -41,7 +41,7 @@ UTF-8 bytes
 |---|---|---|---|
 | REQUEST | Client | LOGIN, PLACE_BID | Co |
 | RESPONSE | Server | LOGIN_RESULT, BID_ACCEPTED | Giu requestId cua request |
-| EVENT | Server | BID_UPDATE, AUCTION_ENDED | Khong can |
+| EVENT | Server | BID_UPDATE, AUCTION_ENDED, AUCTION_ARCHIVED | Khong can |
 
 ## requestId
 
@@ -98,6 +98,7 @@ UTF-8 bytes
 | Server push | AUCTION_KICKED |
 | Server push | AUCTION_TICK |
 | Server push | AUCTION_ENDED |
+| Server push | AUCTION_ARCHIVED |
 
 ## Field quan trong
 
@@ -144,6 +145,18 @@ KICK_AUCTION_USER: auctionId, username
 Tat ca deu kiem tra host theo session tren server.
 
 Quyen host chi ap dung cho auction cu the. Khong co role seller/buyer toan cuc: mot user co the tao phong cua minh va van bid trong phong cua user khac. Client khong duoc coi la network server cua phong.
+
+### AUCTION_ARCHIVED
+
+```text
+auctionId
+productName
+status
+message
+serverNow
+```
+
+Server gui event nay cho tat ca connection sau khi phong da `ENDED` hoac `CANCELLED` du 120 giay. Client xoa auction khoi list va roi joined room neu dang giu phong do. Day khong phai lenh xoa du lieu MySQL.
 
 ### Auction snapshot
 

@@ -53,7 +53,7 @@ Timer luon doc endTime moi.
 8. `JdbcAuctionRepository.closeAuction()`
 9. `AuctionWireData.tick/extended/ended()`
 10. `AuctionBroadcastService.java`
-11. Client `handleEvent` cho TICK/EXTENDED/ENDED
+11. Client `handleEvent` cho TICK/EXTENDED/ENDED/ARCHIVED
 
 ## Bien phai thuoc
 
@@ -63,7 +63,7 @@ Timer luon doc endTime moi.
 | `tickMillis` | Chu ky phat countdown event |
 | `lastTickAt` | Moc tick da phat gan nhat |
 | `endTime` | Thoi gian dong chinh thuc |
-| `status` | OPEN/ENDED |
+| `status` | OPEN/ENDED/CANCELLED |
 | `endedAt` | Thoi diem server dong |
 | `antiSnipingWindowSeconds` | Khoang sat gio de gia han |
 | `extensionSeconds` | So giay cong them |
@@ -237,3 +237,27 @@ Muc tieu: hoan thien quyen dieu khien thoi gian cua host va hoc quan he giua cre
 - Timer va host cung close van chi co mot `auction_result`.
 - Phong co bid khong the cancel nhung co the ket thuc som.
 - Client hien dung `ENDED` hoac `CANCELLED`.
+
+## Bo sung moi - Timer archive sau 2 phut
+
+### Nhiem vu
+
+- Chu tri `AuctionTimerService.archiveClosedAuctions` sau pha close expired.
+- Dung `endedAt` lam moc retention; fallback `endTime` cho du lieu cu.
+- Sau 120 giay goi manager archive, don room va phat `AUCTION_ARCHIVED` dung mot lan.
+- Bao dam close van xay ra ngay khi het gio; 120 giay chi la thoi gian hien ket qua.
+
+### Ngay 11 trong lo trinh
+
+| Noi dung hoc va thuc hanh | Dau ra ban giao |
+|---|---|
+| Mo rong lifecycle `OPEN -> ENDED/CANCELLED -> ARCHIVED(view)` | So do lifecycle moi |
+| Pair voi Tien kiem tra config va protocol | Contract retention |
+| Pair voi Phuoc review manager/room cleanup | Luong timer day du |
+| Pair voi Thuan chay test 1 giay va demo 120 giay | Bang chung archive mot lan |
+
+### Tieu chi bo sung
+
+- `AUCTION_ENDED` van phat dung mot lan va truoc `AUCTION_ARCHIVED`.
+- Phong con hien dung visibility window, sau do bien mat khoi dashboard/list.
+- Scheduler khong xoa du lieu MySQL va khong broadcast archive lap lai.

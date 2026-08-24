@@ -99,7 +99,9 @@ public final class ServerApplication implements AutoCloseable {
                 Duration.ofSeconds(config.getResumeGraceSeconds()));
         ConnectionRegistry connections = new ConnectionRegistry();
         RoomManager rooms = new RoomManager();
-        AuctionManager auctions = new AuctionManager(auctionRepository);
+        AuctionManager auctions = new AuctionManager(
+                auctionRepository,
+                config.getClosedVisibilitySeconds());
         MessageRouter router = new MessageRouter(sessions, sequence);
         ServerMessagingService messaging = new ServerMessagingService(
                 connections,

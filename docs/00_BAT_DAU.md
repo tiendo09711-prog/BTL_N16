@@ -25,7 +25,7 @@ Client UI
 7. Dat gia tu hai client, quan sat broadcast/outbid/countdown.
 8. Nhan `Ctrl+C` tai may server de dung server/client local.
 
-## 12 bat bien kien truc can thuoc
+## 13 bat bien kien truc can thuoc
 
 1. TCP khong co ranh gioi message.
 2. `[length][payload]` tao ranh gioi message.
@@ -39,6 +39,7 @@ Client UI
 10. Khong gui mang trong luc giu auction lock.
 11. Timer chinh thuc nam o server.
 12. Reconnect phai lay snapshot moi nhat.
+13. Phong dong chi an khoi san sau retention; lich su MySQL khong bi xoa.
 
 ## Cach doc code
 

@@ -836,6 +836,15 @@ public final class ClientController implements AutoCloseable {
                             "AUCTION_CANCELLED: " + auction.getProductName());
                 });
             }
+            case AUCTION_ARCHIVED -> {
+                long auctionId = ClientWireParser.longValue(data, "auctionId", 0L);
+                model.removeAuction(auctionId, ClientWireParser.serverNow(data));
+                onEdt(() -> {
+                    view.renderAuction(model);
+                    view.getAuctionPanel().appendNotification(data.getOrDefault(
+                            "message", "Phien da duoc an khoi san"));
+                });
+            }
             case AUCTION_KICKED -> {
                 long auctionId = ClientWireParser.longValue(data, "auctionId", 0L);
                 Long joinedId = model.getJoinedAuctionId();

@@ -28,6 +28,7 @@
 - Bid trong 10 giay cuoi.
 - Demo +10 giay.
 - Cho phien ket thuc va result.
+- Giai thich 120 giay visibility truoc khi archive.
 
 ## Phan 5 - Vu Tri Thuan, 2-3 phut
 
@@ -35,14 +36,15 @@
 - Tat mot client/network.
 - Reconnect, resume, resync.
 - Trinh bay self-test va load test.
+- Cho client nhan `AUCTION_ARCHIVED` va tu xoa phong.
 
 ## Phan nang cap - moi nguoi 1 tinh nang
 
-- Do Tien: giai thich request moi, auth route va schema migration.
-- Tran Van Phuoc: them/sua/an san pham, tao phong va host ownership.
-- Pham Anh Dung: minimum increment, chan host bid va race kick/bid.
-- Mai Trung Duc: gia han thu cong, ket thuc som va huy phong.
-- Vu Tri Thuan: dialog client, event created/cancelled/kicked va management self-test.
+- Do Tien: giai thich request/event, auth route, config retention va composition.
+- Tran Van Phuoc: them/sua/an san pham, tao phong, host ownership va an list/archive.
+- Pham Anh Dung: minimum increment, chan host bid va race kick/bid/archive.
+- Mai Trung Duc: gia han, ket thuc/huy va timer archive sau 120 giay.
+- Vu Tri Thuan: dialog client, event created/cancelled/kicked/archived va self-test.
 
 Kich ban lien mach:
 
@@ -53,6 +55,8 @@ demo tao product/phong
 -> demo kick alice
 -> alice join lai bi chan
 -> demo ket thuc
+-> ket qua con hien trong visibility window
+-> server gui AUCTION_ARCHIVED, client/dashboard xoa phong
 -> tao phong khac va huy khi chua co bid
 ```
 

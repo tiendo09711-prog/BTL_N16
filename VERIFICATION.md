@@ -67,6 +67,10 @@ ALL SELF-TESTS PASSED
 -> RESYNC snapshot moi nhat
 -> timer dong phien
 -> AUCTION_ENDED
+-> giu ket qua trong visibility window
+-> AUCTION_ARCHIVED
+-> an khoi client list va server dashboard
+-> don room subscription va chan RESYNC phong da archive
 -> bid sau khi het gio bi tu choi
 ```
 
@@ -181,3 +185,12 @@ Da xac nhan tren Windows ngay 2026-08-24:
 - `npm test` chay toan bo self-test va tra ve `ALL SELF-TESTS PASSED`.
 
 Dia chi runner in ra la dia chi TCP, khong phai URL trinh duyet. Web client HTTP/WebSocket chua nam trong kien truc hien tai.
+
+## 9. Retention phong da dong
+
+- Production dung `auction.closedVisibilitySeconds=120`.
+- Phong het han van chuyen `ENDED` ngay lap tuc va khong nhan bid moi.
+- Sau 120 giay, server phat `AUCTION_ARCHIVED`, an khoi `AUCTION_LIST`, `MY_AUCTIONS` va dashboard.
+- Client xoa phong khoi model; `RoomManager` don subscriber; `RESYNC` phong da archive tra `AUCTION_NOT_FOUND`.
+- MySQL khong xoa auction, bid hoac result.
+- `FullNetworkAuctionSelfTest` dung visibility 1 giay de kiem tra tu dong trong test.

@@ -151,6 +151,9 @@ LOGIN
 -> OUTBID_NOTIFICATION cho leader cu
 -> AUCTION_EXTENDED neu sat gio
 -> AUCTION_ENDED khi timer het
+-> giu ket qua tren san 120 giay
+-> AUCTION_ARCHIVED cho tat ca client
+-> an khoi AUCTION_LIST, MY_AUCTIONS va server dashboard
 ```
 
 ## Luong quan tri moi
@@ -172,3 +175,17 @@ LOGIN
 ```
 
 Client chi hien nut chu tri khi `auction.hostUserId == model.userId`; server van kiem tra lai quyen.
+
+## Vong doi hien thi sau khi dong
+
+```text
+OPEN
+-> ENDED hoac CANCELLED
+-> van hien ket qua trong 120 giay
+-> AuctionTimerService danh dau archived
+-> RoomManager don subscription
+-> broadcast AUCTION_ARCHIVED
+-> client xoa khoi ClientAppModel
+```
+
+Archive chi la chinh sach hien thi/runtime. Cac bang `auctions`, `bids`, `auction_results` va `auction_blocked_users` khong bi xoa khoi MySQL.

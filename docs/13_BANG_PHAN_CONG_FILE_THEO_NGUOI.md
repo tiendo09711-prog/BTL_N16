@@ -7,6 +7,7 @@ Nguyen tac: giu module cu cua tung nguoi, chi giao tinh nang moi gan nhat voi ph
 ```text
 common/protocol/MessageType.java
 common/protocol/ErrorCode.java
+common/config/ServerConfig.java
 server/module/AuctionModule.java
 server/routing/*
 server/ServerApplication.java
@@ -22,6 +23,7 @@ Nhiem vu moi:
 - Bao dam moi route quan tri bat buoc dang nhap.
 - Review quy tac user/host lay tu session, khong tin ID client gui len.
 - Noi `AuctionManagementService` vao composition root.
+- Chot config `auction.closedVisibilitySeconds` va contract event `AUCTION_ARCHIVED`.
 - Quan ly migration database va review tich hop cuoi.
 
 ## Vu Tri Thuan - Client controller, realtime va test
@@ -39,8 +41,10 @@ Nhiem vu moi:
 
 - Dong bo API product/host control.
 - Xu ly `AUCTION_CREATED`, `AUCTION_CANCELLED`, `AUCTION_KICKED`.
+- Xu ly `AUCTION_ARCHIVED`, xoa auction/joined room khoi `ClientAppModel`.
 - Dialog them/sua/an san pham va tao phong.
 - Viet `AuctionManagementSelfTest` va regression test reconnect.
+- Mo rong `FullNetworkAuctionSelfTest` cho retention, list, dashboard va resync sau archive.
 
 ## Pham Anh Dung - Bid rule, concurrency va kick safety
 
@@ -60,6 +64,7 @@ Nhiem vu moi:
 - Chan host tu bid san pham cua minh.
 - Re-check membership ben trong auction lock de tranh race kick/bid.
 - Review kick/block va bid/end dong thoi.
+- Review bid/resync tai ranh gioi archive: sau retention phai nhan `AUCTION_NOT_FOUND`.
 
 ## Mai Trung Duc - Lifecycle va host control
 
@@ -80,6 +85,7 @@ Nhiem vu moi:
 - Ket thuc som dung cung lock/transaction voi timer.
 - Huy phien chi khi chua co bid, status `CANCELLED`.
 - Review close once khi timer va host cung tac dong.
+- Them pha giu ket qua 120 giay va archive dung mot lan trong `AuctionTimerService`.
 
 ## Tran Van Phuoc - Product, auction ownership va repository
 
@@ -108,6 +114,7 @@ Nhiem vu moi:
 - Host ownership, create room va my auctions.
 - Dong bo JDBC, repository test va runtime moi sau khi create.
 - Luu blocked user de kick con hieu luc sau reconnect/restart JDBC.
+- Quan ly `archivedAuctionIds`, an list/my-list/dashboard va don `RoomManager` sau retention.
 
 ## File dung chung va reviewer
 
@@ -118,6 +125,8 @@ Nhiem vu moi:
 | `AuctionRuntime` | Phuoc | Dung, Duc |
 | `BidService` | Dung | Tien, Duc |
 | `RoomManager` | Dung/Phuoc | Thuan |
+| `AuctionManager.archiveClosedAuctions` | Phuoc | Duc, Dung |
+| `AuctionTimerService` | Duc | Phuoc, Tien |
 | `JdbcAuctionRepository` | Phuoc | Dung, Duc, Tien |
 | `ClientController` | Thuan | Tien, Phuoc |
 | `AuctionPanel` | Thuan/Phuoc/Duc/Dung | Tien |
@@ -128,8 +137,8 @@ Nhiem vu moi:
 
 | Thanh vien | Phan cu | Phan moi chinh |
 |---|---|---|
-| Do Tien | network/account/composition | protocol, auth route, migration, integration |
-| Vu Tri Thuan | realtime/reconnect/test | management client, event, E2E test |
-| Pham Anh Dung | bid/concurrency | min increment, self-bid, kick/bid safety |
-| Mai Trung Duc | timer/result | extend/end/cancel lifecycle |
-| Tran Van Phuoc | data/list/room | product CRUD, host/create room, persistence |
+| Do Tien | network/account/composition | protocol, auth route, config archive, integration |
+| Vu Tri Thuan | realtime/reconnect/test | management client, archive event, E2E test |
+| Pham Anh Dung | bid/concurrency | min increment, self-bid, kick/bid/archive safety |
+| Mai Trung Duc | timer/result | extend/end/cancel va retention lifecycle |
+| Tran Van Phuoc | data/list/room | product CRUD, host/create room, archive visibility |

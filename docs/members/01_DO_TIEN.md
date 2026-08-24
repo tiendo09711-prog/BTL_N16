@@ -291,3 +291,27 @@ Muc tieu: vua hoan thanh network/core, vua hoc cach SV01-SV08 va OP01/02/03/07 d
 - Tat ca request moi co response/error ro rang va client parse duoc.
 - Giai thich duoc mot luong product, mot luong host control va mot luong kick.
 - Self-test va build van pass sau tich hop.
+
+## Bo sung moi - Retention va archive phong
+
+### Nhiem vu
+
+- Chu tri them `AUCTION_ARCHIVED` trong `MessageType` va doi chieu protocol server-client.
+- Quan ly `auction.closedVisibilitySeconds=120` trong `ServerConfig`/`server.properties`.
+- Noi config vao `AuctionManager` tai `ServerApplication` va review khong co client nao ket noi MySQL.
+- Review tai lieu kien truc: mot TCP server trung tam mo san cho nhieu client LAN.
+
+### Ngay 11 trong lo trinh
+
+| Noi dung hoc va thuc hanh | Dau ra ban giao |
+|---|---|
+| Ve luong `ENDED/CANCELLED -> 120s -> AUCTION_ARCHIVED` | So do protocol/composition |
+| Pair voi Duc va Phuoc kiem tra timer, manager, room cleanup | Checklist server authoritative |
+| Pair voi Thuan doi chieu event va client model | Payload khong lech field |
+| Chay review test archive va ban giao docs | Bien ban integration |
+
+### Tieu chi bo sung
+
+- Config production mac dinh dung 120 giay va test co the rut ngan.
+- Event archive duoc khai bao mot lan, client/server cung hieu.
+- Archive chi an khoi san, khong xoa lich su MySQL.

@@ -67,6 +67,8 @@ AtomicLong/AtomicBoolean
 CompletableFuture
 ```
 
+`AuctionTimerService` cung minh hoa scheduled cleanup: dong phien dung han, giu ket qua 120 giay, sau do archive khoi san va phat event cho client.
+
 ## Slide 3 - MVC
 
 Tinh hoa duoc dung:

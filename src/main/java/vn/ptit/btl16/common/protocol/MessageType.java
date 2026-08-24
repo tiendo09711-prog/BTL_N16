@@ -58,6 +58,7 @@ public enum MessageType {
     AUCTION_CREATED,
     AUCTION_TICK,
     AUCTION_ENDED,
+    AUCTION_ARCHIVED,
     RESYNC,
     RESYNC_RESULT,
 

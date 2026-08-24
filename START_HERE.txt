@@ -8,6 +8,7 @@ DAY LA FULL PROJECT JAVA DESKTOP:
 - danh sach va phong dau gia
 - bid dong thoi, broadcast realtime
 - timer server, anti-sniping, ket thuc phien
+- phong dong con hien 120 giay, sau do tu an khoi san; lich su van luu MySQL
 - reconnect/resume/resync
 - Laragon MySQL database btl_16
 

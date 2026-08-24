@@ -69,6 +69,8 @@ Chung minh broadcast room va unicast user khac nhau.
 3. Transaction cap nhat ENDED va result.
 4. Room nhan `AUCTION_ENDED`.
 5. Bid moi bi `AUCTION_NOT_OPEN` hoac `BID_AFTER_END`.
+6. Cho du 120 giay, room nhan `AUCTION_ARCHIVED` va bien mat khoi client/dashboard.
+7. Mo MySQL de xac nhan auction, bid va result van con.
 
 ## Self-test
 
@@ -88,6 +90,7 @@ Bao gom:
 - authoritative final price;
 - disconnect/resume/resync;
 - timer end.
+- archive phong sau visibility window, an list/dashboard va don room;
 - product create/update/deactivate;
 - host create/list room;
 - minimum bid increment va chan host tu bid;
@@ -115,6 +118,14 @@ Bao gom:
 3. Host bam `Moi user`, nhap `alice`.
 4. Alice nhan `AUCTION_KICKED`, roi phong va khong join lai duoc.
 
+## Demo 10 - An phong sau 2 phut
+
+1. Dat tam `auction.closedVisibilitySeconds=10` neu can demo nhanh, sau demo tra lai `120`.
+2. Cho mot phong `ENDED` hoac `CANCELLED`.
+3. Trong visibility window, ca client va dashboard van hien ket qua.
+4. Het window, server phat `AUCTION_ARCHIVED`; client tu xoa phong va dashboard khong con dong do.
+5. Query MySQL de chung minh he thong chi an khoi san, khong xoa lich su.
+
 ## Checklist truoc demo
 
 - [ ] JDK 17 dung.
@@ -129,3 +140,4 @@ Bao gom:
 - [ ] Moi thanh vien thuoc file va luong cua minh.
 - [ ] Da test them/sua/an san pham va tao phong.
 - [ ] Da test host extend/end/cancel/kick.
+- [ ] Da test phong tu an sau 120 giay va du lieu MySQL van con.

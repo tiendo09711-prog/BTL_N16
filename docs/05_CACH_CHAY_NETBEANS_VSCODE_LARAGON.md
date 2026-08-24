@@ -128,6 +128,8 @@ AuctionController.handleList/handleJoin
 AuctionQueryService
 AuctionManager
 JdbcAuctionRepository.findAllAuctions
+AuctionManager.archiveClosedAuctions
+RoomManager.removeAuction
 ```
 
 ### Pham Anh Dung
@@ -143,6 +145,7 @@ AuctionRuntime.applyAcceptedBid
 ```text
 AuctionTimerService.safeRun
 closeIfExpired
+archiveClosedAuctions
 JdbcAuctionRepository.closeAuction
 ```
 
@@ -151,6 +154,7 @@ JdbcAuctionRepository.closeAuction
 ```text
 NetworkClient.readLoop
 ClientController.handleEvent
+ClientAppModel.removeAuction
 ReconnectCoordinator
 ClientController.resumeAfterReconnect
 ```

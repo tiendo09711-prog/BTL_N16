@@ -60,7 +60,7 @@ JOIN_AUCTION
 | `currentWinnerId` | Leader ID |
 | `currentWinnerUsername` | Ten hien thi leader |
 | `startTime`, `endTime` | Thoi gian server |
-| `status` | OPEN/ENDED |
+| `status` | OPEN/ENDED/CANCELLED |
 | `version` | Thu tu state cua auction |
 | `runtimes` | Map auctionId -> AuctionRuntime |
 | `connectionsByAuction` | Room subscribers |
@@ -116,7 +116,7 @@ Detail them recent bid history.
 2. Them auction moi va tai list lai.
 3. JOIN/LEAVE va quan sat watcherCount.
 4. Tat client khong LEAVE, quan sat server cleanup room.
-5. Kiem tra list sap OPEN truoc ENDED.
+5. Kiem tra list sap OPEN truoc ENDED/CANCELLED va tu an sau retention.
 6. Thay `bidHistoryLimit` va xem payload.
 7. Them cot startPrice vao JTable.
 
@@ -152,7 +152,7 @@ Khi socket mat, khong can quet moi room de tim connection.
 
 ### 8. Client JOIN phien ENDED duoc khong?
 
-Duoc xem snapshot/history, nhung nut bid bi vo hieu va server tu choi PLACE_BID.
+Trong 120 giay visibility window thi duoc xem snapshot/history, nhung server tu choi bid. Sau khi `AUCTION_ARCHIVED`, phong bi an va JOIN/RESYNC tra `AUCTION_NOT_FOUND`.
 
 ### 9. watcherCount co phai so user unique?
 
@@ -172,7 +172,7 @@ Moi bid/end tang version; client co the bo qua snapshot cu hon.
 
 ### 13. Tai sao khong broadcast list moi lan tick?
 
-Lang phi; tick chi gui room. List tai lai theo request va update qua event khi dang join.
+Lang phi; tick chi gui room. Tao phong dung `AUCTION_CREATED`, con phong het retention dung `AUCTION_ARCHIVED` de cap nhat danh sach realtime.
 
 ### 14. RESYNC tra gi?
 
@@ -234,3 +234,27 @@ Muc tieu: hoan thien product/create room va persistence, dong thoi hoc cach du l
 - Chi product active cua owner duoc dung tao phong.
 - Phong moi xuat hien khong can restart server.
 - Test double va JDBC tra cung snapshot, my lists va block behavior.
+
+## Bo sung moi - Visibility, archive va room cleanup
+
+### Nhiem vu
+
+- Chu tri `AuctionManager.archivedAuctionIds` va `archiveClosedAuctions`.
+- An phong archive khoi `snapshots`, `snapshotsByHost`, dashboard stats va `requireRuntime`.
+- Them `RoomManager.removeAuction` de don hai chieu auction/connection.
+- Bao dam repository/JDBC van giu auction, bid va result; archive khong them lenh `DELETE`.
+
+### Ngay 11 trong lo trinh
+
+| Noi dung hoc va thuc hanh | Dau ra ban giao |
+|---|---|
+| Ve quan he runtime visible va du lieu persistent | So do RAM/MySQL |
+| Hoan thien filter list/my-list/dashboard | Contract visibility |
+| Pair voi Duc noi timer vao manager va room cleanup | Luong archive server |
+| Pair voi Thuan kiem tra client list va RESYNC | Test end-to-end |
+
+### Tieu chi bo sung
+
+- Phong archive khong con trong `AUCTION_LIST`, `MY_AUCTIONS` hay dashboard.
+- `requireRuntime` tra `AUCTION_NOT_FOUND` cho phong da archive.
+- Room/subscription duoc don hai chieu, du lieu MySQL van truy van duoc.

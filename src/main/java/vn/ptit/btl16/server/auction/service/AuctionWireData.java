@@ -114,6 +114,16 @@ public final class AuctionWireData {
         return data;
     }
 
+    public static Map<String, String> archived(AuctionSnapshot auction, Instant serverNow) {
+        Map<String, String> data = new LinkedHashMap<>();
+        data.put("auctionId", Long.toString(auction.getAuctionId()));
+        data.put("productName", auction.getProduct().getName());
+        data.put("status", auction.getStatus().name());
+        data.put("message", "Phien da dong va duoc an khoi san");
+        data.put("serverNow", Times.wire(serverNow));
+        return data;
+    }
+
     public static Map<String, String> kicked(
             long auctionId,
             String username,

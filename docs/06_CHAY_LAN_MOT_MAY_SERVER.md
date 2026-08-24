@@ -85,3 +85,7 @@ npm run client -- --host=192.168.x.x
 5. Mot may tat Wi-Fi, bat lai.
 6. Client reconnect, resume va resync.
 7. Bid trong 10 giay cuoi de demo extension.
+8. Cho phong dong, quan sat ket qua con hien 120 giay.
+9. Het retention, tat ca client nhan `AUCTION_ARCHIVED` va dashboard tu an phong.
+
+Du lieu lich su van nam tren MySQL cua may server; cac may client khong duoc truy cap port 3306.

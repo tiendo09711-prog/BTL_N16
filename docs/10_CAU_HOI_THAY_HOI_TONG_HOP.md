@@ -189,3 +189,11 @@ Khong. Client chi tro thanh host nghiep vu cua phong. Java central server van gi
 ### 41. Mot host co duoc mua hang khong?
 
 Co, host chi bi chan bid trong auction do chinh minh chu tri. O auction cua nguoi khac, tai khoan do la bidder binh thuong.
+
+### 42. Tai sao phong dong khong bien mat ngay?
+
+He thong giu `ENDED`/`CANCELLED` trong 120 giay de nguoi choi xem winner, gia cuoi va trang thai. Sau do `AuctionTimerService` archive, `AuctionManager` an khoi list/dashboard, `RoomManager` don subscriber va server gui `AUCTION_ARCHIVED` cho client.
+
+### 43. Archive co xoa lich su dau gia khong?
+
+Khong. Archive chi an phong khoi san dang hoat dong. Du lieu trong MySQL van con de xem `auctions`, `bids` va `auction_results`.

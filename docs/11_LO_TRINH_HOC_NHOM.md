@@ -79,6 +79,15 @@ Moi file can tra loi duoc:
 - Reviewer giai thich file cua tac gia.
 - Chay self-test, load test va ghi lai ket qua JDBC/LAN.
 
+## Ngay 11 - Retention va archive phong
+
+- Tien: chot `auction.closedVisibilitySeconds`, `AUCTION_ARCHIVED` va composition.
+- Duc: timer xac dinh moc archive sau `endedAt`.
+- Phuoc: `AuctionManager` an list/my-list/dashboard va `RoomManager.removeAuction`.
+- Thuan: client nhan event, xoa model/joined room va them regression test.
+- Dung: review bid/resync sau archive va race tai ranh gioi retention.
+- Ca nhom demo: phong dong con hien 120 giay, sau do bien mat nhung MySQL van con.
+
 ## Pair review moi
 
 ```text
@@ -93,3 +102,4 @@ Mai Trung Duc <-> Do Tien: lifecycle/manual close/timer
 - Khong co logic authorization chi nam tren client.
 - Test repository va JDBC tuan theo cung `AuctionRepository` contract.
 - `FullNetworkAuctionSelfTest` va `AuctionManagementSelfTest` deu pass.
+- Phong dong tu an sau 120 giay tren client/dashboard, room duoc don va lich su DB khong bi xoa.

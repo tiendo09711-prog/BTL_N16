@@ -127,6 +127,8 @@ SELECT auction FOR UPDATE
 
 Manual end dung cung transaction tren nhung bo dieu kien `endedAt >= endTime`.
 
+Sau khi dong, server giu phong tren danh sach trong 120 giay roi archive khoi runtime hien thi. Archive khong chay `DELETE`; lich su van nam trong `auctions`, `bids` va `auction_results` de truy vet.
+
 ## Transaction host control
 
 ```text

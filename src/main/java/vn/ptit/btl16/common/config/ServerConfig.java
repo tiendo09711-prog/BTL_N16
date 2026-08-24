@@ -25,6 +25,7 @@ public final class ServerConfig {
     private final int timerCheckMillis;
     private final int tickBroadcastMillis;
     private final int bidHistoryLimit;
+    private final int closedVisibilitySeconds;
     private final int demoShortAuctionSeconds;
     private final int demoMediumAuctionSeconds;
     private final int demoLongAuctionSeconds;
@@ -53,6 +54,7 @@ public final class ServerConfig {
                 p.getInt("auction.timerCheckMillis", 200, 20, 60_000),
                 p.getInt("auction.tickBroadcastMillis", 1000, 100, 60_000),
                 p.getInt("auction.bidHistoryLimit", 50, 1, 1000),
+                p.getInt("auction.closedVisibilitySeconds", 120, 0, 86400),
                 p.getInt("demo.shortAuctionSeconds", 90, 15, 86400),
                 p.getInt("demo.mediumAuctionSeconds", 300, 15, 86400),
                 p.getInt("demo.longAuctionSeconds", 480, 15, 86400));
@@ -81,6 +83,7 @@ public final class ServerConfig {
             int timerCheckMillis,
             int tickBroadcastMillis,
             int bidHistoryLimit,
+            int closedVisibilitySeconds,
             int demoShortAuctionSeconds,
             int demoMediumAuctionSeconds,
             int demoLongAuctionSeconds) {
@@ -106,6 +109,7 @@ public final class ServerConfig {
         this.timerCheckMillis = timerCheckMillis;
         this.tickBroadcastMillis = tickBroadcastMillis;
         this.bidHistoryLimit = bidHistoryLimit;
+        this.closedVisibilitySeconds = closedVisibilitySeconds;
         this.demoShortAuctionSeconds = demoShortAuctionSeconds;
         this.demoMediumAuctionSeconds = demoMediumAuctionSeconds;
         this.demoLongAuctionSeconds = demoLongAuctionSeconds;
@@ -126,6 +130,20 @@ public final class ServerConfig {
             int shortAuctionSeconds,
             int antiSnipingWindowSeconds,
             int extensionSeconds) {
+        return forTests(
+                port,
+                shortAuctionSeconds,
+                antiSnipingWindowSeconds,
+                extensionSeconds,
+                120);
+    }
+
+    public static ServerConfig forTests(
+            int port,
+            int shortAuctionSeconds,
+            int antiSnipingWindowSeconds,
+            int extensionSeconds,
+            int closedVisibilitySeconds) {
         return new ServerConfig(
                 "127.0.0.1",
                 port,
@@ -149,6 +167,7 @@ public final class ServerConfig {
                 50,
                 200,
                 100,
+                closedVisibilitySeconds,
                 shortAuctionSeconds,
                 Math.max(shortAuctionSeconds + 10, 15),
                 Math.max(shortAuctionSeconds + 20, 30));
@@ -196,6 +215,7 @@ public final class ServerConfig {
     public int getTimerCheckMillis() { return timerCheckMillis; }
     public int getTickBroadcastMillis() { return tickBroadcastMillis; }
     public int getBidHistoryLimit() { return bidHistoryLimit; }
+    public int getClosedVisibilitySeconds() { return closedVisibilitySeconds; }
     public int getDemoShortAuctionSeconds() { return demoShortAuctionSeconds; }
     public int getDemoMediumAuctionSeconds() { return demoMediumAuctionSeconds; }
     public int getDemoLongAuctionSeconds() { return demoLongAuctionSeconds; }

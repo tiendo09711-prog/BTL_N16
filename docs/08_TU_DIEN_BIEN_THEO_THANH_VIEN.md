@@ -43,8 +43,10 @@
 | `autoReconnectEnabled` | ClientController | Tat khi logout chu dong |
 | `serverClockOffsetMillis` | ClientAppModel | Lech gio server-client |
 | `joinedAuctionId` | ClientAppModel | Room can resync sau reconnect |
+| `archivedAuctionIds` | ClientAppModel | Tombstone chan response list cu them lai phong da an |
 | `bidUpdateEvents` | FullNetworkAuctionSelfTest | Dem event realtime |
 | `endedEvent` | FullNetworkAuctionSelfTest | Cho AUCTION_ENDED |
+| `archivedEvent` | FullNetworkAuctionSelfTest | Cho AUCTION_ARCHIVED sau retention |
 
 ## 3. Pham Anh Dung - Bid va concurrency
 
@@ -75,8 +77,9 @@
 | `lastTickAt` | AuctionTimerService | Tranh broadcast tick qua day |
 | `antiSnipingWindowSeconds` | ServerConfig/BidService | Cua so sat gio |
 | `extensionSeconds` | ServerConfig/BidService | So giay gia han |
+| `closedVisibilitySeconds` | ServerConfig/AuctionManager | So giay giu phong dong tren san |
 | `endTime` | AuctionRuntime | Thoi diem ket thuc chinh thuc |
-| `status` | AuctionRuntime | OPEN/ENDED |
+| `status` | AuctionRuntime | OPEN/ENDED/CANCELLED |
 | `endedAt` | AuctionRuntime/AuctionResult | Thoi diem dong thuc te |
 | `winnerId` | AuctionResult | Nguoi thang co the null |
 | `finalPrice` | AuctionResult | Gia cuoi |
@@ -98,8 +101,9 @@
 | `currentWinnerUsername` | AuctionSnapshot | Ten leader hien thi |
 | `startTime` | AuctionSnapshot | Moc mo |
 | `endTime` | AuctionSnapshot | Moc dong |
-| `status` | AuctionSnapshot | OPEN/ENDED |
+| `status` | AuctionSnapshot | OPEN/ENDED/CANCELLED |
 | `watcherCount` | ClientAuction | So subscriber room |
 | `runtimes` | AuctionManager | auctionId -> AuctionRuntime |
+| `archivedAuctionIds` | AuctionManager | Cac phong da an khoi list/runtime access |
 | `connectionsByAuction` | RoomManager | auction -> connection set |
 | `auctionsByConnection` | RoomManager | connection -> auction set |

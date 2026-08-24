@@ -100,6 +100,18 @@ min bid increment + block self-bid
 -> AuctionManagementSelfTest
 ```
 
+### Giai doan 9 - Dong va an phong sau 2 phut
+
+```text
+auction.closedVisibilitySeconds=120
+-> timer close ENDED/CANCELLED nhu cu
+-> AuctionManager archive sau retention
+-> RoomManager.removeAuction
+-> AUCTION_ARCHIVED broadcastAll
+-> ClientAppModel.removeAuction
+-> FullNetworkAuctionSelfTest kiem tra list/dashboard/resync
+```
+
 ## Ma tran phu thuoc
 
 | Nguoi | Dau vao can tu nguoi khac | Dau ra cung cap |
@@ -116,4 +128,5 @@ min bid increment + block self-bid
 - Sua field wire phai sua server parser, client parser va document protocol.
 - Sua schema phai sua repository va SQL file.
 - Sua auction rule phai them self-test.
+- Sua retention/archive phai doi chieu server list, dashboard, room va client model.
 - Khong merge UI neu request/response chua chay bang console.
