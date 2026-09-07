@@ -81,23 +81,21 @@ public final class ConsoleClientMain {
     private static Credentials readCredentials() {
         Console console = System.console();
         if (console != null) {
-            String username = console.readLine("Username [demo]: ");
-            char[] password = console.readPassword("Password [demo123]: ");
-            String user = username == null || username.isBlank() ? "demo" : username;
-            String pass = password == null || password.length == 0 ? "demo123" : new String(password);
+            String username = console.readLine("Username (register in the GUI first): ");
+            char[] password = console.readPassword("Password: ");
+            String user = username == null ? "" : username;
+            String pass = password == null ? "" : new String(password);
             if (password != null) {
                 java.util.Arrays.fill(password, '\0');
             }
             return new Credentials(user, pass);
         }
         Scanner scanner = new Scanner(System.in);
-        System.out.print("Username [demo]: ");
+        System.out.print("Username (register in the GUI first): ");
         String username = scanner.nextLine();
-        System.out.print("Password [demo123]: ");
+        System.out.print("Password: ");
         String password = scanner.nextLine();
-        return new Credentials(
-                username.isBlank() ? "demo" : username,
-                password.isBlank() ? "demo123" : password);
+        return new Credentials(username, password);
     }
 
     private static final class Credentials {

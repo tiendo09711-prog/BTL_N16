@@ -12,12 +12,12 @@ import java.awt.Insets;
 import java.awt.event.ActionListener;
 
 public final class LoginPanel extends JPanel {
-    private final JTextField usernameField = new JTextField("demo", 20);
-    private final JPasswordField passwordField = new JPasswordField("demo123", 20);
+    private final JTextField usernameField = new JTextField(20);
+    private final JPasswordField passwordField = new JPasswordField(20);
     private final JButton loginButton = new JButton("Dang nhap");
     private final JButton registerButton = new JButton("Dang ky");
     private final JButton reconnectButton = new JButton("Ket noi lai");
-    private final JLabel hintLabel = new JLabel("Demo: demo/demo123, alice/alice123, bob/bob123");
+    private final JLabel hintLabel = new JLabel("Chua co tai khoan? Bam Dang ky de bat dau.");
     private boolean busy;
     private boolean connected;
 

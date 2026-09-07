@@ -8,7 +8,7 @@ Server phai la nguon su that ve gia, winner, end time va status. Mot server giup
 
 ### 2. Client co ket noi DB khong?
 
-Khong. Client chi TCP toi Java server. Server moi JDBC toi MySQL.
+Khong. Client mac dinh WebSocket toi Java server; TCP la transport legacy/test. Server moi JDBC toi MySQL.
 
 ### 3. Tai sao khong microservice?
 
@@ -22,7 +22,7 @@ TCP la byte stream. He dieu hanh co the tach mot write thanh nhieu read hoac gom
 
 ### 5. Project tao ranh gioi message the nao?
 
-Bon byte dau la frame length, sau do `readFully` doc dung payload.
+Voi TCP: bon byte dau la frame length, sau do readFully doc payload. Voi WebSocket: thu vien tach message, JsonWireMessageCodec decode JSON WireMessage.
 
 ### 6. Tai sao co maxFrameBytes?
 
@@ -36,7 +36,7 @@ Bid thread, timer thread va controller co the cung gui. Neu ghi xen byte thi fra
 
 ### 8. Co nhung thread nao?
 
-Acceptor, client workers, auction timer, session cleanup; client co Swing EDT, reader, heartbeat, reconnect va request timeout.
+Acceptor, client workers, auction timer, session cleanup; client chinh co FX Application Thread, WebSocket callback, heartbeat/reconnect/request timeout; Swing EDT chi cho client legacy/dashboard.
 
 ### 9. Tai sao dung worker pool?
 
@@ -150,7 +150,7 @@ Trong luc mat ket noi, gia/timer/winner co the da thay doi.
 
 ### 33. Reconnect flow?
 
-TCP connect -> RESUME_SESSION -> RESYNC auction -> snapshot moi -> tiep tuc nhan event.
+Ket noi lai transport WS/TCP -> RESUME_SESSION -> RESYNC auction -> snapshot moi -> tiep tuc nhan event.
 
 ### 34. Server restart thi token cu con dung khong?
 
@@ -160,11 +160,11 @@ Khong trong ban nay vi session luu RAM; client can login lai. Day la quyet dinh 
 
 ### 35. View co lam network khong?
 
-Khong. View phat event; ClientController goi API; NetworkClient xu ly socket.
+Khong. JavaFX FxClientController xu ly input, goi AccountApi/AuctionApi qua ClientTransport; ClientAppModel giu state. Swing legacy co MainFrame/ClientController/NetworkClient.
 
-### 36. Tai sao Swing update tren EDT?
+### 36. Tai sao phai cap nhat UI tren dung thread?
 
-Swing component khong thread-safe; callback network phai `SwingUtilities.invokeLater`.
+JavaFX dung Platform.runLater tren FX thread. Voi Swing legacy/dashboard, Swing component khong thread-safe; callback network phai `SwingUtilities.invokeLater`.
 
 ## Demo
 

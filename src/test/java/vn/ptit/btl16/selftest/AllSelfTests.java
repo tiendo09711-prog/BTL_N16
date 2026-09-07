@@ -9,6 +9,8 @@ public final class AllSelfTests {
         JsonWireMessageCodecSelfTest.run();
         PasswordHasherSelfTest.run();
         SessionManagerSelfTest.run();
+        ServerAddressesSelfTest.run();
+        DatabaseConfigSelfTest.run();
         FullNetworkAuctionSelfTest.run();
         AuctionManagementSelfTest.run();
         WebSocketUpgradeSelfTest.run();

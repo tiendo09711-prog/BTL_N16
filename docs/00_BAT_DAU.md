@@ -1,85 +1,35 @@
-# 00 - BAT DAU TAI DAY
+# 00 – Bắt đầu đọc code
 
-## Muc tieu cua bo source
+Đối chiếu source ngày **07/09/2026**. Luồng chính: **JavaFX → WebSocket → Java server → JDBC → XAMPP**. TCP/Swing còn để học và kiểm thử; không phải UI EXE client mặc định.
 
-Bo source nay khong chi de copy. Moi thanh vien phai hoc duoc mot luong day du:
+## Thứ tự đọc
 
-```text
-Client UI
--> Network request
--> TCP server
--> Business logic
--> Shared state / database
--> Network response / event
--> Client update
-```
+1. [README](../README.md): mục đích, setup và sử dụng hai EXE.
+2. [05 – VS Code + XAMPP](05_CACH_CHAY_VSCODE_XAMPP.md): cổng DB từng máy, JDBC và schema trống.
+3. [01 – Kiến trúc](01_KIEN_TRUC_TONG_THE.md), [03 – Protocol](03_PROTOCOL_VA_LUONG_MESSAGE.md), [04 – Database](04_DATABASE.md).
+4. [13 – Phân công](13_BANG_PHAN_CONG_FILE_THEO_NGUOI.md) → [members](members): phần mỗi người phải hiểu và bảo trì.
+5. [09 – Nhiệm vụ từng file](09_NHIEM_VU_TUNG_FILE.md), [08 – Biến](08_TU_DIEN_BIEN_THEO_THANH_VIEN.md): tra khi đọc source.
+6. [07 – Kiểm thử](07_DEMO_KIEM_THU.md), [14 – Diễn tập 5 người](14_KICH_BAN_DEMO_5_NGUOI.md), [16 – Checklist](16_CHECKLIST_CHUC_NANG_VA_BAN_GIAO.md).
+7. [17 – JavaFX/WS](17_JAVAFX_WEBSOCKET_UPGRADE.md), [18 – Ảnh/private/search](18_PRODUCT_IMAGE_PRIVATE_ROOM_SEARCH.md), [19 – EXE/LAN](19_MULTI_MACHINE_AND_PACKAGING.md).
 
-## Viec can lam ngay
+## Điểm vào source
 
-1. Cai Node.js, JDK 17, Maven va Laragon.
-2. Kiem tra `config/server.properties`.
-3. Tai thu muc goc chay `npm run dev` tren may server.
-4. Lay dia chi LAN ma runner in ra.
-5. May khac chay `npm run client -- --host=IP_MAY_SERVER` neu co bo source.
-6. Dang nhap demo, alice, bob va cho vao cung mot auction.
-7. Dat gia tu hai client, quan sat broadcast/outbid/countdown.
-8. Nhan `Ctrl+C` tai may server de dung server/client local.
+Java main nằm trong src/main/java/vn/ptit/btl16/:
 
-## 13 bat bien kien truc can thuoc
+| Muốn hiểu | Đọc theo luồng |
+|---|---|
+| Client EXE | ClientMain → JavaFxClientApp → FxClientController |
+| Server EXE | ServerDashboardMain → ServerApplication → ServerDashboardFrame/ServerAddresses |
+| Request | AccountApi/AuctionApi → ClientTransport → server/network → MessageRouter |
+| Database | ServerConfig → JdbcConnectionFactory → DatabaseSchema → JDBC repositories |
+| Bid | AuctionController → BidService → JdbcAuctionRepository → AuctionBroadcastService |
+| Phòng/ảnh/quyền chủ | AuctionManagementService → repository/runtime/session |
+| Timer/kết quả/archive | AuctionTimerService → AuctionManager → RoomManager → event |
 
-1. TCP khong co ranh gioi message.
-2. `[length][payload]` tao ranh gioi message.
-3. Moi connection co mot read loop.
-4. Moi socket chi duoc ghi tuan tu qua output lock.
-5. Client tao requestId.
-6. Server tao serverSequence.
-7. Server la nguon su that.
-8. Room chi broadcast cho subscriber cua auction do.
-9. Moi auction co lock rieng.
-10. Khong gui mang trong luc giu auction lock.
-11. Timer chinh thuc nam o server.
-12. Reconnect phai lay snapshot moi nhat.
-13. Phong dong chi an khoi san sau retention; lich su MySQL khong bi xoa.
+## Quy ước bàn giao
 
-## Cach doc code
-
-Khong doc theo thu tu alphabet. Doc theo duong di cua message:
-
-```text
-MessageType
--> WireMessage
--> LengthPrefixedMessageCodec
--> NetworkClient
--> TcpServer
--> ClientConnection
--> MessageRouter
--> Controller
--> Service
--> Repository / Manager
--> Event quay lai client
-```
-
-## Che do chay
-
-### MySQL/JDBC
-
-- Dung Laragon MySQL.
-- La repository runtime duy nhat cua server.
-- Luu user, product, auction, bid, blocked user va result.
-- Self-test dung repository test rieng trong `src/test`, khong tao them che do chay server.
-
-## Quy tac lam viec nhom
-
-- Khong ai tao TCP server rieng.
-- Khong ai tu dat protocol field ma khong thong nhat.
-- Khong ai cho View goi SQL.
-- Khong ai tin `userId` do client gui.
-- Moi module phai co request, response va event ro rang.
-- Merge theo thu tu trong `02_THU_TU_XAY_DUNG_VA_PHU_THUOC.md`.
-
-## Nang cap JavaFX + WebSocket
-
-- UI mac dinh hien tai la JavaFX; Swing chi con `LegacySwingClientMain`.
-- WebSocket `ws://127.0.0.1:8890/ws` la transport mac dinh; TCP 8888 duoc giu cho legacy/test.
-- Doc tiep `17_JAVAFX_WEBSOCKET_UPGRADE.md`, `18_PRODUCT_IMAGE_PRIVATE_ROOM_SEARCH.md` va `19_MULTI_MACHINE_AND_PACKAGING.md`.
-- Client van khong ket noi MySQL; server van la authority.
+- Chức năng đã có trong source; docs/members là phạm vi **cần hiểu, giải thích, kiểm thử, bảo trì**, không phải kế hoạch viết lại.
+- DB mới hoàn toàn trống: tự đăng ký, thêm sản phẩm, tạo phòng; không có tài khoản demo cài sẵn.
+- Fixture src/test cách ly với XAMPP. Load-test chủ động tạo dữ liệu thật, chỉ chạy trên DB thử riêng.
+- Mỗi người cần kể được UI → request → service → transaction → event → UI, rồi chỉ đúng đoạn mình phụ trách.
+- [VERIFICATION](../VERIFICATION.md) ghi lệnh đã chạy thật. Chưa tick LAN/GUI đầy đủ nếu chỉ chạy test local.

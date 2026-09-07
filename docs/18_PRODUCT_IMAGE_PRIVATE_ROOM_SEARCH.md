@@ -6,13 +6,13 @@
 JavaFX FileChooser/ImageView
 -> AuctionApi imageBase64 request
 -> AuctionController
--> ProductImageValidator
 -> AuctionManagementService
+-> ProductImageValidator
 -> AuctionRepository/JDBC
 -> MySQL MEDIUMBLOB
 ```
 
-Server giới hạn 700 KB, chỉ nhận PNG/JPEG, kiểm tra MIME và magic bytes. Client validation chỉ phục vụ UX.
+Server giới hạn 700 * 1024 byte (700 KiB), chỉ nhận PNG/JPEG, kiểm tra MIME và magic bytes. Client validation chỉ phục vụ UX. Validator kiểm tra chữ ký/MIME, không giải mã đầy đủ nội dung mọi ảnh.
 
 Schema:
 
@@ -51,8 +51,9 @@ room_password_iterations INT
 
 ```text
 authenticated
--> auction tồn tại và OPEN
+-> auction tồn tại
 -> user không bị block
+-> auction còn OPEN theo thời gian server
 -> host: cho vào
 -> PUBLIC: cho vào
 -> PRIVATE + session grant: cho vào
@@ -107,3 +108,7 @@ PRODUCT_IMAGE_UNSUPPORTED_TYPE
 PRODUCT_IMAGE_INVALID
 INVALID_SEARCH_QUERY
 ```
+
+## Chuẩn bị dữ liệu trên XAMPP
+
+Schema mới trống, không có ảnh/product/phòng/account mẫu. Tự đăng ký, thêm sản phẩm rồi tạo phòng để kiểm tra luồng trên; client không JDBC trực tiếp. DatabaseSchema và sql/00_schema.sql phải được cập nhật cùng repository khi đổi cột. Test ảnh/private/search dùng fixture trong WebSocketUpgradeSelfTest; kiểm tra GUI/DB thật cần diễn tập riêng.

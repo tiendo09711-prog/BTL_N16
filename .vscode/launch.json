@@ -3,6 +3,18 @@
   "configurations": [
     {
       "type": "java",
+      "name": "Check XAMPP JDBC",
+      "request": "launch",
+      "mainClass": "vn.ptit.btl16.server.db.DatabaseCheckMain"
+    },
+    {
+      "type": "java",
+      "name": "Setup Empty Database",
+      "request": "launch",
+      "mainClass": "vn.ptit.btl16.server.db.DatabaseSetupMain"
+    },
+    {
+      "type": "java",
       "name": "Run Server Dashboard",
       "request": "launch",
       "mainClass": "vn.ptit.btl16.server.dashboard.ServerDashboardMain"

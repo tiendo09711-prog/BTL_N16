@@ -1,6 +1,10 @@
 # 03 - PROTOCOL VA LUONG MESSAGE
 
-## Framing
+## Hai transport dùng chung WireMessage
+
+JavaFX EXE mặc định dùng WebSocket + JsonWireMessageCodec tại /ws, không bọc JSON bằng length-prefix TCP. WS callback qua WebSocketConnectionAdapter về cùng MessageRouter. pendingRequests có cả ở WebSocketClientTransport và NetworkClient; response dùng requestId, event được dispatch về UI.
+
+## Framing TCP (legacy/test)
 
 TCP chi cung cap byte stream. Project dung:
 
@@ -214,7 +218,7 @@ Bid loi duoc tra bang:
 type=BID_REJECTED
 success=false
 errorCode=BID_TOO_LOW
-message=Bid must be greater than current price
+message=Bid must be at least currentPrice + minBidIncrement
 ```
 
 Loi quan tri thuong gap:
@@ -233,19 +237,18 @@ USER_NOT_IN_AUCTION_ROOM
 ## Luong PLACE_BID chi tiet
 
 ```text
-AuctionPanel
--> ClientController.placeBid()
+FxClientController.placeBid()
 -> AuctionApi.bid()
--> NetworkClient.sendRequest()
--> requestId + frame
--> ClientConnection.read loop
+-> ClientTransport.sendRequest()
+-> WebSocketClientTransport: requestId + JSON WireMessage
+-> WebSocketServerTransport / WebSocketConnectionAdapter
 -> MessageRouter
 -> AuctionController.handlePlaceBid()
 -> BidService.placeBid()
 -> require session
--> require room membership
 -> lock AuctionRuntime
--> validate OPEN/end/currentPrice
+-> recheck room membership / no host self-bid
+-> validate OPEN / endTime / currentPrice + minBidIncrement
 -> AuctionRepository.commitAcceptedBid()
 -> DB transaction / FOR UPDATE
 -> update AuctionRuntime

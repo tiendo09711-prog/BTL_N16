@@ -8,6 +8,7 @@ import vn.ptit.btl16.server.auction.model.AuctionSnapshot;
 
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
+import javax.swing.JComboBox;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
@@ -20,6 +21,8 @@ import javax.swing.table.AbstractTableModel;
 import java.awt.BorderLayout;
 import java.awt.FlowLayout;
 import java.awt.GridLayout;
+import java.awt.Toolkit;
+import java.awt.datatransfer.StringSelection;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.util.ArrayList;
@@ -57,7 +60,10 @@ public final class ServerDashboardFrame extends JFrame {
         addStat(stats, "Rooms/Subs", roomsValue);
         addStat(stats, "Open/Ended", auctionsValue);
         addStat(stats, "Sequence", sequenceValue);
-        add(stats, BorderLayout.NORTH);
+        JPanel header = new JPanel(new BorderLayout(8, 8));
+        header.add(buildAddressPanel(), BorderLayout.NORTH);
+        header.add(stats, BorderLayout.CENTER);
+        add(header, BorderLayout.NORTH);
 
         JTable table = new JTable(tableModel);
         table.setAutoCreateRowSorter(true);
@@ -66,10 +72,10 @@ public final class ServerDashboardFrame extends JFrame {
         add(scroll, BorderLayout.CENTER);
 
         JTextArea note = new JTextArea(
-                "May nay la server trung tam. JavaFX client dung WebSocket 8890; "
-                        + "TCP 8888 duoc giu cho legacy/test; "
-                        + "khong ket noi truc tiep MySQL 3306.\n"
-                        + "Tai khoan demo: demo/demo123, alice/alice123, bob/bob123.");
+                "May nay la server trung tam. Gui dia chi LAN o tren cho cac may client. "
+                        + "Cho phep cong WebSocket trong Windows Firewall (Private). Client "
+                        + "khong ket noi truc tiep cong MySQL cua XAMPP.\n"
+                        + "DB moi khong co du lieu mau. Dang ky tai khoan tren client de bat dau.");
         note.setEditable(false);
         note.setLineWrap(true);
         note.setWrapStyleWord(true);
@@ -93,8 +99,52 @@ public final class ServerDashboardFrame extends JFrame {
         refreshTimer = new Timer(500, event -> refresh());
         refreshTimer.start();
         refresh();
-        setSize(1050, 580);
+        setSize(1050, 690);
         setLocationRelativeTo(null);
+    }
+
+    private JPanel buildAddressPanel() {
+        JPanel panel = new JPanel(new BorderLayout(8, 8));
+        panel.setBorder(BorderFactory.createTitledBorder("SERVER DANG CHAY - DIA CHI CHO MAY CLIENT"));
+        JComboBox<String> addresses = new JComboBox<>();
+        JLabel hint = new JLabel();
+        JButton copy = new JButton("Sao chep dia chi");
+        JButton refresh = new JButton("Lam moi dia chi");
+        Runnable reload = () -> {
+            addresses.removeAllItems();
+            try {
+                for (String url : ServerAddresses.webSocketUrls(
+                        application.getConfig(), application.getWebSocketBoundPort())) {
+                    addresses.addItem(url);
+                }
+                hint.setText(addresses.getItemCount() == 0
+                        ? "Khong co dia chi LAN IPv4. Kiem tra Wi-Fi/Ethernet va cau hinh WebSocket bindAddress."
+                        : "Chon IP cung mang voi client, sao chep va dan vao ung dung Client. Khong mo bang trinh duyet.");
+            } catch (Exception exception) {
+                hint.setText("Khong doc duoc dia chi mang: " + exception.getMessage());
+            }
+            copy.setEnabled(addresses.getItemCount() > 0);
+        };
+        copy.addActionListener(event -> {
+            String selected = (String) addresses.getSelectedItem();
+            if (selected != null) {
+                try {
+                    Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(selected), null);
+                    hint.setText("Da sao chep: " + selected + " - Gui dia chi nay cho may client.");
+                } catch (IllegalStateException exception) {
+                    hint.setText("Clipboard dang ban. Hay thu sao chep lai.");
+                }
+            }
+        });
+        refresh.addActionListener(event -> reload.run());
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        actions.add(copy);
+        actions.add(refresh);
+        panel.add(addresses, BorderLayout.CENTER);
+        panel.add(actions, BorderLayout.EAST);
+        panel.add(hint, BorderLayout.SOUTH);
+        reload.run();
+        return panel;
     }
 
     private void addStat(JPanel panel, String label, JLabel value) {

@@ -1,170 +1,109 @@
-# VERIFICATION - TRẠNG THÁI BUILD VÀ KIỂM THỬ
+# VERIFICATION – Kiểm tra ngày 07/09/2026
 
-Ngày kiểm tra: 2026-08-24
+## Môi trường thực tế
 
-## 1. Môi trường
+- Windows x64, OpenJDK/Temurin 26.0.1; compile target Java 17.
+- Maven 3.9.16, Node.js v24.13.0.
+- XAMPP MySQL: MariaDB 10.4.32, 127.0.0.1:3306, datadir C:/xampp/mysql/data/.
+- MySQL Connector/J 8.4.0; JavaFX/WS/Jackson theo pom.xml.
+- JDK hiện có trên PATH dùng được cho VS Code; không cần chạy IDE cũ. Không thay đổi cài đặt toàn hệ thống ngoài tải lại dependency JDBC của Maven.
 
-```text
-OpenJDK 26.0.1
-Compile target: --release 17
-Node.js v24.13.0
-npm 11.6.2
-MySQL 127.0.0.1:3306
-jpackage: C:\Apache NetBeans\jdk\bin\jpackage.exe
-```
+## JDBC đã tải lại và kết nối
 
-Project dùng JavaFX 21.0.4, Java-WebSocket 1.6.0, Jackson 2.17.2, MySQL Connector/J 8.4.0 và SLF4J NOP runtime binding.
+Các lệnh đã chạy thành công:
 
-## 2. Maven clean test
-
-Lệnh:
-
-```bash
-mvn clean test
-```
-
-Kết quả thật:
-
-```text
-Compiling 120 source files with release 17
-Compiling 11 test source files with release 17
-BUILD SUCCESS
-```
-
-Hai repository fixture có tên theo convention JUnit 3 nhưng không chứa method `test*`, vì vậy Surefire báo `Tests run: 0`. Main-based self-test bắt buộc được chạy riêng bằng `npm test`.
-
-## 3. Self-test
-
-Lệnh:
-
-```bash
-npm test
-```
+    mvn -q dependency:purge-local-repository '-DmanualInclude=com.mysql:mysql-connector-j' '-DreResolve=true'
+    mvn -q clean test-compile dependency:copy-dependencies '-DincludeScope=runtime'
+    java -cp 'target/classes;target/dependency/*' vn.ptit.btl16.server.db.DatabaseCheckMain
+    java -cp 'target/classes;target/dependency/*' vn.ptit.btl16.server.db.DatabaseSetupMain
 
 Kết quả:
 
-```text
-[PASS] ProtocolCodecSelfTest
-[PASS] JsonWireMessageCodecSelfTest
-[PASS] PasswordHasherSelfTest
-[PASS] SessionManagerSelfTest
-[PASS] FullNetworkAuctionSelfTest
-[PASS] AuctionManagementSelfTest
-[PASS] WebSocketUpgradeSelfTest
-ALL SELF-TESTS PASSED
-```
+    JDBC connected to 127.0.0.1:3306
+    Database server: 5.5.5-10.4.32-MariaDB
+    Driver: MySQL Connector/J mysql-connector-j-8.4.0
+    DATABASE SETUP COMPLETE
+    Schema ready. No demo accounts, products or auctions are created.
 
-`FullNetworkAuctionSelfTest` xác minh TCP login/list/join/bid, concurrent bid, outbid, resume/resync, timer, ended và archive.
+Trước khi setup, XAMPP chưa có btl_16. Đã tạo schema mới tại đúng datadir XAMPP, không nhập dữ liệu cũ, không chạm database khác. Không cần chuyển sang driver khác khi Connector/J hiện tại đã kết nối được DB này.
 
-`WebSocketUpgradeSelfTest` xác minh:
+## Self-test
 
-```text
-WebSocket connect + CONNECTION_WELCOME
-register/login/ping/logout
-WebSocket tạo product có ảnh và private auction
-TCP nhận AUCTION_CREATED từ WebSocket
-join private thiếu/sai/đúng password
-TCP bid và WebSocket nhận BID_UPDATE
-search product name case-insensitive
-search exact Auction ID
-GET_PRODUCT_IMAGE roundtrip
-AUCTION_LIST không chứa imageBase64
-disconnect TCP -> resume session qua WebSocket
-RESYNC private room không hỏi lại password
-kick revoke grant và block không bị bypass
-```
+npm test đã chạy lại sau thay đổi code cuối và pass cả 9 nhóm:
 
-## 4. npm build
+    [PASS] ProtocolCodecSelfTest
+    [PASS] JsonWireMessageCodecSelfTest
+    [PASS] PasswordHasherSelfTest
+    [PASS] SessionManagerSelfTest
+    [PASS] ServerAddressesSelfTest
+    [PASS] DatabaseConfigSelfTest
+    [PASS] FullNetworkAuctionSelfTest
+    [PASS] AuctionManagementSelfTest
+    [PASS] WebSocketUpgradeSelfTest
+    ALL SELF-TESTS PASSED
 
-Lệnh:
+DatabaseConfigSelfTest kiểm tra host/port 3307/custom name trên config tạm, URL DB/server dùng cùng endpoint, port 0/65536/không phải số bị từ chối. Đây là kiểm tra cấu hình; chưa thay XAMPP thật sang cổng khác trên máy thành viên.
 
-```bash
-npm run build
-```
+Các network tests dùng repository fixture in-memory cách ly, không seed vào DB XAMPP. mvn test riêng không thay thế npm test vì suite chạy bằng main.
 
-Kết quả: exit code 0; Maven package và copy runtime dependencies thành công.
+## JDBC test cách ly
 
-## 5. MySQL setup/migration
+Đã chạy:
 
-Lệnh:
+    java -cp 'target/classes;target/test-classes;target/dependency/*' vn.ptit.btl16.selftest.XamppDatabaseSelfTest
 
-```bat
-scripts\setup-db.cmd
-```
+Kết quả PASS: tạo DB btl16_verify_<UUID>, xác minh 7 bảng trống sau setup và ServerApplication.create; chèn một dòng thử, chạy setup lại vẫn giữ đúng một dòng, reset rồi tất cả bảng trống. Finally dọn DB thử và config tạm; query xác nhận không còn DB tiền tố btl16_verify_.
 
-Kết quả:
+Test này xác minh schema/setup/reset bằng JDBC thật; không khẳng định đã chạy mọi transaction bid/ảnh trên MariaDB. Các luồng nghiệp vụ đầy đủ được kiểm tra bằng fixture/network suite, GUI/DB thật vẫn cần nhóm diễn tập.
 
-```text
-DATABASE SETUP COMPLETE
-Database: btl_16
-MySQL: 127.0.0.1:3306
-```
+## Development runner
 
-Đã query trực tiếp `information_schema.COLUMNS`; các cột migration tồn tại:
+Smoke test tools/dev-runner.mjs --server-only, cùng entry point npm run dev:server, đã chạy build → JDBC check → setup không seed → server ready:
 
-```text
-auctions.room_password_hash
-auctions.room_password_iterations
-auctions.room_password_salt
-auctions.visibility
-products.image_data
-products.image_mime
-products.image_name
-products.image_size
-products.image_version
-```
+    TCP listening 0.0.0.0:8888
+    WebSocket listening 0.0.0.0:8890/ws
+    [DEV] Server is ready.
+    DEV_RUNNER_SMOKE_PASS
 
-## 6. Development runner
+Runner in URL local/LAN và hướng dẫn client; không tự mở Laragon/XAMPP. Process của bài smoke test được dừng riêng sau kiểm tra, không tắt MySQL. Không dùng lần này để khẳng định đã kiểm tra Ctrl+C thủ công hoặc full npm run dev mở GUI.
 
-Lệnh server-only đã chạy:
+## Hai EXE
 
-```bash
-npm run dev:server -- --skip-setup
-```
+npm run dist đã build lại thành công sau chỉnh sửa banner/UI cuối:
 
-Xác nhận:
+    dist/BTL16-Auction-Server/BTL16-Auction-Server.exe
+    dist/BTL16-Auction-Client/BTL16-Auction-Client.exe
 
-```text
-MySQL ready
-TCP listening 0.0.0.0:8888
-WebSocket listening 0.0.0.0:8890/ws
-Runner in local và LAN endpoint
-Ctrl+C dừng WebSocket và TCP sạch
-```
+Cả hai có app/runtime. Bộ server có mysql-connector-j-8.4.0.jar; app/config/server.properties đã bỏ tùy chọn demo, dùng DB XAMPP 3306. Cơ chế đóng gói vẫn giữ cấu hình EXE cũ khi build lại.
 
-Lệnh đầy đủ đã chạy:
+Smoke test mở EXE bằng Start-Process -WindowStyle Hidden từ thư mục TEMP, không phải thư mục source:
 
-```bash
-npm run dev -- --skip-setup
-```
+    SERVER_EXE_SMOKE_PASS: alive; TCP 8888 and WS 8890 ready from a different working directory.
+    PACKAGED_WS_WELCOME_PASS
+    CLIENT_EXE_SMOKE_PASS: alive with bundled runtime.
 
-Xác nhận JavaFX client local được mở và server ghi nhận một WebSocket connection tại `/ws`. Sau smoke test, runner dừng client/server sạch. JDK 26 in cảnh báo JavaFX classpath/native-access, nhưng ứng dụng vẫn khởi động và kết nối; đây không phải compilation/runtime failure.
+WS probe thực sự nhận CONNECTION_WELCOME từ packaged server. Client EXE sống sau 5 giây; chưa tự động click nhập URL/login/bid. Đã dừng riêng các process thử, không để server giữ cổng sau kiểm tra.
 
-## 7. jpackage
+## DB bàn giao vẫn sạch
 
-Lệnh:
+Query lại sau test runner và cả hai EXE:
 
-```bash
-npm run dist:client
-```
+| Bảng | Số dòng |
+|---|---:|
+| users | 0 |
+| login_history | 0 |
+| products | 0 |
+| auctions | 0 |
+| bids | 0 |
+| auction_results | 0 |
+| auction_blocked_users | 0 |
 
-Kết quả:
+Không có tài khoản demo hoặc dữ liệu mới do bài kiểm tra để lại trong btl_16. Người dùng bắt đầu bằng đăng ký, thêm sản phẩm, tạo phòng.
 
-```text
-dist/BTL16-Auction-Client/
-BTL16-Auction-Client.exe
-app/
-runtime/
-```
+## Tài liệu và giới hạn
 
-App-image có 329 file, tổng kích thước 147.883.628 byte (xấp xỉ 141,03 MiB hoặc 148 MB hệ thập phân). Packaged executable được start hidden trong 6 giây, process vẫn chạy (`PACKAGED_CLIENT_RUNNING=True`) rồi được dừng bằng process tree cleanup. Điều này xác minh launcher/runtime image không thoát lỗi ngay khi khởi động.
-
-## 8. Phần chưa runtime verify
-
-- Chưa demo bằng ba máy vật lý trong cùng LAN.
-- Chưa kiểm tra Windows Firewall thực tế trên máy khác.
-- Chưa kiểm tra kết nối từ Internet, `wss://`, reverse proxy hoặc VPN mesh.
-- Chưa tạo MSI/installer; đã tạo app-image self-contained không cần WiX trên máy client.
-- GUI đã smoke-test khởi động/kết nối, nhưng chưa thực hiện toàn bộ thao tác thủ công bằng chuột trên packaged app.
-
-Các phần trên không được đánh dấu pass trong checklist bàn giao; mã nguồn, automated self-test, MySQL migration, runner và packaging đã được thực thi thật.
+- README giữ 5 mục, hướng dẫn setup VS Code/XAMPP và cổng mỗi máy.
+- docs/members của 5 người đối chiếu source; docs/09 phủ toàn bộ file Java, docs/13 chia reviewer cả file dùng chung/công cụ/docs.
+- Kiểm tra link nội bộ và ký tự điều khiển: 26 file Markdown README/docs, không lỗi.
+- git diff --check không báo lỗi whitespace; cảnh báo LF/CRLF là cấu hình Git Windows, không phải test failure.
+- Chưa thử LAN nhiều máy vật lý/firewall thật, toàn bộ thao tác GUI thủ công, máy thành viên cổng DB khác hoặc Internet/TLS. Các mục này vẫn để chưa tick trong docs/16.

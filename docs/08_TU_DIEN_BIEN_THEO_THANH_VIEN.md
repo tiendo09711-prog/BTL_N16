@@ -1,5 +1,7 @@
 # 08 - TU DIEN BIEN THEO THANH VIEN
 
+JavaFX chính dùng FxClientController/WebSocketClientTransport; các biến ClientController, HeartbeatService, ReconnectCoordinator và NetworkClient bên dưới thuộc đường TCP/Swing legacy. Server dashboard vẫn dùng Swing.
+
 ## 1. Do Tien - Network core, account, session
 
 | Bien | File | Y nghia |
@@ -105,7 +107,7 @@
 | `watcherCount` | ClientAuction | So subscriber room |
 | `runtimes` | AuctionManager | auctionId -> AuctionRuntime |
 | `archivedAuctionIds` | AuctionManager | Cac phong da an khoi list/runtime access |
-| `connectionsByAuction` | RoomManager | auction -> connection set |
+| `membersByAuction` | RoomManager | auction -> map connectionId/RoomMember |
 | `auctionsByConnection` | RoomManager | connection -> auction set |
 
 ## Bien nang cap JavaFX + WebSocket
@@ -118,3 +120,13 @@
 | `privateRoomGrantsByToken` | SessionManager | session -> auction da xac minh |
 | `imageVersion` | Product/ClientProduct | khoa cache anh |
 | `visibility` | AuctionSnapshot/ClientAuction | PUBLIC/PRIVATE |
+
+## XAMPP và hai EXE
+
+| Biến | Nơi đọc | Ý nghĩa |
+|---|---|---|
+| dbPort | ServerConfig | Cổng DB theo XAMPP từng máy; dùng cho URL server/schema |
+| btl16.server.config | AppProperties/launcher EXE | Chọn config source hoặc app/config của EXE |
+| client.manualConnect | ClientConfig/FxClientController | EXE chờ nhập địa chỉ và bấm Kết nối |
+| reconnecting | FxClientController | Tránh chạy trùng chuỗi reconnect |
+| imageCache | FxClientController | Cache theo productId:imageVersion |

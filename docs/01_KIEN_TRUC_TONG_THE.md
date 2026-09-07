@@ -1,202 +1,50 @@
-# 01 - KIEN TRUC TONG THE
+# 01 – Kiến trúc tổng thể
 
-## So do deployment
+## Hai ứng dụng, một business core
 
-```text
-MAY CLIENT A       MAY CLIENT B       MAY CLIENT C
-Swing Client       Swing Client       Swing Client
-     \                  |                  /
-      \____________ TCP 8888 ____________/
-                         |
-                         v
-               JAVA CENTRAL SERVER
-        +--------------------------------+
-        | TcpServer / ClientConnection   |
-        | MessageRouter                  |
-        | SessionManager                 |
-        | RoomManager                    |
-        | AuctionManager                 |
-        | AuctionManagementService       |
-        | BidService                     |
-        | AuctionTimerService            |
-        | ServerMessagingService         |
-        +---------------+----------------+
-                        |
-                   JDBC 3306
-                        |
-                  LARAGON MYSQL
-                    database btl_16
-```
+    ClientMain → JavaFxClientApp → FxClientController
+      → AccountApi / AuctionApi → ClientTransport
+        → WebSocketClientTransport → WS :8890/ws (mặc định)
+        → TcpClientTransport → NetworkClient → TCP :8888 (legacy/test)
 
-Client khong duoc ket noi truc tiep vao MySQL.
+    ServerDashboardMain (EXE) hoặc ServerMain (console)
+      → ServerApplication
+        → WebSocketServerTransport → WebSocketConnectionAdapter
+        → TcpServer → ClientConnection
+          → ServerConnection → MessageRouter → Controller → Service
+            → JdbcUserRepository / JdbcAuctionRepository
+              → JdbcConnectionFactory → XAMPP MySQL/MariaDB
 
-## Mo hinh san dau gia tu phuc vu
+WebSocket dùng JSON, TCP dùng binary length-prefix. Hai transport dùng chung session/room/runtime/transaction/broadcast. Client không trực tiếp JDBC hoặc tự quyết định giá, quyền và thời điểm kết thúc.
 
-- Khong co role toan cuc `ADMIN`, `SELLER`, `BUYER` trong pham vi hien tai.
-- Moi user da dang nhap co the tao product va auction cua minh.
-- Mot user co the la host o auction A nhung la bidder o auction B.
-- Ownership va host authorization duoc kiem tra theo tung resource tren central server.
-- Client la host logic cua mot phong, khong phai mot TCP server rieng.
-- Central server van la nguon su that duy nhat ve quyen, gia, winner, end time va status.
+## Thành phần và trách nhiệm
 
-## So do package
+| Thành phần | Vai trò |
+|---|---|
+| ServerApplication | Composition root: JDBC/schema, module, listener, scheduler, start/close |
+| ServerConnection, ConnectionRegistry | Abstraction gửi/đóng kết nối và registry TCP/WS |
+| MessageRouter, RequestContext, ServerModule | Tra route, kiểm tra session, đăng ký handler |
+| AccountService, SessionManager | Account/password/profile, login, detach/resume/grace |
+| AuctionManager, AuctionRuntime | Tập runtime, snapshot và khóa riêng từng auction |
+| RoomManager | Thành viên theo connectionId; dọn khi leave/disconnect/kick/archive |
+| AuctionManagementService | Product/ảnh, tạo public/private, ownership và host controls |
+| BidService | Recheck rule trong khóa → commit bid → runtime → event |
+| AuctionTimerService | Tick, đóng đến hạn, giữ kết quả rồi archive khỏi list |
+| AuctionBroadcastService, ServerMessagingService | Push theo room/toàn bộ/user qua ServerConnection |
+| JDBC repositories | PreparedStatement, transaction, commit/rollback |
+| ServerDashboardFrame, ServerAddresses | Dashboard Swing và URL LAN cho client |
 
-```text
-vn.ptit.btl16
-|-- common
-|   |-- config
-|   |-- protocol
-|   |-- util
-|   `-- validation
-|-- server
-|   |-- network
-|   |-- routing
-|   |-- session
-|   |-- account
-|   |-- auction
-|   |-- db
-|   |-- module
-|   `-- dashboard
-|-- client
-|   |-- network
-|   |-- service
-|   |-- model
-|   |-- controller
-|   `-- view
-`-- tools
-```
+## Trạng thái và thread
 
-## So do module server
+- DB giữ account/audit, sản phẩm/ảnh BLOB, auction/private hash, bid/result và block user.
+- RAM server giữ socket/session/grant/membership/runtime. Restart mất session, client phải login lại.
+- RAM client giữ ClientAppModel, pendingRequests và cache ảnh productId:imageVersion; RESYNC phục hồi snapshot khi mất mạng.
+- TCP có acceptor/worker/read loop và outputLock; WS dùng callback adapter, không nhân đôi business logic.
+- Bid, timer, host controls dùng cùng khóa AuctionRuntime; JDBC thêm SELECT ... FOR UPDATE. Chỉ cập nhật runtime/broadcast khi commit thành công; broadcast ngoài khóa để không giữ khóa do client chậm.
+- JavaFX xử lý network callback trên Platform.runLater. EDT chỉ dành dashboard và Swing legacy.
 
-```text
-TcpServer
-  -> ClientConnection
-  -> MessageRouter
-       |-- CoreAccountModule
-       |    |-- AccountController
-       |    |-- AccountService
-       |    `-- UserRepository / SessionManager
-       |
-       `-- AuctionModule
-            |-- AuctionController
-            |-- AuctionQueryService
-            |-- AuctionManagementService
-            |-- BidService
-            |-- AuctionTimerService
-            |-- AuctionManager
-            |-- RoomManager
-            `-- AuctionRepository
-```
+## Triển khai
 
-## Mo hinh thread
+Server EXE kèm Java/dependency/config nhưng không kèm MySQL. Start MySQL trong XAMPP và chỉnh db.port theo từng máy. Client EXE nhận URL WS từ dashboard; firewall chỉ cần mở WS, không mở DB ra LAN.
 
-```text
-SERVER
-main thread
-  -> khoi tao va cho server dung
-
-tcp-acceptor
-  -> ServerSocket.accept()
-
-client-worker-1..N
-  -> moi worker chay read loop cua mot connection
-
-auction-timer
-  -> check end time va broadcast tick
-
-session-cleanup
-  -> xoa session detached het grace period
-
-CLIENT
-Swing EDT
-  -> click va render
-
-server-reader
-  -> doc response va event
-
-client-request-timeouts
-  -> timeout CompletableFuture
-
-client-heartbeat
-  -> PING/PONG
-
-client-reconnect
-  -> backoff connect lai
-```
-
-## Nguon su that
-
-- `AuctionRuntime`: state realtime trong RAM cua server.
-- `AuctionRepository`: persistence va transaction.
-- `SessionManager`: user dang online va resumable session.
-- `RoomManager`: connection dang theo doi auction nao.
-- `AuctionManagementService`: ownership, product CRUD, create/extend/end/cancel/kick.
-- Client model chi la cache hien thi.
-
-## Luong full
-
-```text
-LOGIN
--> AUCTION_LIST
--> JOIN_AUCTION
--> AUCTION_SNAPSHOT
--> PLACE_BID
--> lock auction
--> validate
--> transaction DB
--> update runtime
--> unlock
--> BID_ACCEPTED cho nguoi gui
--> BID_UPDATE cho room
--> OUTBID_NOTIFICATION cho leader cu
--> AUCTION_EXTENDED neu sat gio
--> AUCTION_ENDED khi timer het
--> giu ket qua tren san 120 giay
--> AUCTION_ARCHIVED cho tat ca client
--> an khoi AUCTION_LIST, MY_AUCTIONS va server dashboard
-```
-
-## Luong quan tri moi
-
-```text
-LOGIN
--> CREATE_PRODUCT / UPDATE_PRODUCT / DEACTIVATE_PRODUCT
--> CREATE_AUCTION
--> server lay hostUserId tu session
--> repository insert
--> AuctionManager.addRuntime
--> AUCTION_CREATED broadcast
--> host EXTEND_AUCTION / END_AUCTION / CANCEL_AUCTION
--> cung per-auction lock voi bid va timer
--> KICK_AUCTION_USER
--> luu auction_blocked_users
--> remove connection khoi RoomManager
--> AUCTION_KICKED den client bi moi
-```
-
-Client chi hien nut chu tri khi `auction.hostUserId == model.userId`; server van kiem tra lai quyen.
-
-## Vong doi hien thi sau khi dong
-
-```text
-OPEN
--> ENDED hoac CANCELLED
--> van hien ket qua trong 120 giay
--> AuctionTimerService danh dau archived
--> RoomManager don subscription
--> broadcast AUCTION_ARCHIVED
--> client xoa khoi ClientAppModel
-```
-
-Archive chi la chinh sach hien thi/runtime. Cac bang `auctions`, `bids`, `auction_results` va `auction_blocked_users` khong bi xoa khoi MySQL.
-
-## Kien truc sau nang cap JavaFX + WebSocket
-
-```text
-JavaFX -> ClientTransport -> WebSocketClientTransport ----+
-Swing/TCP legacy -> TcpClientTransport -------------------+-> ServerConnection
-                                                          -> MessageRouter
-                                                          -> Services/Repository/MySQL
-```
-
-`ServerApplication` start ca `TcpServer` va `WebSocketServerTransport`. Cross-transport broadcast dung chung `ConnectionRegistry`.
+Chi tiết [19](19_MULTI_MACHINE_AND_PACKAGING.md); ownership và reviewer ở [13](13_BANG_PHAN_CONG_FILE_THEO_NGUOI.md).

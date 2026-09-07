@@ -39,8 +39,8 @@ try {
   console.log(' BTL16 DEVELOPMENT RUNNER');
   console.log('====================================================');
 
-  await ensureMysql();
   await buildProject();
+  await ensureMysql();
   if (!skipSetup) {
     await setupDatabase();
   }

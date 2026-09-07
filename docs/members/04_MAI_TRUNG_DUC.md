@@ -1,288 +1,57 @@
-# MAI TRUNG DUC - TIMER, ANTI-SNIPING, KET THUC VA KET QUA
-
-## Nhiem vu chinh
-
-```text
-Timer chinh thuc tren server
-+ countdown event
-+ anti-sniping
-+ dong phien dung mot lan
-+ xac dinh winner
-+ luu auction_results
-+ AUCTION_ENDED
-```
-
-## So do module
-
-```text
-AuctionTimerService.auction-timer
-  -> lap qua AuctionRuntime
-  -> closeIfExpired
-       -> lock auction
-       -> check status OPEN va now >= endTime
-       -> AuctionRepository.closeAuction transaction
-       -> runtime.markEnded
-       -> unlock
-       -> broadcast AUCTION_ENDED
-
-Moi tickMillis:
-  -> snapshot OPEN auctions co subscriber
-  -> AUCTION_TICK
-```
-
-Anti-sniping duoc tinh trong BidService:
-
-```text
-valid bid trong antiSnipingWindowSeconds
--> newEndTime = oldEndTime + extensionSeconds
--> commit DB + runtime
--> AUCTION_EXTENDED
-```
+# MAI TRUNG ĐỨC – Timer, host controls, kết quả và archive
 
-Timer luon doc endTime moi.
+Đối chiếu code ngày 07/09/2026. Đây là nhiệm vụ học, giải thích, kiểm thử và bảo trì phần đã triển khai.
 
-## Thu tu hoc file
+## Phạm vi
 
-1. `AuctionStatus.java`
-2. `AuctionSnapshot.java`
-3. `AuctionRuntime.java`
-4. `AuctionResult.java`
-5. `CloseAuctionCommit.java`
-6. `AuctionTimerService.java`
-7. `BidService` phan anti-sniping
-8. `JdbcAuctionRepository.closeAuction()`
-9. `AuctionWireData.tick/extended/ended()`
-10. `AuctionBroadcastService.java`
-11. Client `handleEvent` cho TICK/EXTENDED/ENDED/ARCHIVED
+Chịu trách nhiệm thời gian authoritative của server, anti-sniping phối hợp BidService, close-once, host extend/end/cancel và vòng đời sau đóng. Không dựa vào countdown client để quyết định kết quả.
 
-## Bien phai thuoc
+## Thứ tự đọc file
 
-| Bien | Y nghia |
-|---|---|
-| `checkMillis` | Chu ky quet phien het han |
-| `tickMillis` | Chu ky phat countdown event |
-| `lastTickAt` | Moc tick da phat gan nhat |
-| `endTime` | Thoi gian dong chinh thuc |
-| `status` | OPEN/ENDED/CANCELLED |
-| `endedAt` | Thoi diem server dong |
-| `antiSnipingWindowSeconds` | Khoang sat gio de gia han |
-| `extensionSeconds` | So giay cong them |
-| `winnerId` | Current winner khi close |
-| `finalPrice` | Current price khi close |
-| `version` | State version tang khi bid/end |
+Đường dẫn Java tương đối với src/main/java/vn/ptit/btl16/, trừ src/test và công cụ gốc. Tra toàn bộ file/ownership ở [09](../09_NHIEM_VU_TUNG_FILE.md) và [13](../13_BANG_PHAN_CONG_FILE_THEO_NGUOI.md).
 
-## Dong phien mot lan
+1. server/auction/service/AuctionTimerService: start/safeRun/closeIfExpired/broadcastTicks/archiveClosedAuctions/close.
+2. AuctionManager.archiveClosedAuctions; RoomManager.removeAuction; model/AuctionRuntime, AuctionSnapshot, AuctionStatus, AuctionResult.
+3. AuctionManagementService.extendAuction/endAuction/cancelAuction; repository/ExtendAuctionCommit, CloseAuctionCommit, CancelAuctionCommit.
+4. JdbcAuctionRepository: transaction extend/close/cancel; BidService: anti-sniping khi bid hợp lệ.
+5. AuctionWireData, AuctionBroadcastService, ServerMessagingService: tick/extended/ended/cancelled/archived.
+6. common/config/ServerConfig, common/util/Times; config/server.properties (auction.*).
+7. client/fx/FxClientController: refreshClock/remainingText, host controls và handleServerEvent.
+8. FullNetworkAuctionSelfTest, AuctionManagementSelfTest và cross-transport WebSocketUpgradeSelfTest.
 
-Hai lop bao ve:
+## Luồng phải tự giải thích
 
-```text
-AuctionRuntime lock
-+
-DB row status check trong transaction
-```
+**Tick:** scheduler chạy kiểm tra mặc định 200 ms; phát countdown khoảng 1000 ms với serverNow/endTime. Client chỉ hiển thị thời gian theo server, không tự chốt winner.
 
-Neu hai lan timer/chuc nang cung thu close:
+**Anti-sniping:** BidService đang giữ khóa, bid hợp lệ trong cửa sổ cuối mặc định 10 giây thì cộng 10 giây vào endTime cũ, lưu transaction cùng bid; event extension phản ánh kết quả thật.
 
-- Thread dau chuyen OPEN -> ENDED.
-- Thread sau thay status ENDED va bo qua.
-- `auction_results.auction_id` la primary key.
+**Đóng đến hạn:** closeIfExpired lấy khóa runtime, kiểm tra OPEN và thời gian → repository close transaction → runtime ENDED/result → unlock → event. Host END dùng cùng cơ chế và bỏ điều kiện phải đến hạn; không tạo hai kết quả khi timer/host tranh nhau.
 
-## Ranh gioi bid va end
+**Extend/cancel:** host sở hữu phòng mới được gọi. Extend kiểm tra trạng thái/endTime kỳ vọng; cancel chỉ khi chưa có bid và chuyển CANCELLED, không giả làm ENDED.
 
-BidService va TimerService dung cung lock.
+**Archive:** giữ phòng đóng trong retention mặc định 120 giây → AuctionManager bỏ runtime/đánh dấu tombstone → RoomManager dọn membership → AUCTION_ARCHIVED toàn hệ thống. DB auctions/bids/results không bị xóa.
 
-```text
-Neu bid lay lock truoc:
-  bid van check now < endTime
-  neu hop le co the gia han
-  timer doc endTime moi
+## Biến và bất biến cần nhớ
 
-Neu timer lay lock truoc va close:
-  bid sau thay status ENDED va bi tu choi
-```
+checkMillis, tickMillis, lastTickAt, endTime, serverNow, status, endedAt, closedVisibilitySeconds, archivedAuctionIds, extension reason HOST/ANTI_SNIPING. Lock và transaction phải cùng cơ chế với bid, không tạo timer độc lập ở từng client.
 
-## Countdown client
+## Kiểm thử và bài thực hành
 
-Server gui:
+- FullNetworkAuctionSelfTest kiểm tra timer/end/archive và RESYNC sau archive.
+- AuctionManagementSelfTest kiểm tra extend/manual end/cancel và quyền host.
+- Diễn tập bid sát cuối, host end gần lúc timer hết hạn, không có winner khi không ai bid.
+- Chờ retention: list/my-list/dashboard và joined room được dọn, lịch sử DB còn.
+- Thay retention trong config thử khi cần test nhanh; trả lại cấu hình mặc định trước khi bàn giao.
 
-```text
-serverNow
-endTime
-remainingMillis
-status
-```
+## Câu hỏi bảo vệ
 
-Client co the noi suy countdown giua hai tick, nhung khong duoc tu dong quyet dinh winner.
+Countdown về 0 ở client đã là kết thúc chưa? Chưa, phải đợi trạng thái/event server. Archive có xóa lịch sử không? Không. Tại sao winner nullable? Có thể không có bid. Cancel và end khác gì? Cancel chỉ trước bid, end ghi kết quả phiên.
 
-## Bai tap
+## Phối hợp và tiêu chí bàn giao
 
-1. Giam demo short auction con 20 giay.
-2. Bid khi con 9 giay, xem +10.
-3. Bid khi con 11 giay, xem khong gia han.
-4. Thu bid sau AUCTION_ENDED.
-5. Kiem tra `auction_results` va `auctions.status`.
-6. Dat breakpoint timer va bid cung lock.
-7. Chay hai trigger close gan dong thoi va chung minh mot result.
+Dũng review race bid/end/kick; Phước review repository/runtime/archive; Tiến review scheduler shutdown/config; Thuận review event/clock/host UI.
 
-## Cau hoi rieng
-
-### 1. Tai sao timer nam o server?
-
-Client clock khac nhau va co the bi sua; server moi quyet dinh end time.
-
-### 2. ScheduledExecutorService lam gi?
-
-Chay task check timer dinh ky tren mot thread co ten `auction-timer`.
-
-### 3. Tai sao check 200 ms nhung tick 1000 ms?
-
-Can close kha chinh xac nhung khong can broadcast UI qua day.
-
-### 4. Anti-sniping duoc kich hoat luc nao?
-
-Bid hop le va remaining time nho hon hoac bang window 10 giay.
-
-### 5. End time duoc cong tu now hay oldEndTime?
-
-Cong vao oldEndTime, giu quy tac moi bid sat gio them dung 10 giay.
-
-### 6. Neu nhieu bid lien tiep trong 10 giay cuoi?
-
-Moi bid hop le co the tiep tuc cong 10 giay, tuy rule hien tai.
-
-### 7. Tai sao BidService cap nhat end time chu khong TimerService?
-
-Gia han la mot phan cua transaction bid va phai cung atomic voi accepted bid.
-
-### 8. Lam sao timer thay endTime moi?
-
-BidService cap nhat AuctionRuntime trong cung lock; timer snapshot/runtime doc gia tri moi.
-
-### 9. Close transaction gom gi?
-
-Lock row, kiem tra OPEN/end, update auctions ENDED, insert/upsert result, commit.
-
-### 10. Auction khong co bid thi winner la ai?
-
-winnerId null, finalPrice bang start/current price, UI hien khong co winner.
-
-### 11. Tai sao broadcast sau unlock?
-
-Socket cham khong duoc giu auction lock.
-
-### 12. AUCTION_TICK co luu DB khong?
-
-Khong; tick chi la event hien thi. EndTime da nam trong state/DB.
-
-### 13. Client tat countdown ve 0 co dong phien khong?
-
-Khong. Chi server timer thay doi status.
-
-### 14. Neu server tre 300 ms moi close?
-
-Status chinh thuc van dua tren endTime; bid sau endTime bi tu choi du timer chua broadcast end.
-
-### 15. Lam sao dam bao AUCTION_ENDED chi phat mot lan?
-
-Chi broadcast khi repository `closeAuction` tra ve result present va runtime vua markEnded.
-
-### 16. endedAt va endTime khac gi?
-
-endTime la han du kien/chinh thuc; endedAt la luc task server thuc su commit close.
-
-## Nhiem vu nang cap SV01-SV08
-
-- Chu tri host extend va `extensionSource=HOST`.
-- Manual end dung chung lock/transaction voi timer close.
-- Cancel chi khi chua co bid va chuyen `CANCELLED`.
-- Review `ExtendAuctionCommit`, `CancelAuctionCommit`, `CloseAuctionCommit.requireExpired`.
-
-Can demo timer close va host close khong the tao hai ket qua.
-
-## Lo trinh nang cap ca nhan
-
-Muc tieu: hoan thien quyen dieu khien thoi gian cua host va hoc quan he giua create room, bid, timer, transaction va UI.
-
-| Ngay | Noi dung hoc va thuc hanh | Dau ra ban giao |
-|---|---|---|
-| 1 | Doc ma tinh nang moi, ve `OPEN -> ENDED/CANCELLED` | So do lifecycle |
-| 2 | Pair voi Tien hoc host authorization va error contract | Checklist extend/end/cancel |
-| 3 | Pair voi Phuoc hoc endTime, host, result va repository | Bang field runtime/DB |
-| 4 | Pair voi Dung hoc anti-sniping va race bid/close | Ma tran thu tu bid/extend/end |
-| 5 | Hoan thien host extend, manual end, cancel no-bid, close-once | Service/commit JDBC va test double |
-| 6 | Pair voi Thuan bind nut host, countdown va status | UI dung quyen/trang thai |
-| 7 | Them assertion extend/end/cancel va timer/manual race | Test lifecycle |
-| 8 | Chay JDBC, kiem tra result duy nhat va rollback | Bien ban transaction |
-| 9 | Thu bid, gia han, ket thuc som va huy bang nhieu client | Kich ban lifecycle |
-| 10 | Demo timer close va host close cung luc | Bang chung mot ket qua |
-
-### Dau vao phu thuoc
-
-- Protocol/host authorization cua Tien; runtime/repository cua Phuoc.
-- Bid/anti-sniping rule cua Dung; host controls cua Thuan.
-
-### Dau ra ban giao
-
-- Host extend, manual end va cancel no-bid dong bo JDBC/test double.
-- Test close-once va kich ban demo lifecycle.
-
-### Nguoi review
-
-- Tien review authorization; Dung review lock/race.
-- Phuoc review commit/runtime; Thuan review event/status.
-
-### Tieu chi hoan thanh
-
-- User khong phai host khong the extend, end hoac cancel.
-- Timer va host cung close van chi co mot `auction_result`.
-- Phong co bid khong the cancel nhung co the ket thuc som.
-- Client hien dung `ENDED` hoac `CANCELLED`.
-
-## Bo sung moi - Timer archive sau 2 phut
-
-### Nhiem vu
-
-- Chu tri `AuctionTimerService.archiveClosedAuctions` sau pha close expired.
-- Dung `endedAt` lam moc retention; fallback `endTime` cho du lieu cu.
-- Sau 120 giay goi manager archive, don room va phat `AUCTION_ARCHIVED` dung mot lan.
-- Bao dam close van xay ra ngay khi het gio; 120 giay chi la thoi gian hien ket qua.
-
-### Ngay 11 trong lo trinh
-
-| Noi dung hoc va thuc hanh | Dau ra ban giao |
-|---|---|
-| Mo rong lifecycle `OPEN -> ENDED/CANCELLED -> ARCHIVED(view)` | So do lifecycle moi |
-| Pair voi Tien kiem tra config va protocol | Contract retention |
-| Pair voi Phuoc review manager/room cleanup | Luong timer day du |
-| Pair voi Thuan chay test 1 giay va demo 120 giay | Bang chung archive mot lan |
-
-### Tieu chi bo sung
-
-- `AUCTION_ENDED` van phat dung mot lan va truoc `AUCTION_ARCHIVED`.
-- Phong con hien dung visibility window, sau do bien mat khoi dashboard/list.
-- Scheduler khong xoa du lieu MySQL va khong broadcast archive lap lai.
-
-## Phan nang cap JavaFX + WebSocket
-
-### Muc tieu hoc
-
-- Server authoritative clock qua TCP/WS.
-- Anti-sniping, ended/result/archive dong bo tren JavaFX.
-
-### File bat buoc doc/sua
-
-```text
-server/auction/service/AuctionTimerService.java
-server/auction/service/AuctionBroadcastService.java
-server/auction/service/AuctionWireData.java
-client/fx/FxClientController.java
-server/dashboard/ServerDashboardFrame.java
-selftest/FullNetworkAuctionSelfTest.java
-```
-
-### Thu tu va ban giao
-
-1. Tick/extended/ended/archive event khong phu thuoc transport.
-2. JavaFX countdown noi suy tu server time.
-3. Host extend/end/cancel UI nhung server van authorize.
-4. Kiem tra lifecycle va winner qua WebSocket.
+- Tự chỉ được entry point, request, service/repository và event tương ứng, không chỉ nhớ tên lớp.
+- Chạy lại test liên quan, ghi đúng kết quả/chỗ chưa thử; sửa protocol/schema thì cập nhật docs chung.
+- Môi trường VS Code + XAMPP; xem [05](../05_CACH_CHAY_VSCODE_XAMPP.md). db.port theo mỗi máy; client chỉ cần URL WS.
+- DB thật không có seed/account mẫu. Fixture test giữ riêng trong src/test; diễn tập tự đăng ký và tạo dữ liệu.

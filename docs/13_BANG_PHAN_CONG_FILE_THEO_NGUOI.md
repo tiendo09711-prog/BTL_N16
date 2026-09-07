@@ -1,154 +1,42 @@
-# 13 - BANG PHAN CONG FILE THEO NGUOI - BAN NANG CAP
+# 13 – Phân công học code, bảo trì và review
 
-Nguyen tac: giu module cu cua tung nguoi, chi giao tinh nang moi gan nhat voi phan da lam.
+Đối chiếu source ngày 07/09/2026. Các chức năng đã có; bảng này quy định người phải hiểu và chịu trách nhiệm thay đổi, không khẳng định ai đã viết từng dòng. Danh sách **toàn bộ file Java** có người phụ trách ở [09](09_NHIEM_VU_TUNG_FILE.md).
 
-## Do Tien - Protocol, authorization core va composition
-
-```text
-common/protocol/MessageType.java
-common/protocol/ErrorCode.java
-common/config/ServerConfig.java
-server/module/AuctionModule.java
-server/routing/*
-server/ServerApplication.java
-server/db/DatabaseSchema.java
-sql/00_schema.sql
-sql/01_demo_data.sql
-README.md va tai lieu kien truc/protocol
-```
-
-Nhiem vu moi:
-
-- Them request/response/event SV01-SV08, OP01/02/03/07.
-- Bao dam moi route quan tri bat buoc dang nhap.
-- Review quy tac user/host lay tu session, khong tin ID client gui len.
-- Noi `AuctionManagementService` vao composition root.
-- Chot config `auction.closedVisibilitySeconds` va contract event `AUCTION_ARCHIVED`.
-- Quan ly migration database va review tich hop cuoi.
-
-## Vu Tri Thuan - Client controller, realtime va test
-
-```text
-client/controller/ClientController.java
-client/model/ClientAppModel.java
-client/model/ClientWireParser.java
-client/service/AuctionApi.java
-client/view/MainFrame.java
-src/test/java/*
-```
-
-Nhiem vu moi:
-
-- Dong bo API product/host control.
-- Xu ly `AUCTION_CREATED`, `AUCTION_CANCELLED`, `AUCTION_KICKED`.
-- Xu ly `AUCTION_ARCHIVED`, xoa auction/joined room khoi `ClientAppModel`.
-- Dialog them/sua/an san pham va tao phong.
-- Viet `AuctionManagementSelfTest` va regression test reconnect.
-- Mo rong `FullNetworkAuctionSelfTest` cho retention, list, dashboard va resync sau archive.
-
-## Pham Anh Dung - Bid rule, concurrency va kick safety
-
-```text
-server/auction/service/BidService.java
-server/auction/repository/BidCommit.java
-JdbcAuctionRepository.commitAcceptedBid()
-server/auction/service/RoomMember.java
-server/auction/service/KickOutcome.java
-RoomManager.kickUser/findByUsername()
-AuctionPanel bid controls
-```
-
-Nhiem vu moi:
-
-- Ap dung `minBidIncrement` thay cho chi `amount > currentPrice`.
-- Chan host tu bid san pham cua minh.
-- Re-check membership ben trong auction lock de tranh race kick/bid.
-- Review kick/block va bid/end dong thoi.
-- Review bid/resync tai ranh gioi archive: sau retention phai nhan `AUCTION_NOT_FOUND`.
-
-## Mai Trung Duc - Lifecycle va host control
-
-```text
-server/auction/model/AuctionResult.java
-server/auction/repository/CloseAuctionCommit.java
-server/auction/repository/ExtendAuctionCommit.java
-server/auction/repository/CancelAuctionCommit.java
-server/auction/service/AuctionTimerService.java
-AuctionManagementService.extendAuction/endAuction/cancelAuction
-AuctionWireData.extended/ended/cancelled
-AuctionPanel host control buttons
-```
-
-Nhiem vu moi:
-
-- Gia han thu cong va phan biet `HOST`/`ANTI_SNIPING`.
-- Ket thuc som dung cung lock/transaction voi timer.
-- Huy phien chi khi chua co bid, status `CANCELLED`.
-- Review close once khi timer va host cung tac dong.
-- Them pha giu ket qua 120 giay va archive dung mot lan trong `AuctionTimerService`.
-
-## Tran Van Phuoc - Product, auction ownership va repository
-
-```text
-server/auction/model/Product.java
-server/auction/model/AuctionStatus.java
-server/auction/model/AuctionSnapshot.java
-server/auction/model/AuctionRuntime.java
-server/auction/repository/AuctionRepository.java
-server/auction/repository/JdbcAuctionRepository.java
-src/test/java/.../TestAuctionRepository.java
-server/auction/repository/CreateProductCommit.java
-server/auction/repository/UpdateProductCommit.java
-server/auction/repository/CreateAuctionCommit.java
-server/auction/repository/BlockAuctionUserCommit.java
-server/auction/service/AuctionManager.java
-server/auction/service/AuctionManagementService.java (product/create/join/kick data)
-client/model/ClientProduct.java
-client/model/ClientAuction.java
-client/view/AuctionTableModel.java
-```
-
-Nhiem vu moi:
-
-- Product ownership, update va soft delete.
-- Host ownership, create room va my auctions.
-- Dong bo JDBC, repository test va runtime moi sau khi create.
-- Luu blocked user de kick con hieu luc sau reconnect/restart JDBC.
-- Quan ly `archivedAuctionIds`, an list/my-list/dashboard va don `RoomManager` sau retention.
-
-## File dung chung va reviewer
-
-| File | Chu tri | Reviewer |
+| Thành viên | Phạm vi chính | Tài liệu cá nhân |
 |---|---|---|
-| `MessageType`, `ErrorCode` | Do Tien | Ca nhom |
-| `AuctionManagementService` | Phuoc/Duc | Tien, Dung |
-| `AuctionRuntime` | Phuoc | Dung, Duc |
-| `BidService` | Dung | Tien, Duc |
-| `RoomManager` | Dung/Phuoc | Thuan |
-| `AuctionManager.archiveClosedAuctions` | Phuoc | Duc, Dung |
-| `AuctionTimerService` | Duc | Phuoc, Tien |
-| `JdbcAuctionRepository` | Phuoc | Dung, Duc, Tien |
-| `ClientController` | Thuan | Tien, Phuoc |
-| `AuctionPanel` | Thuan/Phuoc/Duc/Dung | Tien |
-| `AuctionManagementSelfTest` | Thuan | Ca nhom |
-| `ServerApplication`, `DatabaseSchema` | Tien | Ca nhom |
+| Đỗ Tiến | common protocol/config, network server, account/security/session, module/router/composition, XAMPP/JDBC/schema, dashboard/LAN | [Tiến](members/01_DO_TIEN.md) |
+| Vũ Trí Thuận | JavaFX/UI, client transport/API/model, realtime/reconnect, legacy UI, test runner/fixtures, dev/client runner và hai EXE | [Thuận](members/02_VU_TRI_THUAN.md) |
+| Phạm Anh Dũng | BidService/BidCommit/BidOutcome/BidRecord, khóa/transaction, RoomManager/membership, private grant/block, kick race và load-test | [Dũng](members/03_PHAM_ANH_DUNG.md) |
+| Mai Trung Đức | Timer/anti-sniping, close-once, extend/end/cancel, result/retention/archive và lifecycle event | [Đức](members/04_MAI_TRUNG_DUC.md) |
+| Trần Văn Phước | Product/ảnh BLOB/validator, auction model/repository/runtime, CRUD/create/list/my/search, ownership và persistence block/archive | [Phước](members/05_TRAN_VAN_PHUOC.md) |
 
-## Can bang khoi luong
+## File dùng chung: chia theo thao tác
 
-| Thanh vien | Phan cu | Phan moi chinh |
+| File/nhóm | Người chính theo phần | Reviewer |
 |---|---|---|
-| Do Tien | network/account/composition | protocol, auth route, config archive, integration |
-| Vu Tri Thuan | realtime/reconnect/test | management client, archive event, E2E test |
-| Pham Anh Dung | bid/concurrency | min increment, self-bid, kick/bid/archive safety |
-| Mai Trung Duc | timer/result | extend/end/cancel va retention lifecycle |
-| Tran Van Phuoc | data/list/room | product CRUD, host/create room, archive visibility |
+| AuctionManagementService | Phước: product/image/create/my; Dũng: join/private/kick; Đức: extend/end/cancel | Tiến: auth; Thuận: API/UI |
+| JdbcAuctionRepository | Phước: dữ liệu chung/product/ảnh; Dũng: commit bid/block; Đức: close/extend/cancel/result | Tiến: JDBC/schema |
+| AuctionRuntime, AuctionManager | Phước: model/runtime/list; Dũng: khóa bid; Đức: trạng thái/archive | Cả nhóm |
+| RoomManager, SessionManager | Dũng: membership/grant/block; Tiến: session lifetime; Phước: dữ liệu phòng | Thuận, Đức |
+| AuctionController, AuctionModule, MessageType/ErrorCode | Tiến: contract/router; chủ nghiệp vụ: handler/field | Thuận: client parity |
+| AuctionWireData, AuctionBroadcastService | Phước: snapshot/ảnh/list; Dũng: bid/outbid; Đức: lifecycle | Tiến, Thuận |
+| FxClientController, AuctionApi, ClientWireParser, ClientAppModel | Thuận: UI/event/model; mỗi người review thao tác nghiệp vụ của mình | Cả nhóm |
+| DatabaseSchema, sql/*, ServerConfig, JdbcConnectionFactory | Tiến: XAMPP/JDBC/port/setup/reset; Phước: bảng/cột/ảnh | Dũng, Đức: transaction |
+| ServerDashboardMain/Frame, ServerAddresses | Tiến: startup/config/URL; Thuận: phân phối EXE | Đức: lifecycle/shutdown |
+| tools/package-*.mjs, package.json, 06_TAO_HAI_UNG_DUNG_EXE.cmd | Thuận: hai app-image; Tiến: server config/JDBC | Cả nhóm thử bản phân phối |
 
-## Ownership nang cap
+## Không để lọt phần test/công cụ/docs
 
-| Thanh vien | Pham vi JavaFX + WebSocket |
-|---|---|
-| Do Tien | `ServerConnection`, WS server, JSON codec, config/composition/schema |
-| Vu Tri Thuan | JavaFX, `ClientTransport`, WS client, reconnect, packaging |
-| Pham Anh Dung | private join, grant/block safety, bid TCP-WS concurrency |
-| Mai Trung Duc | timer/anti-sniping/lifecycle event qua WS, host controls |
-| Tran Van Phuoc | image BLOB/protocol/UI, visibility/create room/search |
+- Thuận chạy AllSelfTests; mỗi chủ module chịu assertion: Tiến protocol/account/config/LAN, Dũng bid/private/block, Đức timer/result/archive, Phước data/image/search.
+- XamppDatabaseSelfTest: Tiến/Phước kiểm tra JDBC thật trong DB thử riêng; Thuận giữ regression. Fixture in-memory không được seed vào btl_16.
+- Dũng vận hành ConcurrentBidLoadTestMain với DB thử đã có PUBLIC room; tool ghi dữ liệu thật.
+- Tiến/Thuận phụ trách build/run scripts, .vscode, package.json, .github và file hướng dẫn gốc. target/dist/out là output, không phải source ownership.
+- Tiến: docs/00–06, 09–10, 12–13, 15 và README/setup. Thuận: 07, 11, 16–17, 19 và VERIFICATION. Phước: 04, 18; Dũng/Đức review 03–04, 08, 10 theo rule. Cả nhóm: 08, 14 và docs/members của mình.
+
+## Bàn giao tối thiểu từng người
+
+1. Đọc được luồng UI → request → service → transaction → event và chỉ đúng file/method.
+2. Tự chạy phần mình bằng account mới, không dựa dữ liệu mẫu/ID cố định.
+3. Sửa rule/protocol/schema thì cập nhật test, SQL/Java schema và docs liên quan cùng lúc.
+4. Setup VS Code + XAMPP; db.port theo máy, client chỉ dùng WS URL. Schema mới trống; reset chỉ khi chủ động xóa dữ liệu.
+5. Ghi bằng chứng đã chạy, để LAN/GUI chưa thử ở trạng thái chưa xác minh.

@@ -1,5 +1,4 @@
 import { spawn } from 'node:child_process';
-import { existsSync } from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
@@ -8,7 +7,6 @@ import { fileURLToPath } from 'node:url';
 const toolsDirectory = path.dirname(fileURLToPath(import.meta.url));
 
 export const projectRoot = path.resolve(toolsDirectory, '..');
-export const mysqlPort = 3306;
 export const serverPort = 8888;
 export const webSocketPort = 8890;
 
@@ -67,7 +65,7 @@ export async function buildProject() {
 }
 
 export async function setupDatabase() {
-  console.log('[DEV] Initializing/migrating MySQL and demo data...');
+  console.log('[DEV] Initializing MySQL schema (no demo data)...');
   await runCommand('java', [
     '-cp',
     runtimeClasspath(),
@@ -102,40 +100,11 @@ export async function waitForPort(host, port, timeoutMillis) {
 }
 
 export async function ensureMysql() {
-  if (await isPortOpen('127.0.0.1', mysqlPort)) {
-    console.log(`[DEV] MySQL is ready on 127.0.0.1:${mysqlPort}.`);
-    return;
-  }
-
-  if (process.platform !== 'win32') {
-    throw new Error(`MySQL is not listening on port ${mysqlPort}. Start MySQL first.`);
-  }
-
-  const laragonHome = process.env.LARAGON_HOME || 'C:\\laragon';
-  const laragonExecutable = path.join(laragonHome, 'laragon.exe');
-  if (!existsSync(laragonExecutable)) {
-    throw new Error(
-      `MySQL is stopped and Laragon was not found at ${laragonExecutable}. `
-      + 'Start MySQL or set LARAGON_HOME.'
-    );
-  }
-
-  console.log(`[DEV] Starting Laragon from ${laragonExecutable}...`);
-  const laragon = spawn(laragonExecutable, [], {
-    cwd: laragonHome,
-    detached: true,
-    stdio: 'ignore',
-    windowsHide: true
-  });
-  laragon.unref();
-
-  if (!await waitForPort('127.0.0.1', mysqlPort, 30_000)) {
-    throw new Error(
-      `Laragon opened but MySQL did not listen on port ${mysqlPort}. `
-      + 'Open Laragon and press Start All, then run npm run dev again.'
-    );
-  }
-  console.log(`[DEV] MySQL is ready on 127.0.0.1:${mysqlPort}.`);
+  await runCommand('java', [
+    '-cp',
+    runtimeClasspath(),
+    'vn.ptit.btl16.server.db.DatabaseCheckMain'
+  ], 'XAMPP JDBC connection check');
 }
 
 export function lanIpv4Addresses() {

@@ -6,6 +6,7 @@ import vn.ptit.btl16.server.ServerApplication;
 import javax.swing.JOptionPane;
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
+import java.nio.file.Path;
 
 /** Starts the server and opens a small status dashboard. */
 public final class ServerDashboardMain {
@@ -36,9 +37,21 @@ public final class ServerDashboardMain {
             String message = exception.getMessage() == null
                     ? exception.getClass().getSimpleName()
                     : exception.getMessage();
+            Throwable cause = exception;
+            while (cause.getCause() != null) {
+                cause = cause.getCause();
+            }
+            String configPath = Path.of(System.getProperty(
+                    "btl16.server.config", "config/server.properties")).toAbsolutePath().toString();
             JOptionPane.showMessageDialog(
                     null,
-                    "Khong khoi dong duoc server: " + message,
+                    "Khong khoi dong duoc server: " + message
+                            + "\nChi tiet: " + cause.getMessage()
+                            + "\n\n1. Bat dich vu MySQL tren may server."
+                            + "\n2. Kiem tra db.host, db.port, db.user, db.password trong:"
+                            + "\n" + configPath
+                            + "\n3. Neu cong bi chiem, dong server cu hoac doi cong trong cau hinh."
+                            + "\nSau do mo lai ung dung Server.",
                     "Server error",
                     JOptionPane.ERROR_MESSAGE);
             System.exit(1);

@@ -14,10 +14,10 @@ feature/phuoc-auction-data
 ## Truoc khi push
 
 ```bat
-scripts\run-self-tests-jdk-only.cmd
+npm test
 ```
 
-Neu sua JDBC, chay them local Laragon demo.
+Neu sua JDBC, Start MySQL trong XAMPP va chay XamppDatabaseSelfTest tren DB cach ly; kiem tra db.port theo may minh. Khong chay load-test tren DB can giu sach.
 
 ## Khong commit
 

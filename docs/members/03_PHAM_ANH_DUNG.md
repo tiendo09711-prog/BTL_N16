@@ -1,295 +1,57 @@
-# PHAM ANH DUNG - DAT GIA, CONCURRENCY VA LICH SU BID
-
-## Nhiem vu chinh
-
-```text
-PLACE_BID
-+ validate bid
-+ xu ly nhieu bid dong thoi
-+ cap nhat gia/winner
-+ transaction luu bid
-+ BID_ACCEPTED/BID_REJECTED
-+ bid history
-```
-
-## So do module
-
-```text
-AuctionController.handlePlaceBid
-  -> BidService.placeBid
-       -> require authenticated UserSession
-       -> require RoomManager membership
-       -> AuctionManager.requireRuntime
-       -> runtime.lock
-       -> check OPEN/end/currentPrice
-       -> AuctionRepository.commitAcceptedBid
-            -> SELECT ... FOR UPDATE
-            -> INSERT bids
-            -> UPDATE auctions
-            -> COMMIT
-       -> AuctionRuntime.applyAcceptedBid
-       -> unlock
-       -> BID_UPDATE room
-       -> OUTBID user
-       -> AUCTION_EXTENDED neu can
-```
-
-## Thu tu hoc file
-
-1. `BidRecord.java`
-2. `BidCommit.java`
-3. `BidOutcome.java`
-4. `AuctionRuntime.java`
-5. `BidService.java`
-6. `AuctionRepository.java`
-7. `JdbcAuctionRepository.commitAcceptedBid()`
-8. `TestAuctionRepository.commitAcceptedBid()` trong `src/test`
-9. `AuctionController.handlePlaceBid()`
-10. `AuctionBroadcastService.java`
-11. `ConcurrentBidLoadTestMain.java`
-12. `FullNetworkAuctionSelfTest.java`
+# PHẠM ANH DŨNG – Bid, concurrency, private-room và kick safety
 
-## Bien phai thuoc
+Đối chiếu code ngày 07/09/2026. Đây là nhiệm vụ học, giải thích, kiểm thử và bảo trì phần đã triển khai.
 
-| Bien | Y nghia |
-|---|---|
-| `amount` | Muc gia sau validate |
-| `expectedPrice` | Gia runtime luc bat dau transaction |
-| `previousWinnerId` | Leader cu de gui outbid |
-| `remainingMillis` | So ms con lai khi bid |
-| `extended` | Co kich hoat anti-sniping |
-| `newEndTime` | End time commit vao DB |
-| `bidSequence` | Thu tu bid chinh thuc |
-| `runtime.lock` | Critical section theo auction |
-| `server_sequence` | Sequence luu trong bids |
-| `MAX_BID` | Gioi han de validate |
-| `DATABASE_CONFLICT` | DB va runtime khong con khop |
+## Phạm vi
 
-## Race condition can giai thich
+Chịu trách nhiệm tính đúng đắn khi nhiều client bid, quyền vào phòng và race giữa bid/kick/end. Dùng chung rule cho TCP/WS; không chỉ chặn nút trên UI.
 
-Gia ban dau 1,000,000:
+## Thứ tự đọc file
 
-```text
-Thread A doc 1,000,000 -> bid 1,100,000 hop le
-Thread B doc 1,000,000 -> bid 1,200,000 hop le
-```
+Đường dẫn Java tương đối với src/main/java/vn/ptit/btl16/, trừ src/test và công cụ gốc. Tra toàn bộ file/ownership ở [09](../09_NHIEM_VU_TUNG_FILE.md) và [13](../13_BANG_PHAN_CONG_FILE_THEO_NGUOI.md).
 
-Neu khong lock, ca hai co the ghi de. Voi lock:
+1. server/auction/controller/AuctionController: route join/bid và lấy session từ RequestContext.
+2. server/auction/service/BidService, BidOutcome; model/BidRecord, AuctionRuntime.
+3. server/auction/repository/BidCommit; JdbcAuctionRepository.commitAcceptedBid và AuctionConflictException.
+4. service/RoomManager, RoomMember, KickOutcome, AuctionBroadcastService.
+5. AuctionManagementService.joinAuction/kickUser và các kiểm tra block/private password/ownership; session/UserSession, SessionManager.
+6. common/util/Money; common/protocol/ErrorCode, MessageType; AuctionWireData.bidUpdate.
+7. client/fx/FxClientController.placeBid/joinSelected/kickUser; AuctionApi; ClientAppModel.
+8. FullNetworkAuctionSelfTest, AuctionManagementSelfTest, WebSocketUpgradeSelfTest; tools/ConcurrentBidLoadTestMain.
 
-```text
-A lock -> check -> update 1,100,000 -> unlock
-B lock -> doc lai 1,100,000 -> check -> update 1,200,000 -> unlock
-```
+## Luồng phải tự giải thích
 
-Hoac B vao truoc, A se bi BID_TOO_LOW. Ca hai truong hop deu co final state dung.
+**Bid:** lấy session từ server → parse amount → require runtime → lock → recheck membership → chặn host tự bid → OPEN/chưa hết giờ → amount ≥ currentPrice + minBidIncrement → tính anti-sniping → commitAcceptedBid → applyAcceptedBid → unlock → BID_UPDATE/outbid/extension. Exception không được làm kẹt khóa.
 
-## Tai sao hai lop dong bo
+**Transaction:** SELECT FOR UPDATE đối chiếu trạng thái/giá kỳ vọng, INSERT bid, UPDATE winner/price/endTime/version, COMMIT; lỗi ROLLBACK. Java lock bảo vệ RAM trong process; DB lock bảo vệ row/transaction.
 
-### ReentrantLock Java
+**Private join:** kiểm tra bị block trước khi cho dùng grant; password đúng thì session được cấp quyền. Membership thuộc connection, grant thuộc session, block lưu DB.
 
-- Bao ve `AuctionRuntime` trong RAM.
-- Chi khoa Auction X, Auction Y van chay song song.
+**Kick:** host kiểm tra quyền, ghi block, revoke grant và bỏ membership. Bid phải kiểm tra membership bên trong cùng khóa, không chỉ kiểm tra trước khi chờ khóa.
 
-### `SELECT ... FOR UPDATE` MySQL
+**Outbid:** thông báo riêng người dẫn đầu cũ qua messaging/session; update room đến cả TCP lẫn WS.
 
-- Khoa row trong transaction.
-- Dam bao insert bid va update auction cung commit/rollback.
-- Phat hien state conflict neu sau nay co nhieu server/process.
+## Biến và bất biến cần nhớ
 
-## Luong publish sau lock
+rawAmount/amount, minimumBid, expectedPrice, previousWinnerId, remainingMillis, oldEndTime/newEndTime, bidSequence, runtime.getLock(), membersByAuction/auctionsByConnection. Không dùng double cho tiền; server tự lấy userId từ session thay vì tin userId client gửi.
 
-```text
-lock
--> validate
--> transaction
--> update runtime
--> tao BidOutcome
-unlock
--> broadcast BID_UPDATE
--> notify previous leader
--> broadcast extension
-```
+## Kiểm thử và bài thực hành
 
-Khong giu lock khi gui socket.
+- FullNetworkAuctionSelfTest: bid đồng thời/TCP/outbid/RESYNC.
+- AuctionManagementSelfTest: min increment, host self-bid, cancel/end/kick.
+- WebSocketUpgradeSelfTest: private password thiếu/sai/đúng, grant resume, kick/block không bypass, TCP bid → WS event.
+- Diễn tập bid thấp, chưa join, đúng lúc hết giờ, người bị kick thử bid/rejoin.
+- ConcurrentBidLoadTestMain tạo dữ liệu thật, cần PUBLIC room; chỉ chạy DB thử, không gọi load-test là auto-seed.
 
-## Bai tap
+## Câu hỏi bảo vệ
 
-1. Xoa lock va chay load test, quan sat nguy co.
-2. Dat breakpoint hai client cung vao `runtime.getLock().lock()`.
-3. Test bid bang gia hien tai.
-4. Test bid sau end time.
-5. Test bid khi chua JOIN room.
-6. Xem bang `bids` va `auctions` sau bid.
-7. Co tinh gay SQL exception va kiem tra rollback.
+Tại sao khóa từng auction? Phòng khác vẫn xử lý song song. Tại sao kiểm tra membership trong khóa? Tránh đã kiểm tra xong nhưng bị kick trước commit. Tại sao broadcast ngoài khóa? Không để client chậm giữ khóa nghiệp vụ. Grant có vượt block không? Không; block phải được kiểm tra trước.
 
-## Cau hoi rieng
+## Phối hợp và tiêu chí bàn giao
 
-### 1. Bid hop le can dieu kien gi?
+Đức review bid/end/timer/anti-sniping; Phước review transaction/block persistence; Tiến review session/security; Thuận review UI và regression.
 
-User da login, da vao room, auction OPEN, server time chua qua endTime, amount lon hon currentPrice va trong gioi han.
-
-### 2. Tai sao khong tin currentPrice tren client?
-
-Client co the cu hoac bi sua. Server doc state chinh thuc.
-
-### 3. Tai sao khong tin userId trong request?
-
-Client co the gia mao. User lay tu authenticated session.
-
-### 4. Critical section gom phan nao?
-
-Doc current state, validate, transaction, update runtime va tao outcome.
-
-### 5. Tai sao per-auction lock?
-
-Bid vao Auction A khong can chan Auction B.
-
-### 6. ReentrantLock cong bang `true` de lam gi?
-
-Giam kha nang thread doi lau bi bo doi; khong dam bao thu tu mang tuyet doi nhung queue lock cong bang hon.
-
-### 7. Bid nao den truoc?
-
-Bid nao vao critical section va duoc server chap nhan truoc co sequence truoc. Thoi gian click client khong phai nguon chinh thuc.
-
-### 8. serverSequence sinh luc nao?
-
-Sau validate state trong lock, truoc khi commit bid.
-
-### 9. Neu DB conflict?
-
-Repository rollback va BidService tra DATABASE_CONFLICT, client can RESYNC va thu lai.
-
-### 10. Transaction gom may cau lenh?
-
-SELECT FOR UPDATE, INSERT bids, UPDATE auctions; sau do commit.
-
-### 11. Neu INSERT thanh cong nhung UPDATE loi?
-
-Rollback, bid khong ton tai va gia khong doi.
-
-### 12. BID_ACCEPTED va BID_UPDATE khac gi?
-
-BID_ACCEPTED la response cho nguoi gui; BID_UPDATE la event cho ca room.
-
-### 13. Tai sao co the nguoi gui nhan ca hai?
-
-Nguoi gui cung la subscriber room, nen nhan response va event; client dedup theo bidId.
-
-### 14. Outbid gui cho ai?
-
-Previous winner neu khac bidder moi va dang co active connection.
-
-### 15. Bid history sap xep the nao?
-
-Theo serverSequence giam dan, gioi han `bidHistoryLimit`.
-
-### 16. Bid sat gio lien quan ai?
-
-BidService phat hien window va cap nhat newEndTime; TimerService tiep tuc dung endTime moi.
-
-### 17. Kiem thu dong thoi the nao?
-
-Dung CountDownLatch cho nhieu client gui cung luc, sau do RESYNC final state.
-
-### 18. Tai sao response tu choi la BID_REJECTED thay vi ERROR?
-
-De UI phan biet loi nghiep vu bid va loi he thong chung.
-
-## Nhiem vu nang cap SV01-SV08
-
-- Them `minBidIncrement` vao quy tac bid.
-- Chan host tu bid san pham cua minh.
-- Kiem tra membership ben trong per-auction lock.
-- Review `RoomManager.kickUser`, block rejoin va race kick/bid/end.
-
-Can giai thich tai sao check room truoc lock la chua du khi host kick dong thoi.
-
-## Lo trinh nang cap ca nhan
-
-Muc tieu: hoan thien OP03 va phan an toan cua OP07, dong thoi hoc cach bid lien ket voi room, lifecycle, repository va client.
-
-| Ngay | Noi dung hoc va thuc hanh | Dau ra ban giao |
-|---|---|---|
-| 1 | Doc ma tinh nang moi, xac dinh invariant bid va kick | Invariant truoc/sau transaction |
-| 2 | Pair voi Phuoc hoc runtime, host va min increment | So do state server khi dat gia |
-| 3 | Review client cung Thuan ve minimum bid va error | Contract `BID_REJECTED` cho OP03 |
-| 4 | Hoan thien min increment, chan host bid, re-check room trong lock | Bid rule authoritative |
-| 5 | Hoan thien/review kick, block rejoin va race kick/bid/end | Checklist OP07 dong thoi |
-| 6 | Pair voi Duc review bid sat gio, manual end va timer | Ma tran race bid/extend/end/cancel |
-| 7 | Them assertion min increment, self-bid va kick race | Test am va concurrency |
-| 8 | Doi chieu test repository/JDBC, transaction va rollback | Bao cao hai repository |
-| 9 | Chay nhieu client dat gia, kick bidder va resync | Final price/winner authoritative |
-| 10 | Demo race condition va giai thich state | Demo OP03 + OP07 |
-
-### Dau vao phu thuoc
-
-- Session/error code cua Tien; runtime/repository cua Phuoc.
-- Client handler cua Thuan; close/extend/cancel contract cua Duc.
-
-### Dau ra ban giao
-
-- Bid rule co min increment, self-bid prevention va membership re-check.
-- Kick/bid/end khong tao state mau thuan; co test va kich ban demo.
-
-### Nguoi review
-
-- Phuoc review runtime/repository; Duc review race voi timer.
-- Thuan review error/event client nhan.
-
-### Tieu chi hoan thanh
-
-- Bid duoi `currentPrice + minBidIncrement` bi server tu choi.
-- Host khong the bid ke ca khi goi API ngoai UI.
-- User bi kick khong the chen bid hoac join lai.
-- Snapshot va bid history co cung winner/current price sau test dong thoi.
-
-## Bo sung moi - An toan bid tai ranh gioi archive
-
-### Nhiem vu
-
-- Review invariant: bid bi chan ngay khi `endTime` qua, khong doi den luc archive.
-- Kiem tra sau visibility window, request bid/join/resync khong truy cap lai phong da archive.
-- Review race giua bid, timer close va timer archive; archive chi xay ra khi status khong con `OPEN`.
-- Them checklist phan biet `BID_AFTER_END`/`AUCTION_NOT_OPEN` truoc archive va `AUCTION_NOT_FOUND` sau archive.
-
-### Ngay 11 trong lo trinh
-
-| Noi dung hoc va thuc hanh | Dau ra ban giao |
-|---|---|
-| Ve timeline bid truoc end, sau end, sau archive | Ma tran error code |
-| Pair voi Duc review lock close/archive | Invariant concurrency |
-| Pair voi Phuoc review `AuctionManager.requireRuntime` | Quyen truy cap runtime sau archive |
-| Review regression test cua Thuan | Checklist race va ket qua |
-
-### Tieu chi bo sung
-
-- Retention 120 giay khong mo them cua so cho bid muon.
-- Archive khong lam thay doi winner, final price hoac bid history trong MySQL.
-- Giai thich duoc su khac nhau giua close nghiep vu va an khoi san.
-
-## Phan nang cap JavaFX + WebSocket
-
-### Muc tieu hoc
-
-- Private-room authorization, session grant va block safety.
-- Bid dong thoi giua TCP/WS nhung van mot per-auction lock/transaction.
-
-### File bat buoc doc/sua
-
-```text
-server/auction/service/AuctionManagementService.java
-server/session/SessionManager.java
-server/auction/service/BidService.java
-server/auction/repository/JdbcAuctionRepository.java
-client/fx/FxClientController.java
-selftest/WebSocketUpgradeSelfTest.java
-```
-
-### Thu tu va ban giao
-
-1. Join private: missing/wrong/correct password.
-2. Grant session-scoped qua reconnect/resync.
-3. Kick revoke grant va block check truoc grant.
-4. TCP bid -> WS event va concurrency regression.
-5. Giai thich tai sao client validation khong phai security boundary.
+- Tự chỉ được entry point, request, service/repository và event tương ứng, không chỉ nhớ tên lớp.
+- Chạy lại test liên quan, ghi đúng kết quả/chỗ chưa thử; sửa protocol/schema thì cập nhật docs chung.
+- Môi trường VS Code + XAMPP; xem [05](../05_CACH_CHAY_VSCODE_XAMPP.md). db.port theo mỗi máy; client chỉ cần URL WS.
+- DB thật không có seed/account mẫu. Fixture test giữ riêng trong src/test; diễn tập tự đăng ký và tạo dữ liệu.

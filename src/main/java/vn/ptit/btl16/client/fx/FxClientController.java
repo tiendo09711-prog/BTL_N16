@@ -163,7 +163,9 @@ public final class FxClientController implements AutoCloseable {
         stage.show();
         scheduler.scheduleAtFixedRate(this::heartbeat, 2,
                 Math.max(1, config.getHeartbeatIntervalMillis() / 1000), TimeUnit.SECONDS);
-        connect(false);
+        if (!Boolean.getBoolean("btl16.client.manualConnect")) {
+            connect(false);
+        }
     }
 
     private void buildScenes() {
@@ -172,13 +174,14 @@ public final class FxClientController implements AutoCloseable {
     }
 
     private Region buildLoginRoot() {
-        endpointField.setText(transport.getEndpoint());
-        endpointField.setPromptText("ws://127.0.0.1:8890/ws");
+        endpointField.setText(Boolean.getBoolean("btl16.client.manualConnect") ? "" : transport.getEndpoint());
+        endpointField.setPromptText("Dán địa chỉ từ server: ws://192.168.1.10:8890/ws");
+        connectButton.setText("Kết nối");
         usernameField.setPromptText("Username");
         passwordField.setPromptText("Password");
         Label title = new Label("BTL16 AUCTION CLIENT");
         title.setStyle("-fx-font-size: 22px; -fx-font-weight: bold;");
-        Label endpointLabel = new Label("SERVER WEBSOCKET URL / TCP ENDPOINT");
+        Label endpointLabel = new Label("Địa chỉ server (sao chép từ ứng dụng Server)");
         HBox actions = new HBox(10, loginButton, registerButton, connectButton);
         actions.setAlignment(Pos.CENTER);
         HBox state = new HBox(18, loginStateLabel, loginRttLabel);
@@ -196,6 +199,7 @@ public final class FxClientController implements AutoCloseable {
         loginButton.setOnAction(event -> login());
         registerButton.setOnAction(event -> register());
         connectButton.setOnAction(event -> connect(true));
+        endpointField.setOnAction(event -> connect(true));
         passwordField.setOnAction(event -> login());
         return root;
     }
@@ -309,6 +313,10 @@ public final class FxClientController implements AutoCloseable {
 
     private void connect(boolean manual) {
         if (closed.get()) {
+            return;
+        }
+        if (endpointField.getText().isBlank()) {
+            showError("Hãy nhập địa chỉ được sao chép từ ứng dụng Server trước khi kết nối.");
             return;
         }
         if (manual) {

@@ -4,7 +4,7 @@ pushd "%~dp0.."
 where mvn >nul 2>nul
 if errorlevel 1 (
   echo [ERROR] Maven was not found in PATH.
-  echo Open the Maven project in NetBeans/VSCode or install Maven.
+  echo Open the Maven project in VS Code or install Maven.
   popd
   exit /b 1
 )

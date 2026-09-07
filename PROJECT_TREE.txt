@@ -1,143 +1,204 @@
-BTL_16
-|-- README.md
-|-- START_HERE.txt
-|-- VERIFICATION.md
-|-- pom.xml
-|-- package.json
-|-- config
-|   |-- client.properties
-|   |-- client-lan-example.properties
-|   `-- server.properties
-|-- sql
-|   |-- 00_schema.sql
-|   |-- 01_demo_data.sql
-|   `-- 99_reset_database.sql
-|-- tools
-|   |-- client-runner.mjs
-|   |-- dev-runner.mjs
-|   |-- dev-utils.mjs
-|   `-- package-client.mjs
-|-- scripts
-|   |-- build.cmd / build.sh
-|   |-- setup-db.cmd
-|   |-- run-client.cmd / run-client.sh
-|   |-- run-server-console.cmd / run-server-console.sh
-|   |-- run-server-dashboard.cmd
-|   |-- run-self-tests.cmd / run-self-tests.sh
-|   |-- run-load-test.cmd
-|   `-- legacy compatibility wrappers
-|-- docs
-|   |-- 00_BAT_DAU.md ... 16_CHECKLIST_CHUC_NANG_VA_BAN_GIAO.md
-|   |-- 17_JAVAFX_WEBSOCKET_UPGRADE.md
-|   |-- 18_PRODUCT_IMAGE_PRIVATE_ROOM_SEARCH.md
-|   |-- 19_MULTI_MACHINE_AND_PACKAGING.md
-|   `-- members
-|       |-- 01_DO_TIEN.md
-|       |-- 02_VU_TRI_THUAN.md
-|       |-- 03_PHAM_ANH_DUNG.md
-|       |-- 04_MAI_TRUNG_DUC.md
-|       `-- 05_TRAN_VAN_PHUOC.md
-`-- src
-    |-- main/java/vn/ptit/btl16
-    |   |-- client
-    |   |   |-- ClientMain.java                  (JavaFX default)
-    |   |   |-- LegacySwingClientMain.java       (legacy)
-    |   |   |-- ConsoleClientMain.java
-    |   |   |-- fx
-    |   |   |   |-- JavaFxClientApp.java
-    |   |   |   `-- FxClientController.java
-    |   |   |-- network
-    |   |   |   |-- ClientTransport.java
-    |   |   |   |-- TcpClientTransport.java
-    |   |   |   |-- WebSocketClientTransport.java
-    |   |   |   |-- NetworkClient.java
-    |   |   |   |-- ConnectionState.java
-    |   |   |   `-- ConnectionStateListener.java
-    |   |   |-- controller
-    |   |   |   |-- ClientController.java
-    |   |   |   |-- HeartbeatService.java
-    |   |   |   `-- ReconnectCoordinator.java
-    |   |   |-- service
-    |   |   |   |-- AccountApi.java
-    |   |   |   |-- AuctionApi.java
-    |   |   |   `-- ApiResponse.java
-    |   |   |-- model
-    |   |   |   |-- ClientAppModel.java
-    |   |   |   |-- ClientAuction.java
-    |   |   |   |-- ClientProduct.java
-    |   |   |   |-- ClientBid.java
-    |   |   |   `-- ClientWireParser.java
-    |   |   `-- view                            (Swing legacy views)
-    |   |-- common
-    |   |   |-- config
-    |   |   |   |-- AppProperties.java
-    |   |   |   |-- ClientConfig.java
-    |   |   |   `-- ServerConfig.java
-    |   |   |-- protocol
-    |   |   |   |-- WireMessage.java
-    |   |   |   |-- MessageType.java
-    |   |   |   |-- ErrorCode.java
-    |   |   |   |-- LengthPrefixedMessageCodec.java
-    |   |   |   `-- JsonWireMessageCodec.java
-    |   |   |-- util
-    |   |   `-- validation
-    |   `-- server
-    |       |-- ServerMain.java
-    |       |-- ServerApplication.java
-    |       |-- ServerStats.java
-    |       |-- network
-    |       |   |-- ServerConnection.java
-    |       |   |-- ClientConnection.java
-    |       |   |-- TcpServer.java
-    |       |   |-- WebSocketConnectionAdapter.java
-    |       |   |-- WebSocketServerTransport.java
-    |       |   |-- ConnectionRegistry.java
-    |       |   `-- ServerMessagingService.java
-    |       |-- routing
-    |       |   |-- MessageRouter.java
-    |       |   `-- RequestContext.java
-    |       |-- session
-    |       |   |-- SessionManager.java
-    |       |   `-- UserSession.java
-    |       |-- account
-    |       |-- auction
-    |       |   |-- controller/AuctionController.java
-    |       |   |-- model
-    |       |   |   |-- Product.java
-    |       |   |   |-- ProductImage.java
-    |       |   |   |-- RoomVisibility.java
-    |       |   |   |-- AuctionSnapshot.java
-    |       |   |   `-- AuctionRuntime.java
-    |       |   |-- repository
-    |       |   |   |-- AuctionRepository.java
-    |       |   |   `-- JdbcAuctionRepository.java
-    |       |   `-- service
-    |       |       |-- AuctionManagementService.java
-    |       |       |-- AuctionQueryService.java
-    |       |       |-- ProductImageValidator.java
-    |       |       |-- BidService.java
-    |       |       |-- AuctionTimerService.java
-    |       |       `-- RoomManager.java
-    |       |-- db
-    |       |   |-- DatabaseSchema.java
-    |       |   |-- DatabaseSetupMain.java
-    |       |   `-- DemoDataSeeder.java
-    |       `-- dashboard
-    `-- test/java/vn/ptit/btl16
-        |-- selftest
-        |   |-- AllSelfTests.java
-        |   |-- ProtocolCodecSelfTest.java
-        |   |-- JsonWireMessageCodecSelfTest.java
-        |   |-- FullNetworkAuctionSelfTest.java
-        |   |-- AuctionManagementSelfTest.java
-        |   `-- WebSocketUpgradeSelfTest.java
-        `-- server
-            |-- account/repository/TestUserRepository.java
-            `-- auction/repository/TestAuctionRepository.java
+BTL16 SOURCE MAP - 2026-09-07
+VS Code + XAMPP; empty schema, no production seed.
+Generated outputs target/dist/out are omitted.
 
-Generated distribution (ignored by Git):
+Java source:
+src/main/java/vn/ptit/btl16/client/ClientMain.java
+src/main/java/vn/ptit/btl16/client/ConsoleClientMain.java
+src/main/java/vn/ptit/btl16/client/LegacySwingClientMain.java
+src/main/java/vn/ptit/btl16/client/controller/ClientController.java
+src/main/java/vn/ptit/btl16/client/controller/HeartbeatService.java
+src/main/java/vn/ptit/btl16/client/controller/ReconnectCoordinator.java
+src/main/java/vn/ptit/btl16/client/fx/FxClientController.java
+src/main/java/vn/ptit/btl16/client/fx/JavaFxClientApp.java
+src/main/java/vn/ptit/btl16/client/model/ClientAppModel.java
+src/main/java/vn/ptit/btl16/client/model/ClientAuction.java
+src/main/java/vn/ptit/btl16/client/model/ClientBid.java
+src/main/java/vn/ptit/btl16/client/model/ClientProduct.java
+src/main/java/vn/ptit/btl16/client/model/ClientWireParser.java
+src/main/java/vn/ptit/btl16/client/network/ClientTransport.java
+src/main/java/vn/ptit/btl16/client/network/ConnectionState.java
+src/main/java/vn/ptit/btl16/client/network/ConnectionStateListener.java
+src/main/java/vn/ptit/btl16/client/network/NetworkClient.java
+src/main/java/vn/ptit/btl16/client/network/TcpClientTransport.java
+src/main/java/vn/ptit/btl16/client/network/WebSocketClientTransport.java
+src/main/java/vn/ptit/btl16/client/service/AccountApi.java
+src/main/java/vn/ptit/btl16/client/service/ApiResponse.java
+src/main/java/vn/ptit/btl16/client/service/AuctionApi.java
+src/main/java/vn/ptit/btl16/client/view/AuctionPanel.java
+src/main/java/vn/ptit/btl16/client/view/AuctionTableModel.java
+src/main/java/vn/ptit/btl16/client/view/BidTableModel.java
+src/main/java/vn/ptit/btl16/client/view/LoginPanel.java
+src/main/java/vn/ptit/btl16/client/view/MainFrame.java
+src/main/java/vn/ptit/btl16/common/config/AppProperties.java
+src/main/java/vn/ptit/btl16/common/config/ClientConfig.java
+src/main/java/vn/ptit/btl16/common/config/ServerConfig.java
+src/main/java/vn/ptit/btl16/common/protocol/ErrorCode.java
+src/main/java/vn/ptit/btl16/common/protocol/JsonWireMessageCodec.java
+src/main/java/vn/ptit/btl16/common/protocol/LengthPrefixedMessageCodec.java
+src/main/java/vn/ptit/btl16/common/protocol/MessageCodec.java
+src/main/java/vn/ptit/btl16/common/protocol/MessageKind.java
+src/main/java/vn/ptit/btl16/common/protocol/MessageType.java
+src/main/java/vn/ptit/btl16/common/protocol/ProtocolException.java
+src/main/java/vn/ptit/btl16/common/protocol/ProtocolLimits.java
+src/main/java/vn/ptit/btl16/common/protocol/WireMessage.java
+src/main/java/vn/ptit/btl16/common/protocol/WireValues.java
+src/main/java/vn/ptit/btl16/common/util/Money.java
+src/main/java/vn/ptit/btl16/common/util/Times.java
+src/main/java/vn/ptit/btl16/common/validation/InputValidation.java
+src/main/java/vn/ptit/btl16/common/validation/ValidationException.java
+src/main/java/vn/ptit/btl16/server/ServerApplication.java
+src/main/java/vn/ptit/btl16/server/ServerMain.java
+src/main/java/vn/ptit/btl16/server/ServerSequence.java
+src/main/java/vn/ptit/btl16/server/ServerStats.java
+src/main/java/vn/ptit/btl16/server/account/controller/AccountController.java
+src/main/java/vn/ptit/btl16/server/account/model/UserAccount.java
+src/main/java/vn/ptit/btl16/server/account/repository/JdbcConnectionFactory.java
+src/main/java/vn/ptit/btl16/server/account/repository/JdbcUserRepository.java
+src/main/java/vn/ptit/btl16/server/account/repository/RepositoryException.java
+src/main/java/vn/ptit/btl16/server/account/repository/UserRepository.java
+src/main/java/vn/ptit/btl16/server/account/security/PasswordHash.java
+src/main/java/vn/ptit/btl16/server/account/security/PasswordHasher.java
+src/main/java/vn/ptit/btl16/server/account/security/Pbkdf2PasswordHasher.java
+src/main/java/vn/ptit/btl16/server/account/service/AccountException.java
+src/main/java/vn/ptit/btl16/server/account/service/AccountService.java
+src/main/java/vn/ptit/btl16/server/account/service/LoginResult.java
+src/main/java/vn/ptit/btl16/server/auction/controller/AuctionController.java
+src/main/java/vn/ptit/btl16/server/auction/model/AuctionResult.java
+src/main/java/vn/ptit/btl16/server/auction/model/AuctionRuntime.java
+src/main/java/vn/ptit/btl16/server/auction/model/AuctionSnapshot.java
+src/main/java/vn/ptit/btl16/server/auction/model/AuctionStatus.java
+src/main/java/vn/ptit/btl16/server/auction/model/BidRecord.java
+src/main/java/vn/ptit/btl16/server/auction/model/Product.java
+src/main/java/vn/ptit/btl16/server/auction/model/ProductImage.java
+src/main/java/vn/ptit/btl16/server/auction/model/RoomVisibility.java
+src/main/java/vn/ptit/btl16/server/auction/repository/AuctionConflictException.java
+src/main/java/vn/ptit/btl16/server/auction/repository/AuctionRepository.java
+src/main/java/vn/ptit/btl16/server/auction/repository/AuctionRepositoryException.java
+src/main/java/vn/ptit/btl16/server/auction/repository/BidCommit.java
+src/main/java/vn/ptit/btl16/server/auction/repository/BlockAuctionUserCommit.java
+src/main/java/vn/ptit/btl16/server/auction/repository/CancelAuctionCommit.java
+src/main/java/vn/ptit/btl16/server/auction/repository/CloseAuctionCommit.java
+src/main/java/vn/ptit/btl16/server/auction/repository/CreateAuctionCommit.java
+src/main/java/vn/ptit/btl16/server/auction/repository/CreateProductCommit.java
+src/main/java/vn/ptit/btl16/server/auction/repository/ExtendAuctionCommit.java
+src/main/java/vn/ptit/btl16/server/auction/repository/JdbcAuctionRepository.java
+src/main/java/vn/ptit/btl16/server/auction/repository/UpdateProductCommit.java
+src/main/java/vn/ptit/btl16/server/auction/service/AuctionBroadcastService.java
+src/main/java/vn/ptit/btl16/server/auction/service/AuctionException.java
+src/main/java/vn/ptit/btl16/server/auction/service/AuctionManagementService.java
+src/main/java/vn/ptit/btl16/server/auction/service/AuctionManager.java
+src/main/java/vn/ptit/btl16/server/auction/service/AuctionQueryService.java
+src/main/java/vn/ptit/btl16/server/auction/service/AuctionTimerService.java
+src/main/java/vn/ptit/btl16/server/auction/service/AuctionWireData.java
+src/main/java/vn/ptit/btl16/server/auction/service/BidOutcome.java
+src/main/java/vn/ptit/btl16/server/auction/service/BidService.java
+src/main/java/vn/ptit/btl16/server/auction/service/KickOutcome.java
+src/main/java/vn/ptit/btl16/server/auction/service/ProductImageValidator.java
+src/main/java/vn/ptit/btl16/server/auction/service/RoomManager.java
+src/main/java/vn/ptit/btl16/server/auction/service/RoomMember.java
+src/main/java/vn/ptit/btl16/server/dashboard/ServerAddresses.java
+src/main/java/vn/ptit/btl16/server/dashboard/ServerDashboardFrame.java
+src/main/java/vn/ptit/btl16/server/dashboard/ServerDashboardMain.java
+src/main/java/vn/ptit/btl16/server/db/DatabaseCheckMain.java
+src/main/java/vn/ptit/btl16/server/db/DatabaseResetMain.java
+src/main/java/vn/ptit/btl16/server/db/DatabaseSchema.java
+src/main/java/vn/ptit/btl16/server/db/DatabaseSetupMain.java
+src/main/java/vn/ptit/btl16/server/module/AuctionModule.java
+src/main/java/vn/ptit/btl16/server/module/CoreAccountModule.java
+src/main/java/vn/ptit/btl16/server/module/ServerModule.java
+src/main/java/vn/ptit/btl16/server/network/ClientConnection.java
+src/main/java/vn/ptit/btl16/server/network/ConnectionLifecycleListener.java
+src/main/java/vn/ptit/btl16/server/network/ConnectionRegistry.java
+src/main/java/vn/ptit/btl16/server/network/ServerConnection.java
+src/main/java/vn/ptit/btl16/server/network/ServerMessagingService.java
+src/main/java/vn/ptit/btl16/server/network/TcpServer.java
+src/main/java/vn/ptit/btl16/server/network/WebSocketConnectionAdapter.java
+src/main/java/vn/ptit/btl16/server/network/WebSocketServerTransport.java
+src/main/java/vn/ptit/btl16/server/routing/MessageHandler.java
+src/main/java/vn/ptit/btl16/server/routing/MessageRouter.java
+src/main/java/vn/ptit/btl16/server/routing/RequestContext.java
+src/main/java/vn/ptit/btl16/server/session/SessionCleanupService.java
+src/main/java/vn/ptit/btl16/server/session/SessionException.java
+src/main/java/vn/ptit/btl16/server/session/SessionManager.java
+src/main/java/vn/ptit/btl16/server/session/SessionStatus.java
+src/main/java/vn/ptit/btl16/server/session/UserSession.java
+src/main/java/vn/ptit/btl16/tools/ConcurrentBidLoadTestMain.java
+src/test/java/vn/ptit/btl16/selftest/AllSelfTests.java
+src/test/java/vn/ptit/btl16/selftest/AuctionManagementSelfTest.java
+src/test/java/vn/ptit/btl16/selftest/DatabaseConfigSelfTest.java
+src/test/java/vn/ptit/btl16/selftest/FullNetworkAuctionSelfTest.java
+src/test/java/vn/ptit/btl16/selftest/JsonWireMessageCodecSelfTest.java
+src/test/java/vn/ptit/btl16/selftest/PasswordHasherSelfTest.java
+src/test/java/vn/ptit/btl16/selftest/ProtocolCodecSelfTest.java
+src/test/java/vn/ptit/btl16/selftest/ServerAddressesSelfTest.java
+src/test/java/vn/ptit/btl16/selftest/SessionManagerSelfTest.java
+src/test/java/vn/ptit/btl16/selftest/TestSupport.java
+src/test/java/vn/ptit/btl16/selftest/WebSocketUpgradeSelfTest.java
+src/test/java/vn/ptit/btl16/selftest/XamppDatabaseSelfTest.java
+src/test/java/vn/ptit/btl16/server/account/repository/TestUserRepository.java
+src/test/java/vn/ptit/btl16/server/auction/repository/TestAuctionRepository.java
 
-dist/BTL16-Auction-Client/
-|-- BTL16-Auction-Client.exe
-|-- app/
-`-- runtime/
+Configuration, SQL, tools, scripts and docs:
+.github/modernize/java-upgrade/.gitignore
+.github/modernize/java-upgrade/hooks/scripts/recordToolUse.ps1
+.github/modernize/java-upgrade/hooks/scripts/recordToolUse.sh
+.vscode/launch.json
+.vscode/settings.json
+config/client-lan-example.properties
+config/client.properties
+config/server.properties
+docs/00_BAT_DAU.md
+docs/01_KIEN_TRUC_TONG_THE.md
+docs/02_THU_TU_XAY_DUNG_VA_PHU_THUOC.md
+docs/03_PROTOCOL_VA_LUONG_MESSAGE.md
+docs/04_DATABASE.md
+docs/05_CACH_CHAY_VSCODE_XAMPP.md
+docs/06_CHAY_LAN_MOT_MAY_SERVER.md
+docs/07_DEMO_KIEM_THU.md
+docs/08_TU_DIEN_BIEN_THEO_THANH_VIEN.md
+docs/09_NHIEM_VU_TUNG_FILE.md
+docs/10_CAU_HOI_THAY_HOI_TONG_HOP.md
+docs/11_LO_TRINH_HOC_NHOM.md
+docs/12_MAPPING_4_SLIDE_VAO_PROJECT.md
+docs/13_BANG_PHAN_CONG_FILE_THEO_NGUOI.md
+docs/14_KICH_BAN_DEMO_5_NGUOI.md
+docs/15_QUY_TAC_GIT_VA_TICH_HOP.md
+docs/16_CHECKLIST_CHUC_NANG_VA_BAN_GIAO.md
+docs/17_JAVAFX_WEBSOCKET_UPGRADE.md
+docs/18_PRODUCT_IMAGE_PRIVATE_ROOM_SEARCH.md
+docs/19_MULTI_MACHINE_AND_PACKAGING.md
+docs/members/01_DO_TIEN.md
+docs/members/02_VU_TRI_THUAN.md
+docs/members/03_PHAM_ANH_DUNG.md
+docs/members/04_MAI_TRUNG_DUC.md
+docs/members/05_TRAN_VAN_PHUOC.md
+scripts/build.cmd
+scripts/build.sh
+scripts/compile-jdk-only.cmd
+scripts/compile-jdk-only.sh
+scripts/reset-db.cmd
+scripts/run-client.cmd
+scripts/run-client.sh
+scripts/run-console-client.cmd
+scripts/run-load-test.cmd
+scripts/run-self-tests-jdk-only.cmd
+scripts/run-self-tests-jdk-only.sh
+scripts/run-self-tests.cmd
+scripts/run-self-tests.sh
+scripts/run-server-console.cmd
+scripts/run-server-console.sh
+scripts/run-server-dashboard.cmd
+scripts/setup-db.cmd
+scripts/show-server-ip.cmd
+sql/00_schema.sql
+sql/99_reset_database.sql
+tools/client-runner.mjs
+tools/dev-runner.mjs
+tools/dev-utils.mjs
+tools/package-apps.mjs
+tools/package-client.mjs
+tools/package-desktop.mjs
+tools/package-server.mjs
+
+Root: README.md, START_HERE.txt, VERIFICATION.md, pom.xml, package.json, .gitignore, 01..06_*.cmd

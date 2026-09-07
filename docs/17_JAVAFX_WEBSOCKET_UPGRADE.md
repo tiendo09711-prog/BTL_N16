@@ -51,7 +51,7 @@ WebSocket đã có message boundary nên mỗi `WireMessage` là một TEXT JSON
   "requestId": "uuid",
   "serverSequence": 0,
   "sentAt": 0,
-  "data": {"username": "demo", "password": "..."}
+  "data": {"username": "tai_khoan_da_dang_ky", "password": "..."}
 }
 ```
 
@@ -101,3 +101,7 @@ server/network/WebSocketConnectionAdapter.java
 server/network/WebSocketServerTransport.java
 common/protocol/JsonWireMessageCodec.java
 ```
+
+## Trạng thái bàn giao hiện tại
+
+Client EXE dùng system property btl16.client.manualConnect=true để chờ nhập WS URL rồi bấm Kết nối. Server EXE chạy dashboard và copy URL LAN, không phải website. Setup dùng VS Code + XAMPP, db.port theo từng máy; không còn auto-seed. Đăng ký account mới rồi tự tạo sản phẩm/phòng. Xem [05](05_CACH_CHAY_VSCODE_XAMPP.md), [19](19_MULTI_MACHINE_AND_PACKAGING.md) và docs/members cho trách nhiệm hiện tại.

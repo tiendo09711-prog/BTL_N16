@@ -1,9 +1,11 @@
-Runtime libraries are declared in pom.xml and downloaded by Maven/NetBeans:
-- MySQL Connector/J
+Runtime libraries are declared in pom.xml and downloaded by Maven:
+- MySQL Connector/J 8.4.0 (verified with local XAMPP MariaDB)
 - JavaFX
 - Java-WebSocket
 - Jackson
 
-The server and database setup require mysql-connector-j at runtime.
-Clients do not connect to MySQL and do not load this driver directly.
-Use the Maven project or scripts/setup-db.cmd, scripts/run-server-dashboard.cmd and scripts/run-client.cmd.
+Run npm run build to copy runtime JARs into target/dependency.
+Only the server and database tools connect through JDBC.
+Set db.host, db.port, db.user and db.password in config/server.properties.
+Setup/reset create schema without demo data. Register through the client.
+See docs/05_CACH_CHAY_VSCODE_XAMPP.md.

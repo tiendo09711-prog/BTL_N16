@@ -1,78 +1,18 @@
-BTL 16 - SAN DAU GIA REALTIME JAVAFX + WEBSOCKET
-=================================================
+BTL 16 - SAN DAU GIA REALTIME
+===========================
 
-KIEN TRUC HIEN TAI
-------------------
-- JavaFX desktop client la mac dinh.
-- WebSocket ws://127.0.0.1:8890/ws la transport mac dinh.
-- TCP 127.0.0.1:8888 duoc giu cho legacy/test/console/load-test.
-- Mot Java server trung tam xu ly session, room, bid, timer va MySQL.
-- Client khong ket noi MySQL truc tiep.
+1. Doc README.md: ten du an, chuc nang, hai EXE, setup va su dung.
+2. Sua code: VS Code + JDK 17+ + Maven + Node.js 20+ + XAMPP.
+3. Start MySQL trong XAMPP; sua db.port/password theo may minh.
+4. npm run build; scripts\setup-db.cmd; npm run dev.
+5. DB moi hoan toan trong: dang ky tai khoan, them san pham, tao phong.
+6. npm test de chay self-test; npm run dist de tao ca hai EXE.
+7. Copy nguyen thu muc ung dung trong dist, khong tach rieng EXE.
+8. EXE server doc app/config/server.properties; Start MySQL truoc.
+9. Client nhap dia chi WS duoc dashboard server sao chep.
 
-A. CHAY NHANH TREN MAY SERVER
------------------------------
-1. Cai Node.js, JDK 17+, Maven va MySQL/Laragon.
-2. Mo terminal tai thu muc goc.
-3. Chay: npm run dev
-4. Runner build, migrate DB, start TCP + WebSocket va mo JavaFX client local.
-5. Nhan Ctrl+C de dung server/client.
-
-Tai khoan demo:
-   demo/demo123
-   alice/alice123
-   bob/bob123
-
-B. CAC LENH NPM
----------------
-npm run dev
-npm run dev:server
-npm run dev:server -- --skip-setup
-npm run client
-npm run client -- --url=ws://IP_SERVER:8890/ws
-npm run client -- --transport=tcp --host=IP_SERVER --port=8888
-npm test
-npm run dist:client
-
-C. CHAY TRONG LAN
------------------
-- May server bind 0.0.0.0 va mo firewall TCP 8890; mo 8888 neu demo legacy.
-- May client mo packaged JavaFX app-image va nhap ws://IP_SERVER:8890/ws.
-- May client khong can source, IDE, Maven, Node hay JDK.
-- ws:// la WebSocket endpoint, khong phai website.
-- Khong mo MySQL 3306 cho client.
-
-D. PACKAGED CLIENT
-------------------
-Chay: npm run dist:client
-
-Ket qua:
-   dist\BTL16-Auction-Client\
-
-Copy ca thu muc nay sang may Windows khac va mo BTL16-Auction-Client.exe.
-
-E. CHAY THU CONG
-----------------
-01_BUILD_VA_TEST.cmd
-02_TAO_DATABASE_MYSQL.cmd
-03_CHAY_SERVER_MYSQL.cmd
-04_CHAY_CLIENT.cmd
-
-Swing cu duoc giu tai main class:
-   vn.ptit.btl16.client.LegacySwingClientMain
-
-F. HOC CODE
------------
-1. README.md
-2. docs/00_BAT_DAU.md
-3. docs/17_JAVAFX_WEBSOCKET_UPGRADE.md
-4. docs/18_PRODUCT_IMAGE_PRIVATE_ROOM_SEARCH.md
-5. docs/19_MULTI_MACHINE_AND_PACKAGING.md
-6. docs/members/<thanh-vien>.md
-
-G. FILE QUAN TRONG
-------------------
-- README.md: kien truc va cach chay.
-- VERIFICATION.md: lenh da chay va ket qua thuc.
-- PROJECT_TREE.txt: cay file.
-- docs/10_CAU_HOI_THAY_HOI_TONG_HOP.md: cau hoi bao ve.
-- docs/16_CHECKLIST_CHUC_NANG_VA_BAN_GIAO.md: checklist.
+Hoc code: docs/00_BAT_DAU.md -> docs/13_BANG_PHAN_CONG_FILE_THEO_NGUOI.md
+-> docs/members/<thanh-vien>.md. Bang nhiem vu tung file: docs/09_NHIEM_VU_TUNG_FILE.md.
+Setup chi tiet: docs/05_CACH_CHAY_VSCODE_XAMPP.md.
+Reset xoa DB du an: dung server, scripts\reset-db.cmd, go RESET.
+Khong co tai khoan hay du lieu demo duoc cai san.

@@ -1,99 +1,27 @@
-# 06 - CHAY LAN: MOT MAY SERVER, CAC MAY CON LAI LA CLIENT
+# 06 – LAN: một máy server, các máy còn lại là client
 
-## Kien truc
+1. Máy A Start MySQL trong XAMPP, chỉnh db.port/password trong app/config/server.properties của Server EXE rồi mở ứng dụng.
+2. Chọn IPv4 LAN trên dashboard cùng mạng với B/C, bấm Sao chep dia chi và gửi URL ws://IP_MAY_A:8890/ws.
+3. B/C nhận nguyên folder Client EXE, mở ứng dụng, dán URL và bấm Kết nối. Máy client không cần DB, source, JDK, Maven hay Node.
+4. Tự đăng ký account riêng, một người thêm sản phẩm/tạo phòng và người khác join/bid; không có dữ liệu mẫu cài sẵn.
 
-```text
-May Do Tien
-  Java Server + Laragon MySQL
-          ^
-          | TCP 8888
-          |
-May Thuan / Dung / Duc / Phuoc
-  Java Client
-```
+## Cổng và cấu hình
 
-Client khong can Laragon neu chi chay client.
+- WebSocket 8890: JavaFX mặc định, mở inbound TCP trên mạng Private của Windows Firewall.
+- TCP 8888: chỉ mở nếu dùng legacy/console/load-test.
+- DB 3306 hoặc cổng XAMPP từng máy: không mở cho client. Chỉ server JDBC kết nối DB.
+- Server bind mặc định 0.0.0.0; client dùng IPv4 thật, không nhập 0.0.0.0. 127.0.0.1 chỉ dùng khi chạy cùng máy server.
+- Các khóa listener: server.tcp.bindAddress/port và server.websocket.bindAddress/port/path trong config.
 
-## Tren may server
+Nếu chạy bằng source: npm run dev:server trên A, npm run client -- --url=ws://IP_MAY_A:8890/ws trên B/C. Runner dùng cổng listener mặc định; tùy biến listener thì chạy main trực tiếp theo docs/05.
 
-1. Mo terminal tai thu muc goc.
-2. Chay `npm run dev:server`, hoac `npm run dev` neu may server cung can mot client local.
-3. Giu:
+## Chẩn đoán và an toàn
 
-```properties
-server.bindAddress=0.0.0.0
-server.port=8888
-```
+- Refused: server chưa bật hoặc sai port. Timeout: firewall, sai IP, khác LAN hoặc Wi-Fi chặn thiết bị liên lạc.
+- JDBC lỗi: kiểm tra XAMPP trên A và cấu hình DB của server, không cài DB lên B/C để chữa.
+- Đổi mạng/IP: Lam moi dia chi rồi gửi URL mới; nhiều card/VPN cần chọn đúng mạng client.
+- AUTH_REQUIRED: login/resume; quá grace hoặc server restart phải login lại.
+- ws:// là endpoint, không phải website. Không có web frontend chỉ cần bấm link là chơi.
+- WS/TCP mặc định không TLS: dùng tài khoản thử trong LAN tin cậy, không đưa trực tiếp ra Internet. Không gửi mật khẩu DB cho client.
 
-4. Runner se in IPv4; co the kiem tra lai bang:
-
-```bat
-scripts\show-server-ip.cmd
-```
-
-Hoac:
-
-```bat
-ipconfig
-```
-
-5. Cho phep inbound TCP 8888 trong Windows Defender Firewall.
-6. Giu terminal npm dang chay; `Ctrl+C` se dung Java server/client.
-
-## Tren moi may client
-
-Neu may client co bo source, chay:
-
-```bash
-npm run client -- --host=192.168.x.x
-```
-
-`192.168.x.x` la IPv4 cua may server. Client cung co the sua `config/client.properties` va chay `scripts\run-client.cmd`.
-
-## Gioi han cua link chia se
-
-- Server hien tai dung raw TCP, khong phai HTTP/WebSocket.
-- Dia chi `192.168.x.x:8888` la dia chi ket noi, khong phai URL cho trinh duyet.
-- Nguoi choi dung packaged JavaFX app-image, khong can JDK hay source code.
-- Muon bam link va choi ngay tren web can bo sung web frontend va WebSocket/HTTP gateway.
-- TCP hien tai khong co TLS; chi nen demo trong LAN/VPN tin cay, khong public truc tiep ra Internet.
-
-## Kiem tra loi
-
-| Hien tuong | Nguyen nhan thuong gap |
-|---|---|
-| Connection refused | Server chua chay hoac sai port |
-| Timeout | Firewall, khac LAN, sai IP |
-| Ping duoc nhung client khong vao | TCP 8888 chua mo |
-| JDBC error tren server | MySQL Laragon chua bat/sai password |
-| Client bi AUTH_REQUIRED | Session chua login/resume |
-| Resume that bai | Qua 120 giay hoac server restart |
-
-## Bao mat va thiet ke
-
-- Khong mo port 3306 cho client.
-- Khong gui password DB sang client.
-- Server xu ly moi SQL.
-- TCP demo chua dung TLS, chi nen dung tai khoan demo trong LAN lab.
-
-## Demo LAN goi y
-
-1. Tat ca 5 may login.
-2. Tat ca JOIN cung auction.
-3. Hai may bid gan dong thoi.
-4. Quan sat dashboard server va event tat ca client.
-5. Mot may tat Wi-Fi, bat lai.
-6. Client reconnect, resume va resync.
-7. Bid trong 10 giay cuoi de demo extension.
-8. Cho phong dong, quan sat ket qua con hien 120 giay.
-9. Het retention, tat ca client nhan `AUCTION_ARCHIVED` va dashboard tu an phong.
-
-Du lieu lich su van nam tren MySQL cua may server; cac may client khong duoc truy cap port 3306.
-
-## LAN voi JavaFX/WebSocket
-
-- Mo firewall TCP 8890 cho JavaFX WebSocket va 8888 neu demo TCP legacy.
-- May client dung packaged app, nhap `ws://IP_MAY_SERVER:8890/ws`.
-- Khong can clone source, IDE, Maven, Node hoac JDK.
-- `ws://` la endpoint network, khong phai website.
-- LAN IP khong truy cap tu Internet neu khong co port forwarding/VPN/tunnel/reverse proxy.
+Giữ server mở trong buổi diễn tập; đóng cửa sổ hoặc Dung server sẽ ngắt client. LAN vật lý/firewall cần nhóm thử trực tiếp; chi tiết EXE/Internet tại [19](19_MULTI_MACHINE_AND_PACKAGING.md).

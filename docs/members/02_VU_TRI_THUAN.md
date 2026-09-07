@@ -1,288 +1,59 @@
-# VU TRI THUAN - REALTIME, DISCONNECT/RECONNECT, TEST VA INTEGRATION
-
-## Nhiem vu chinh
-
-```text
-Cap nhat realtime
-+ xu ly mat ket noi
-+ resume/resync
-+ heartbeat
-+ kiem thu multi-client
-+ tich hop he thong
-```
-
-## So do module
-
-```text
-NetworkClient.server-reader
-  -> response co requestId -> pending future
-  -> EVENT -> ClientController.handleEvent
-                 |-- BID_UPDATE
-                 |-- OUTBID_NOTIFICATION
-                 |-- AUCTION_EXTENDED
-                 |-- AUCTION_TICK
-                 `-- AUCTION_ENDED
-                      -> ClientAppModel
-                      -> Swing View
-
-DISCONNECTED
-  -> ReconnectCoordinator
-  -> TCP connect moi
-  -> RESUME_SESSION
-  -> RESYNC
-  -> snapshot moi
-```
-
-## Thu tu hoc file
-
-1. `NetworkClient.java`
-2. `ConnectionState.java`
-3. `ClientAppModel.java`
-4. `ClientWireParser.java`
-5. `ClientController.java` - doc `handleEvent` truoc
-6. `HeartbeatService.java`
-7. `ReconnectCoordinator.java`
-8. `RoomManager.java`
-9. `ServerMessagingService.java`
-10. `FullNetworkAuctionSelfTest.java`
-11. `ConcurrentBidLoadTestMain.java`
-
-## Bien phai thuoc
-
-| Bien | Y nghia |
-|---|---|
-| `eventListeners` | Noi nhan server push |
-| `pendingRequests` | Response flow rieng voi event flow |
-| `state` | Trang thai TCP |
-| `readerThread` | Mot thread doc server |
-| `consecutiveFailures` | Heartbeat loi lien tiep |
-| `running` | Reconnect loop dang chay |
-| `reconnectMaxAttempts` | Gioi han thu lai |
-| `autoReconnectEnabled` | Khong reconnect sau logout |
-| `sessionToken` | Resume danh tinh |
-| `joinedAuctionId` | Auction can RESYNC |
-| `serverClockOffsetMillis` | Dong bo countdown hien thi |
-| `bidUpdateEvents` | Dem event trong test |
+# VŨ TRÍ THUẬN – JavaFX, realtime, reconnect, kiểm thử và đóng gói
 
-## Luong BID_UPDATE
+Đối chiếu code ngày 07/09/2026. Đây là nhiệm vụ học, giải thích, kiểm thử và bảo trì phần đã triển khai.
 
-```text
-BidService commit thanh cong
--> AuctionBroadcastService
--> RoomManager lay subscribers
--> ServerMessagingService
--> ClientConnection.send
--> NetworkClient.readLoop
--> eventListeners
--> ClientController.handleEvent
--> parse ClientAuction/ClientBid
--> ClientAppModel.applyAuctionUpdate
--> Swing render
-```
+## Phạm vi
 
-## Luong reconnect
+Chịu trách nhiệm client chính JavaFX/WebSocket, API/model, event/reconnect và bộ công cụ chạy/đóng gói. ClientController/MainFrame/AuctionPanel chỉ là client Swing legacy, không phải luồng Client EXE hiện tại.
 
-```text
-Heartbeat 3 lan loi hoac socket EOF
--> NetworkClient DISCONNECTED
--> ReconnectCoordinator exponential backoff
--> connect TCP moi
--> AccountApi.resumeSession(sessionToken)
--> AuctionApi.resync(joinedAuctionId)
--> client thay cache bang snapshot server
-```
+## Thứ tự đọc file
 
-## Test phai nam
+Đường dẫn Java tương đối với src/main/java/vn/ptit/btl16/, trừ src/test và công cụ gốc. Tra toàn bộ file/ownership ở [09](../09_NHIEM_VU_TUNG_FILE.md) và [13](../13_BANG_PHAN_CONG_FILE_THEO_NGUOI.md).
 
-- Codec hai frame lien tiep.
-- 2 client trong cung room.
-- Event BID_UPDATE den ca hai.
-- Outbid chi den leader cu.
-- Concurrent bid co final state dung.
-- Disconnect xoa room connection.
-- Resume token tren socket moi.
-- RESYNC cho gia moi nhat.
-- Timer event ket thuc.
+1. client/ClientMain → client/fx/JavaFxClientApp → FxClientController.
+2. client/network/ClientTransport, WebSocketClientTransport, TcpClientTransport, NetworkClient, ConnectionState/Listener.
+3. client/service/AccountApi, AuctionApi, ApiResponse; client/model/ClientWireParser, ClientAppModel, ClientAuction, ClientBid, ClientProduct.
+4. FxClientController: kết nối/login, loadAuctionList/search/joinSelected/placeBid, showProducts/showCreateAuction, host controls.
+5. FxClientController.onServerEvent/handleServerEvent, scheduleReconnect/scheduleReconnectAttempt, heartbeat, applyResync.
+6. tools/client-runner.mjs, dev-runner.mjs, dev-utils.mjs; package-client.mjs, package-server.mjs, package-desktop.mjs, package-apps.mjs.
+7. package.json, 06_TAO_HAI_UNG_DUNG_EXE.cmd, .vscode/launch.json, scripts/run-self-tests.cmd; toàn bộ src/test và test fixtures.
+8. client/LegacySwingClientMain, controller/ClientController, HeartbeatService, ReconnectCoordinator, view/* để giải thích TCP/Swing cũ.
 
-## Bai tap
+## Luồng phải tự giải thích
 
-1. In ten thread trong `handleEvent` va chung minh khong phai EDT.
-2. Tat server 5 giay, bat lai, quan sat backoff.
-3. Tat client khi dang dan dau, de client khac bid, sau do reconnect.
-4. Chay load test 5, 10, 20 client.
-5. Them bo dem so event nhan duoc.
+**Kết nối EXE:** manualConnect chờ URL server → connect → bật đăng ký/login. Không tự mặc định kết nối localhost trên máy khác.
 
-## Cau hoi rieng
+**Request:** UI → AccountApi/AuctionApi → ClientTransport pendingRequests → response future → Platform.runLater → parser/model/render. Không block UI bằng chờ network đồng bộ.
 
-### 1. Realtime o day la gi?
+**Event:** onServerEvent chuyển về FX thread → handleServerEvent → cập nhật snapshot/bid/tick; AUCTION_ARCHIVED gọi model.removeAuction, AUCTION_KICKED bỏ trạng thái joined. Event có thể đến trước response; model/version/bidId tránh state cũ/trùng.
 
-Server chu dong push event qua socket dang mo, khong polling database.
+**Reconnect:** retry/backoff → kết nối lại → resume token → resync/joined snapshot. Session hết hạn hoặc server restart thì yêu cầu login, không tự xem token RAM là hợp lệ mãi.
 
-### 2. Response va event duoc tach the nao?
+**Ảnh:** yêu cầu GET_PRODUCT_IMAGE riêng, cache productId:imageVersion; list không mang Base64 ảnh.
 
-Response co requestId va complete pending future; event duoc chuyen cho event listeners.
+**Packaging:** package-desktop gọi packageApplications cho server/client; package-apps stage jar/dependency/config rồi jpackage app-image. Giữ config server cũ khi build lại, copy cả app/runtime.
 
-### 3. Tai sao chi mot reader thread?
+## Biến và bất biến cần nhớ
 
-Neu nhieu thread cung doc mot input stream, khong biet thread nao lay frame nao va de gay sai protocol.
+transport, model, pendingRequests, requestId, joinedAuctionId, reconnecting, imageCache, archivedAuctionIds, serverNow/endTime. Phân biệt FX Application Thread với Swing EDT; HeartbeatService/ReconnectCoordinator riêng thuộc legacy, FX dùng scheduler trong controller.
 
-### 4. Heartbeat co vai tro gi?
+## Kiểm thử và bài thực hành
 
-Kiem tra server song, do RTT va phat hien connection im lang bi hong.
+- npm test phải chạy cả TCP và WebSocketUpgradeSelfTest; mvn test riêng không đủ main-based suite.
+- Phối hợp chạy DatabaseConfigSelfTest/XamppDatabaseSelfTest, không seed vào DB người dùng.
+- Kiểm tra hai Client EXE trên LAN, event bid/tick/kick/archive; thử đổi URL server, sai URL, reconnect/session expiry.
+- npm run dist tạo cả hai folder; kiểm tra config EXE cũ được giữ, runtime/JDBC được đóng gói, client không cần XAMPP.
+- Load-test tạo account/bid thật: chỉ chạy DB thử đã có PUBLIC room; đừng chạy nếu cần giữ btl_16 trống.
 
-### 5. Tai sao 3 lan PING loi moi disconnect?
+## Câu hỏi bảo vệ
 
-Tranh mot timeout tam thoi lam reconnect khong can thiet.
+Tại sao Platform.runLater? Network thread không được tùy ý sửa JavaFX UI. requestId khác event thế nào? Response ghép request, event push không đợi request. Copy mỗi EXE được không? Không, launcher cần app/runtime. Test fixture có chứng minh JDBC không? Không, phải chạy integration riêng.
 
-### 6. Backoff de lam gi?
+## Phối hợp và tiêu chí bàn giao
 
-Khong spam connect khi server dang down; delay tang dan toi gioi han.
+Tiến review transport/config/EXE server; Phước review product/model/ảnh/search; Dũng review bid/kick; Đức review timer/result/archive.
 
-### 7. Resume va resync khac nhau?
-
-Resume phuc hoi danh tinh/session. Resync phuc hoi auction state moi nhat.
-
-### 8. Tai sao khong replay moi event da bo lo?
-
-Pham vi co ban chi can snapshot chinh xac, don gian va de bao ve.
-
-### 9. Client clock co chinh thuc khong?
-
-Khong. Client tinh countdown hien thi dua tren serverNow/endTime.
-
-### 10. Khi event den ngoai Swing EDT thi sao?
-
-Controller dung `SwingUtilities.invokeLater` truoc khi cham component.
-
-### 11. Room cleanup o dau?
-
-Lifecycle listener tren server goi `RoomManager.removeConnection`.
-
-### 12. Neu reconnect nhanh ma old session van ACTIVE?
-
-Controller retry resume vai lan khi nhan ACCOUNT_ALREADY_ONLINE, cho server phat hien old socket.
-
-### 13. Logout co auto reconnect khong?
-
-Khong; `autoReconnectEnabled=false` va token local bi xoa.
-
-### 14. Test concurrency dung socket that khong?
-
-Co; FullNetworkAuctionSelfTest va load tool mo NetworkClient that vao TcpServer.
-
-### 15. Lam sao biet final state dung?
-
-Sau concurrent bids, gui RESYNC va so sanh authoritative currentPrice/winner tren server.
-
-### 16. Event co the den truoc response khong?
-
-Co. BidService broadcast sau commit, controller response sau khi service tra ve; client model dedup bid theo bidId.
-
-### 17. Neu event trung?
-
-Model khong them lai bid co cung bidId; auction version tranh update cu hon.
-
-### 18. Dieu gi xay ra khi server restart?
-
-TCP reconnect duoc nhung session token khong con; UI yeu cau login lai.
-
-## Nhiem vu nang cap SV01-SV08
-
-- Dong bo `AuctionApi`, `ClientWireParser`, `ClientController`, dialog trong `MainFrame`.
-- Xu ly realtime `AUCTION_CREATED`, `AUCTION_CANCELLED`, `AUCTION_KICKED`.
-- Bind UI them/sua/an product, tao/my room va host control.
-- Chu tri `AuctionManagementSelfTest` va regression reconnect/resync.
-
-Can demo mot client bi kick tu dong roi room va bi server chan join lai.
-
-## Lo trinh nang cap ca nhan
-
-Muc tieu: dong bo day du tinh nang server moi len client va hoc duoc protocol, state, nghiep vu thay vi chi lam giao dien.
-
-| Ngay | Noi dung hoc va thuc hanh | Dau ra ban giao |
-|---|---|---|
-| 1 | Doc ma tinh nang moi va bang protocol cung ca nhom | Bang request/response/event client can ho tro |
-| 2 | Pair voi Tien hoc authentication, requestId va error mapping | Checklist API can session |
-| 3 | Dong bo product CRUD, my products, create room va my auctions | API/parser/controller cho SV01-SV08 |
-| 4 | Pair voi Dung xu ly min increment, self-bid va `AUCTION_KICKED` | Minimum bid va luong roi room khi bi kick |
-| 5 | Pair voi Duc xu ly extend/end/cancel va `CANCELLED` | Host controls va state UI |
-| 6 | Hoan thien dialog, callback async va cap nhat tren EDT | UI khong block reader thread |
-| 7 | Chu tri `AuctionManagementSelfTest`, gom assertion ca nhom | Test product, room, bid, host va kick |
-| 8 | Kiem tra payload self-test/JDBC co cung cach parse | Checklist field va fallback |
-| 9 | Thu reconnect/resume/resync sau create, extend, cancel va kick | Bao cao regression realtime |
-| 10 | Demo client bi kick, reconnect va bi chan join lai | Kich ban OP07 end-to-end |
-
-### Dau vao phu thuoc
-
-- Protocol/route cua Tien; product/auction fields cua Phuoc.
-- Bid/kick outcome cua Dung; lifecycle event/status cua Duc.
-
-### Dau ra ban giao
-
-- `AuctionApi`, parser, controller va UI ho tro tat ca thao tac moi.
-- Event realtime cap nhat dung model; self-test va regression reconnect/resync.
-
-### Nguoi review
-
-- Tien review protocol; Phuoc review du lieu UI.
-- Dung va Duc review thong bao nghiep vu cua module minh.
-
-### Tieu chi hoan thanh
-
-- Moi chuc nang server moi deu goi va quan sat duoc tren client.
-- Client khong tu quyet dinh quyen, gia toi thieu hay trang thai ket thuc.
-- Event den truoc/sau response khong lam trung state hoac treo UI.
-- Demo reconnect/resync va kick chay bang hai client that.
-
-## Bo sung moi - Client dong bo phong archive
-
-### Nhiem vu
-
-- Xu ly `AUCTION_ARCHIVED` trong `ClientController` tren event reader thread va render tren EDT.
-- Them `ClientAppModel.removeAuction` de xoa list, joined room va bid cache lien quan.
-- Mo rong `FullNetworkAuctionSelfTest`: cho event archive, tai lai list, kiem tra dashboard va RESYNC.
-- Kiem tra event den khi client dang join phong va khi client chi dang xem danh sach.
-- Dung tombstone `archivedAuctionIds` de response `AUCTION_LIST` cu khong them lai phong sau event.
-
-### Ngay 11 trong lo trinh
-
-| Noi dung hoc va thuc hanh | Dau ra ban giao |
-|---|---|
-| Doc payload `AUCTION_ARCHIVED` va luong broadcastAll | Contract event client |
-| Pair voi Phuoc kiem tra model/list/joined room | State client khong con phong cu |
-| Pair voi Duc chay retention 1 giay trong self-test | Regression test tu dong |
-| Demo retention 120 giay hoac rut ngan tam thoi | Kich ban realtime archive |
-
-### Tieu chi bo sung
-
-- Client tu xoa phong ma khong can bam Refresh.
-- Neu dang join phong bi archive, joined state va bid history cache duoc don.
-- Swing chi duoc cap nhat tren EDT; event khong lam treo reader thread.
-
-## Phan nang cap JavaFX + WebSocket
-
-### Muc tieu hoc
-
-- JavaFX Application Thread, `Platform.runLater`, `TableView` va dialog.
-- `ClientTransport`, Java WebSocket client, pending request, timeout va reconnect.
-
-### File bat buoc doc/sua
-
-```text
-client/fx/JavaFxClientApp.java
-client/fx/FxClientController.java
-client/network/ClientTransport.java
-client/network/WebSocketClientTransport.java
-client/network/TcpClientTransport.java
-client/model/ClientAppModel.java
-tools/client-runner.mjs
-tools/package-client.mjs
-```
-
-### Thu tu va ban giao
-
-1. JavaFX login/list/join/bid feature parity.
-2. Connection indicator va RTT.
-3. Reconnect -> resume -> resync -> rejoin.
-4. Realtime notification tren FX thread.
-5. `jpackage` app-image va huong dan LAN.
+- Tự chỉ được entry point, request, service/repository và event tương ứng, không chỉ nhớ tên lớp.
+- Chạy lại test liên quan, ghi đúng kết quả/chỗ chưa thử; sửa protocol/schema thì cập nhật docs chung.
+- Môi trường VS Code + XAMPP; xem [05](../05_CACH_CHAY_VSCODE_XAMPP.md). db.port theo mỗi máy; client chỉ cần URL WS.
+- DB thật không có seed/account mẫu. Fixture test giữ riêng trong src/test; diễn tập tự đăng ký và tạo dữ liệu.

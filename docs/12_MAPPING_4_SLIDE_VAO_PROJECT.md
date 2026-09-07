@@ -83,9 +83,9 @@ Client:
 
 ```text
 Model: ClientAppModel, ClientAuction, ClientBid
-View: MainFrame, LoginPanel, AuctionPanel
-Controller: ClientController
-Service/Network: AccountApi, AuctionApi, NetworkClient
+JavaFX UI/controller: JavaFxClientApp, FxClientController
+Service/Network: AccountApi, AuctionApi, ClientTransport, WebSocketClientTransport
+Legacy Swing: MainFrame, LoginPanel, AuctionPanel, ClientController, NetworkClient
 ```
 
 Server duoc tach mo rong:
@@ -120,7 +120,7 @@ JdbcConnectionFactory
 JdbcUserRepository
 JdbcAuctionRepository
 DatabaseSchema
-DemoDataSeeder
+DatabaseCheckMain / DatabaseSetupMain / DatabaseResetMain (khong seed)
 ```
 
 Hai transaction chinh:

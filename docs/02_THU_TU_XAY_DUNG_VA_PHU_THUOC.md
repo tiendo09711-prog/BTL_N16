@@ -1,5 +1,7 @@
 # 02 - THU TU XAY DUNG VA PHU THUOC
 
+Các phase/ngày bên dưới là lộ trình học lại code đã triển khai, không phải backlog chưa làm. Luồng hiện tại: JavaFX/WebSocket; các đoạn TCP/Swing là nền tảng legacy. Setup dùng VS Code + XAMPP và DB trống; xem docs/05_CACH_CHAY_VSCODE_XAMPP.md. Nhiệm vụ bảo trì hiện tại theo docs/13 và docs/members.
+
 ## Thu tu merge bat buoc
 
 ### Giai doan 1 - Do Tien dung nen
