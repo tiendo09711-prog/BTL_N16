@@ -11,9 +11,12 @@ npm run client -- --transport=tcp --host=192.168.1.10 --port=8888
 npm run dist:client
 npm run dist:server
 npm run dist
+npm run dist:mac:portable
 ```
 
 `npm run dev` build, kiểm tra JDBC theo cấu hình Java, setup schema không seed, start TCP + WebSocket, chờ ready, in IPv4 LAN và mở JavaFX client local. `dev:server` không mở client.
+
+**macOS:** `npm run dist:mac:portable` tạo gói client/server cho Intel và Apple Silicon ngay trên Windows (máy nhận cần JDK 17+). `npm run dist` trên Mac tạo `.app` có runtime Java đi kèm. Xem `docs/20_MACOS_PACKAGING.md` để chọn đúng gói và cấu hình MySQL/firewall trên Mac.
 
 ## Hai ứng dụng EXE riêng biệt
 
@@ -122,3 +125,18 @@ Test-NetConnection IP_MAY_SERVER -Port 8890
 ```
 
 Cần `TcpTestSucceeded : True`, rồi thử hai client cùng vào một phòng, bid và kiểm tra cập nhật realtime. Cùng Wi-Fi nhưng mạng guest/AP isolation vẫn có thể chặn kết nối giữa các máy.
+
+## Khi client kết nối lâu hoặc không kết nối được
+
+- Kết nối lần đầu thất bại sẽ báo lỗi để sửa IP/cổng và thử lại, không tự lặp 30 lần. Timeout mặc định cho một lần kết nối là 5 giây; không phải thời gian chờ bắt buộc khi mạng hoạt động tốt.
+- Tự kết nối lại chỉ bật sau khi đã kết nối thành công. Khi mất mạng, client vẫn thử lại để khôi phục phiên. Bấm **Kết nối** thủ công sẽ hủy lịch thử lại và lần bắt tay cũ trước khi dùng địa chỉ mới.
+- XAMPP chỉ cần chạy MySQL trên máy server. Client kết nối WebSocket tới Java server, không kết nối Apache/MySQL trực tiếp.
+- Trên máy client, chạy `Test-NetConnection IP_MAY_SERVER -Port 8890`. Nếu `TcpTestSucceeded` là `False`, kiểm tra IP được server hiển thị, cổng cấu hình, firewall và mạng trước; tăng timeout không giải quyết được việc cổng bị chặn.
+- Trên máy server, dùng `Get-NetConnectionProfile` để kiểm tra profile mạng. Rule chỉ áp dụng cho **Private** sẽ không áp dụng nếu Wi-Fi đang là **Public**. Chỉ chuyển sang Private nếu đây là mạng LAN đáng tin cậy; không tắt toàn bộ firewall.
+- Với mạng LAN tin cậy đã đặt Private, có thể mở PowerShell **Run as administrator** và tạo rule giới hạn mạng con nội bộ (đổi cổng nếu cấu hình khác):
+
+```powershell
+New-NetFirewallRule -DisplayName "BTL16 WebSocket LAN" -Direction Inbound -Action Allow -Protocol TCP -LocalPort 8890 -Profile Private -RemoteAddress LocalSubnet
+```
+
+Sau khi sửa source, cần đóng gói lại bằng `npm run dist:client` rồi gửi lại **nguyên thư mục** `dist/BTL16-Auction-Client`. EXE đã gửi trước đó không tự nhận bản sửa. Không cần đóng gói lại server nếu chỉ cập nhật luồng kết nối client.

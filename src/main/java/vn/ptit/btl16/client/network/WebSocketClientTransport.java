@@ -28,7 +28,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
-public final class WebSocketClientTransport implements ClientTransport, WebSocket.Listener {
+public final class WebSocketClientTransport implements ClientTransport {
     private final JsonWireMessageCodec codec;
     private final int connectTimeoutMillis;
     private final int requestTimeoutMillis;
@@ -42,12 +42,12 @@ public final class WebSocketClientTransport implements ClientTransport, WebSocke
     private final AtomicReference<ConnectionState> state =
             new AtomicReference<>(ConnectionState.DISCONNECTED);
     private final ScheduledExecutorService timeoutScheduler;
-    private final Object textLock = new Object();
     private final StringBuilder textBuffer = new StringBuilder();
 
     private volatile URI endpoint;
     private volatile WebSocket socket;
     private volatile CompletableFuture<Void> connecting;
+    private CompletableFuture<WebSocket> handshake;
 
     public WebSocketClientTransport(
             String endpoint,
@@ -82,39 +82,93 @@ public final class WebSocketClientTransport implements ClientTransport, WebSocke
         changeState(ConnectionState.CONNECTING, endpoint.toString());
         CompletableFuture<Void> result = new CompletableFuture<>();
         connecting = result;
-        httpClient.newWebSocketBuilder()
-                .connectTimeout(Duration.ofMillis(connectTimeoutMillis))
-                .buildAsync(endpoint, this)
-                .whenComplete((value, error) -> {
-                    if (error != null) {
-                        socket = null;
+        try {
+            handshake = httpClient.newWebSocketBuilder()
+                    .connectTimeout(Duration.ofMillis(connectTimeoutMillis))
+                    .buildAsync(endpoint, new ConnectionListener(result));
+            handshake.whenComplete((value, error) -> {
+                synchronized (WebSocketClientTransport.this) {
+                    if (connecting == result && !result.isDone() && error != null) {
                         changeState(ConnectionState.DISCONNECTED, rootMessage(error));
                         result.completeExceptionally(error);
                     }
-                });
+                }
+            });
+        } catch (RuntimeException exception) {
+            changeState(ConnectionState.DISCONNECTED, rootMessage(exception));
+            result.completeExceptionally(exception);
+        }
         return result;
     }
 
-    @Override
-    public void onOpen(WebSocket webSocket) {
-        socket = webSocket;
-        changeState(ConnectionState.CONNECTED, endpoint.toString());
-        CompletableFuture<Void> result = connecting;
-        if (result != null) {
-            result.complete(null);
+    private final class ConnectionListener implements WebSocket.Listener {
+        private final CompletableFuture<Void> attempt;
+
+        private ConnectionListener(CompletableFuture<Void> attempt) {
+            this.attempt = attempt;
         }
-        webSocket.request(1);
+
+        @Override
+        public void onOpen(WebSocket webSocket) {
+            synchronized (WebSocketClientTransport.this) {
+                if (connecting != attempt || attempt.isDone()
+                        || state.get() != ConnectionState.CONNECTING) {
+                    webSocket.abort();
+                    return;
+                }
+                socket = webSocket;
+                changeState(ConnectionState.CONNECTED, endpoint.toString());
+                attempt.complete(null);
+                webSocket.request(1);
+            }
+        }
+
+        @Override
+        public CompletionStage<?> onText(WebSocket webSocket, CharSequence data, boolean last) {
+            synchronized (WebSocketClientTransport.this) {
+                if (socket != webSocket) {
+                    return CompletableFuture.completedFuture(null);
+                }
+                return handleText(webSocket, data, last);
+            }
+        }
+
+        @Override
+        public CompletionStage<?> onBinary(WebSocket webSocket, ByteBuffer data, boolean last) {
+            synchronized (WebSocketClientTransport.this) {
+                if (socket == webSocket) {
+                    disconnectWithError("Server sent unsupported binary WebSocket frame");
+                }
+            }
+            return CompletableFuture.completedFuture(null);
+        }
+
+        @Override
+        public CompletionStage<?> onClose(WebSocket webSocket, int statusCode, String reason) {
+            synchronized (WebSocketClientTransport.this) {
+                if (socket == webSocket) {
+                    disconnectWithError("WebSocket closed: " + statusCode + " " + reason);
+                }
+            }
+            return CompletableFuture.completedFuture(null);
+        }
+
+        @Override
+        public void onError(WebSocket webSocket, Throwable error) {
+            synchronized (WebSocketClientTransport.this) {
+                if (socket == webSocket) {
+                    disconnectWithError("WebSocket error: " + rootMessage(error));
+                }
+            }
+        }
     }
 
-    @Override
-    public CompletionStage<?> onText(WebSocket webSocket, CharSequence data, boolean last) {
+    private CompletionStage<?> handleText(WebSocket webSocket, CharSequence data, boolean last) {
         String complete = null;
-        synchronized (textLock) {
-            textBuffer.append(data);
-            if (last) {
-                complete = textBuffer.toString();
-                textBuffer.setLength(0);
-            }
+        textBuffer.append(data);
+        if (last) {
+            complete = textBuffer.toString();
+            textBuffer.setLength(0);
         }
         if (complete != null) {
             try {
@@ -125,39 +179,6 @@ public final class WebSocketClientTransport implements ClientTransport, WebSocke
         }
         webSocket.request(1);
         return CompletableFuture.completedFuture(null);
-    }
-
-    @Override
-    public CompletionStage<?> onBinary(WebSocket webSocket, ByteBuffer data, boolean last) {
-        disconnectWithError("Server sent unsupported binary WebSocket frame");
-        return CompletableFuture.completedFuture(null);
-    }
-
-    @Override
-    public CompletionStage<?> onClose(WebSocket webSocket, int statusCode, String reason) {
-        if (socket == webSocket) {
-            socket = null;
-        }
-        failAllPending(new IOException("WebSocket closed: " + statusCode + " " + reason));
-        if (state.get() != ConnectionState.CLOSED) {
-            changeState(ConnectionState.DISCONNECTED, reason);
-        }
-        return CompletableFuture.completedFuture(null);
-    }
-
-    @Override
-    public void onError(WebSocket webSocket, Throwable error) {
-        if (socket == webSocket) {
-            socket = null;
-        }
-        failAllPending(new IOException("WebSocket error: " + rootMessage(error), error));
-        if (state.get() != ConnectionState.CLOSED) {
-            changeState(ConnectionState.DISCONNECTED, rootMessage(error));
-        }
-        CompletableFuture<Void> result = connecting;
-        if (result != null) {
-            result.completeExceptionally(error);
-        }
     }
 
     @Override
@@ -234,8 +255,10 @@ public final class WebSocketClientTransport implements ClientTransport, WebSocke
 
     @Override
     public synchronized void disconnect() {
+        cancelConnecting("Client disconnected");
         WebSocket current = socket;
         socket = null;
+        textBuffer.setLength(0);
         if (current != null) {
             current.sendClose(WebSocket.NORMAL_CLOSURE, "Client disconnected");
         }
@@ -254,7 +277,7 @@ public final class WebSocketClientTransport implements ClientTransport, WebSocke
 
     @Override
     public synchronized void setEndpoint(String endpoint) {
-        if (isConnected()) {
+        if (isConnected() || state.get() == ConnectionState.CONNECTING) {
             throw new IllegalStateException("Disconnect before changing WebSocket endpoint");
         }
         this.endpoint = parseEndpoint(endpoint);
@@ -284,6 +307,7 @@ public final class WebSocketClientTransport implements ClientTransport, WebSocke
     private void disconnectWithError(String detail) {
         WebSocket current = socket;
         socket = null;
+        textBuffer.setLength(0);
         if (current != null) {
             current.abort();
         }
@@ -306,14 +330,29 @@ public final class WebSocketClientTransport implements ClientTransport, WebSocke
         if (state.get() == ConnectionState.CLOSED) {
             return;
         }
+        cancelConnecting("WebSocket transport closed");
         WebSocket current = socket;
         socket = null;
+        textBuffer.setLength(0);
         if (current != null) {
             current.sendClose(WebSocket.NORMAL_CLOSURE, "Application closed");
         }
         failAllPending(new IOException("WebSocket transport closed"));
         timeoutScheduler.shutdownNow();
         changeState(ConnectionState.CLOSED, "Application closed");
+    }
+
+    private void cancelConnecting(String reason) {
+        CompletableFuture<Void> attempt = connecting;
+        CompletableFuture<WebSocket> pendingHandshake = handshake;
+        connecting = null;
+        handshake = null;
+        if (attempt != null && !attempt.isDone()) {
+            attempt.completeExceptionally(new IOException(reason));
+        }
+        if (pendingHandshake != null && !pendingHandshake.isDone()) {
+            pendingHandshake.cancel(true);
+        }
     }
 
     private URI parseEndpoint(String value) {

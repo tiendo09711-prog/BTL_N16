@@ -70,6 +70,7 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
@@ -88,6 +89,8 @@ public final class FxClientController implements AutoCloseable {
     private final ScheduledExecutorService scheduler;
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final AtomicBoolean reconnecting = new AtomicBoolean(false);
+    private long connectionGeneration;
+    private ScheduledFuture<?> reconnectTask;
     private final Map<String, Image> imageCache = new LinkedHashMap<>();
 
     private final TextField endpointField = new TextField();
@@ -320,23 +323,37 @@ public final class FxClientController implements AutoCloseable {
             return;
         }
         if (manual) {
-            autoReconnect = model.hasSessionToken();
+            connectionGeneration++;
+            autoReconnect = false;
+            reconnecting.set(false);
+            if (reconnectTask != null) {
+                reconnectTask.cancel(false);
+            }
             transport.disconnect();
         }
         try {
             transport.setEndpoint(endpointField.getText().trim());
         } catch (RuntimeException exception) {
+            setLoginBusy(false);
             showError(exception.getMessage());
             return;
         }
         setLoginBusy(true);
+        long generation = connectionGeneration;
         transport.connect().whenComplete((value, error) -> Platform.runLater(() -> {
+            if (closed.get() || generation != connectionGeneration) {
+                return;
+            }
             setLoginBusy(false);
             if (error != null) {
                 appendEvent("CONNECT FAILED: " + rootMessage(error));
-                scheduleReconnect();
+                showError("Không thể kết nối tới " + transport.getEndpoint()
+                        + "\nChi tiết: " + rootMessage(error)
+                        + "\nKiểm tra địa chỉ IP/cổng trên Server, mạng LAN và Windows Firewall."
+                        + "\nSửa địa chỉ rồi bấm Kết nối để thử lại.");
                 return;
             }
+            autoReconnect = true;
             reconnecting.set(false);
             if (model.hasSessionToken()) {
                 resumeSession();
@@ -936,6 +953,9 @@ public final class FxClientController implements AutoCloseable {
     private void onConnectionState(ConnectionState state, String detail) {
         model.setConnectionState(state, detail);
         Platform.runLater(() -> {
+            if (closed.get() || transport.getState() != state) {
+                return;
+            }
             String text = switch (state) {
                 case CONNECTED -> "● Connected";
                 case CONNECTING -> "● Connecting";
@@ -944,21 +964,23 @@ public final class FxClientController implements AutoCloseable {
             };
             loginStateLabel.setText(text);
             connectionLabel.setText(text);
-            if (state == ConnectionState.DISCONNECTED && (autoReconnect || stage.isShowing())) {
+            if (state == ConnectionState.DISCONNECTED && autoReconnect) {
                 scheduleReconnect();
             }
         });
     }
 
     private void scheduleReconnect() {
-        if (closed.get() || transport.isConnected() || !reconnecting.compareAndSet(false, true)) {
+        if (closed.get() || !autoReconnect || transport.isConnected()
+                || !reconnecting.compareAndSet(false, true)) {
             return;
         }
-        scheduleReconnectAttempt(1, config.getReconnectInitialDelayMillis());
+        scheduleReconnectAttempt(1, config.getReconnectInitialDelayMillis(), connectionGeneration);
     }
 
-    private void scheduleReconnectAttempt(int attempt, long delayMillis) {
-        if (closed.get() || transport.isConnected()) {
+    private void scheduleReconnectAttempt(int attempt, long delayMillis, long generation) {
+        if (closed.get() || !autoReconnect || generation != connectionGeneration
+                || transport.isConnected()) {
             reconnecting.set(false);
             return;
         }
@@ -966,21 +988,33 @@ public final class FxClientController implements AutoCloseable {
             loginStateLabel.setText("● Reconnecting " + attempt + '/' + config.getReconnectMaxAttempts());
             connectionLabel.setText(loginStateLabel.getText());
         });
-        scheduler.schedule(() -> transport.connect().whenComplete((value, error) -> {
-            if (error == null) {
-                reconnecting.set(false);
-                if (model.hasSessionToken()) {
-                    Platform.runLater(this::resumeSession);
+        reconnectTask = scheduler.schedule(() -> Platform.runLater(() -> {
+            if (closed.get() || !autoReconnect || generation != connectionGeneration
+                    || transport.isConnected()) {
+                return;
+            }
+            transport.connect().whenComplete((value, error) -> Platform.runLater(() -> {
+                if (closed.get() || generation != connectionGeneration) {
+                    return;
                 }
-                return;
-            }
-            if (attempt >= config.getReconnectMaxAttempts()) {
-                reconnecting.set(false);
-                Platform.runLater(() -> showError("Không thể kết nối lại: " + rootMessage(error)));
-                return;
-            }
-            long nextDelay = Math.min(config.getReconnectMaxDelayMillis(), delayMillis * 2L);
-            scheduleReconnectAttempt(attempt + 1, nextDelay);
+                if (error == null) {
+                    reconnecting.set(false);
+                    if (model.hasSessionToken()) {
+                        resumeSession();
+                    }
+                    return;
+                }
+                if (attempt >= config.getReconnectMaxAttempts()) {
+                    autoReconnect = false;
+                    reconnecting.set(false);
+                    loginStateLabel.setText("● Disconnected");
+                    connectionLabel.setText(loginStateLabel.getText());
+                    showError("Không thể kết nối lại: " + rootMessage(error));
+                    return;
+                }
+                long nextDelay = Math.min(config.getReconnectMaxDelayMillis(), delayMillis * 2L);
+                scheduleReconnectAttempt(attempt + 1, nextDelay, generation);
+            }));
         }), delayMillis, TimeUnit.MILLISECONDS);
     }
 

@@ -11,6 +11,8 @@
     "test": "scripts\\run-self-tests.cmd",
     "dist:client": "node tools/package-client.mjs",
     "dist:server": "node tools/package-server.mjs",
+    "dist:mac:portable": "node tools/package-mac-portable.mjs",
+    "test:packaging": "node --test tools/package-layout.test.mjs",
     "dist": "node tools/package-desktop.mjs"
   }
 }

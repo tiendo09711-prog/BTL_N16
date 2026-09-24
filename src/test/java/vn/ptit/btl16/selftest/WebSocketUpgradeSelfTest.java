@@ -44,6 +44,7 @@ public final class WebSocketUpgradeSelfTest {
         try (ServerApplication server = ServerApplication.createForTests(
                 config, users, repository, hasher)) {
             server.start();
+            WebSocketConnectionSelfTest.run(wsUrl);
             basicWebSocketFlow(wsUrl);
 
             CountDownLatch tcpCreated = new CountDownLatch(1);

@@ -15,6 +15,12 @@ Cho phép đăng ký tài khoản, quản lý sản phẩm có ảnh, tạo phò
 - Dùng `BTL16-Auction-Server.exe` và `BTL16-Auction-Client.exe` trong hai thư mục tương ứng của `dist/`. Phải copy **nguyên thư mục**, gồm `app` và `runtime`, không tách riêng EXE.
 - Máy dùng EXE không cần cài Java/Maven/Node; riêng máy server phải bật MySQL trong XAMPP. Máy client không cần XAMPP.
 
+### Bản macOS (client và server)
+
+- Tạo portable cho **Mac Apple Silicon và Intel** ngay trên Windows: `npm run dist:mac:portable`. Bốn gói `.tar.gz` nằm trong `dist/`; máy nhận cần **JDK 17+ đúng kiến trúc**, mở file `.command` sau khi giải nén.
+- Tạo `.app` **kèm runtime Java**: chạy `npm run dist` **trên Mac**, kết quả ở `dist/macos-arm64/` hoặc `dist/macos-x64/`. Server vẫn cần MySQL, client không cần DB.
+- Hướng dẫn chi tiết: [docs/20_MACOS_PACKAGING.md](docs/20_MACOS_PACKAGING.md). Bản Windows hiện tại được giữ riêng, không chuyển EXE thành ứng dụng Mac.
+
 ## 4. Setup để đọc và sửa code: VS Code + XAMPP
 
 1. Cài **VS Code + Extension Pack for Java**, **JDK 17+**, **Maven 3.x**, **Node.js 20+** và **XAMPP**. Mở thư mục chứa `pom.xml` bằng VS Code.
