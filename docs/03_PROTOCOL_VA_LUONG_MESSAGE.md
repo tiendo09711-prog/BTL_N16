@@ -82,6 +82,7 @@ UTF-8 bytes
 | MY_PRODUCTS | MY_PRODUCTS_RESULT |
 | UPDATE_PRODUCT | UPDATE_PRODUCT_RESULT |
 | DEACTIVATE_PRODUCT | DEACTIVATE_PRODUCT_RESULT |
+| RESTORE_PRODUCT | RESTORE_PRODUCT_RESULT |
 | AUCTION_LIST | AUCTION_LIST_RESULT |
 | CREATE_AUCTION | CREATE_AUCTION_RESULT |
 | MY_AUCTIONS | MY_AUCTIONS_RESULT |
@@ -103,6 +104,14 @@ UTF-8 bytes
 | Server push | AUCTION_TICK |
 | Server push | AUCTION_ENDED |
 | Server push | AUCTION_ARCHIVED |
+
+## Khôi phục mặt hàng đã ngừng
+
+`RESTORE_PRODUCT` gửi `productId`, yêu cầu đăng nhập và quyền sở hữu; thành công trả `RESTORE_PRODUCT_RESULT` với dữ liệu mặt hàng và `active=true`. Yêu cầu trên mặt hàng đã hoạt động là no-op, kể cả `updatedAt`, nhưng vẫn kiểm tra chủ sở hữu. Lỗi được trả qua `ERROR` với `AUTH_REQUIRED`, `AUCTION_FORBIDDEN`, `PRODUCT_NOT_FOUND`, `PRODUCT_IN_USE` hoặc `PRODUCT_ALREADY_SOLD` tùy trường hợp.
+
+`MY_PRODUCTS_RESULT` bổ sung `product.{index}.restorationStatus`: `ACTIVE`, `ELIGIBLE`, `OPEN_AUCTION` hoặc `SOLD`. Client cũ vẫn đọc các trường cũ bình thường; client mới dùng `UNKNOWN` nếu thiếu hoặc chưa hiểu trạng thái. Đây là thông tin gợi ý cho giao diện, có thể cũ ngay khi hiển thị; server luôn kiểm tra lại trong transaction.
+
+Khôi phục, tạo phiên và ngừng mặt hàng cùng khóa hàng dữ liệu mặt hàng trước khi kiểm tra/ghi. Khôi phục chỉ cập nhật trạng thái hoạt động của mặt hàng đủ điều kiện, không tạo/phát sự kiện mở phiên, không sửa phiên cũ, lượt trả giá, kết quả hoặc lệnh cấm. Quy tắc đóng băng thông tin/ảnh và tối đa một phiên mở cho mỗi mặt hàng không thay đổi.
 
 ## Field quan trong
 
@@ -267,3 +276,12 @@ FxClientController.placeBid()
 - Field mo rong: image metadata, `visibility`, `requiresPassword`, `roomPassword` chi trong request join/create.
 - Error moi: room password, image validation va invalid search query.
 - `AUCTION_LIST_RESULT` khong duoc chua `imageBase64`.
+
+## Kenh media tep (11/10/2026)
+
+- `GET_MEDIA_ENDPOINT` / `GET_MEDIA_ENDPOINT_RESULT`: route da dang nhap, tra `mediaPort`; client dung host cua ket noi WebSocket/TCP hien tai, khong hard-code IP.
+- HTTP `POST /v1/drafts?productId=...`, `POST /v1/drafts/{id}/files?kind=IMAGE|VIDEO&name=...`, `POST /v1/drafts/{id}/transform`, `POST /v1/drafts/{id}/commit`, `DELETE /v1/drafts/{id}`, `DELETE /v1/drafts/{id}/files/{mediaId}`. Dieu khien JSON co gioi han 64 KiB; upload la raw stream, Bearer session hien tai, khong Base64 video.
+- `GET /v1/products/{productId}?auctionId=...` tra metadata va URL tuong doi co ve ngan han; `GET /v1/limits` tra gioi han cho form. Commit chi nhan danh sach ID do server da tiep nhan/duoc phep giu lai, khong nhan duong dan dia phuong.
+- `GET|HEAD /v1/files/{mediaId}/{thumbnail|detail|original|video}?ticket=...` kiem tra lai session/owner/private grant/block va media moi lan; ho tro Range 206/416. Ve rang buoc session, media, ban nhap/ngu canh phong va het han sau 30 phut. Khong co static file server cho kho media.
+- Loi nghiep vu co `PRODUCT_INCOMPLETE`, `MEDIA_INVALID`, `MEDIA_LIMIT`, `MEDIA_STORAGE_FULL`, `MEDIA_PROCESSING_FAILED`, `UPLOAD_CANCELLED`. Luong CREATE/UPDATE_PRODUCT legacy mot anh van di qua pipeline tep; GET_PRODUCT_IMAGE legacy chi tra thumbnail JPEG nho.
+- Chi tiet luong, gioi han, schema metadata va sao luu: `docs/23_ANH_VIDEO_SAN_PHAM.md`. Khong doi framing/bid/result/restore cua luong dau gia hien co.

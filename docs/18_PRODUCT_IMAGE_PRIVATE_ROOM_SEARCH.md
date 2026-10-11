@@ -1,5 +1,9 @@
 # 18 - PRODUCT IMAGE, PRIVATE ROOM VÀ SEARCH
 
+**Lưu ý nâng cấp 11/10/2026:** luồng ảnh đơn Base64/BLOB và giới hạn 700 KiB mô tả trong tài liệu này là thiết kế cũ. JavaFX hiện dùng tải tệp nhiều ảnh/video, kho riêng trên server, metadata và vé đọc có kiểm tra quyền. Luồng, định dạng, giới hạn và migration hiện hành nằm trong [Ảnh và video sản phẩm](23_ANH_VIDEO_SAN_PHAM.md); các nguyên tắc phòng riêng và đóng băng nội dung vẫn giữ nguyên.
+
+Luật hiện hành chi tiết: [Bộ luật BTL16](LUAT_DAU_GIA_BTL16.md), cập nhật **11/10/2026**. PRIVATE bảo vệ cả lịch sử/RESYNC chi tiết và ảnh theo grant; metadata list/search vẫn công khai cho tài khoản đăng nhập. Kick chỉ áp dụng người chưa từng bid; JOIN recheck block/session/thời gian trong khóa chung trước khi thêm membership. Sản phẩm đã từng có phiên không được sửa nội dung/ảnh.
+
 ## Product image end-to-end
 
 ```text
@@ -33,6 +37,8 @@ imageVersion
 ```
 
 Ảnh đầy đủ chỉ trả qua `GET_PRODUCT_IMAGE_RESULT`. JavaFX cache theo `productId:imageVersion`. Product legacy không ảnh không làm client crash.
+
+GET_PRODUCT_IMAGE yêu cầu đăng nhập và là chủ sản phẩm hoặc có ít nhất một phiên PUBLIC/PRIVATE có grant cho sản phẩm mà mình không bị block. Biết productId không đủ quyền; sản phẩm đã xuất hiện công khai không được xem là ảnh bí mật chỉ vì phiên khác đặt PRIVATE.
 
 ## Public/private room
 

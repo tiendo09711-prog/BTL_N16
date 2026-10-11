@@ -1,5 +1,6 @@
 package vn.ptit.btl16.server.auction.service;
 
+import vn.ptit.btl16.common.protocol.ProductRestorationStatus;
 import vn.ptit.btl16.common.util.Money;
 import vn.ptit.btl16.common.util.Times;
 import vn.ptit.btl16.server.auction.model.AuctionResult;
@@ -11,6 +12,7 @@ import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 public final class AuctionWireData {
     private AuctionWireData() {
@@ -38,10 +40,19 @@ public final class AuctionWireData {
     }
 
     public static Map<String, String> productList(List<Product> products, Instant serverNow) {
+        return productList(products, serverNow, product -> product.isActive()
+                ? ProductRestorationStatus.ACTIVE : ProductRestorationStatus.UNKNOWN);
+    }
+
+    public static Map<String, String> productList(
+            List<Product> products,
+            Instant serverNow,
+            Function<Product, ProductRestorationStatus> restorationStatus) {
         Map<String, String> data = new LinkedHashMap<>();
         data.put("productCount", Integer.toString(products.size()));
         for (int i = 0; i < products.size(); i++) {
             putProduct(data, "product." + i + '.', products.get(i));
+            data.put("product." + i + ".restorationStatus", restorationStatus.apply(products.get(i)).name());
         }
         data.put("serverNow", Times.wire(serverNow));
         return data;
@@ -101,6 +112,8 @@ public final class AuctionWireData {
         data.put("productName", auction.getProduct().getName());
         data.put("endTime", Times.wire(auction.getEndTime()));
         data.put("extensionSeconds", Integer.toString(extensionSeconds));
+        data.put("version", Long.toString(auction.getVersion()));
+        data.put("hardEndTime", Times.wire(auction.getHardEndTime()));
         data.put("extensionSource", source == null ? "" : source);
         data.put("serverNow", Times.wire(serverNow));
         return data;
@@ -159,6 +172,7 @@ public final class AuctionWireData {
         data.put("endTime", Times.wire(auction.getEndTime()));
         data.put("status", auction.getStatus().name());
         data.put("remainingMillis", Long.toString(auction.remainingMillis(serverNow)));
+        data.put("version", Long.toString(auction.getVersion()));
         data.put("watcherCount", Integer.toString(watcherCount));
         data.put("serverNow", Times.wire(serverNow));
         return data;
@@ -198,6 +212,7 @@ public final class AuctionWireData {
         data.put(prefix + "currentWinnerUsername", value.getCurrentWinnerUsername());
         data.put(prefix + "startTime", Times.wire(value.getStartTime()));
         data.put(prefix + "endTime", Times.wire(value.getEndTime()));
+        data.put(prefix + "hardEndTime", Times.wire(value.getHardEndTime()));
         data.put(prefix + "status", value.getStatus().name());
         data.put(prefix + "endedAt", Times.wire(value.getEndedAt()));
         data.put(prefix + "version", Long.toString(value.getVersion()));

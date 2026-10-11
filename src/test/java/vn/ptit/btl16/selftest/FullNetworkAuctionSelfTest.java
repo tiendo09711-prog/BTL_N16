@@ -49,6 +49,7 @@ public final class FullNetworkAuctionSelfTest {
 
             String demoToken;
             long auctionId;
+            BigDecimal expectedFinalPrice;
             try (NetworkClient clientOne = client(port);
                  NetworkClient clientTwo = client(port)) {
                 clientOne.addEventListener(message -> {
@@ -114,19 +115,20 @@ public final class FullNetworkAuctionSelfTest {
                 start.countDown();
                 ApiResponse lowResponse = low.get(8, TimeUnit.SECONDS);
                 ApiResponse highResponse = high.get(8, TimeUnit.SECONDS);
-                TestSupport.check(highResponse.isSuccess(), "highest concurrent bid is accepted");
-                TestSupport.check(lowResponse.isSuccess()
-                                || "BID_TOO_LOW".equals(lowResponse.getErrorCode()),
-                        "lower concurrent bid is either accepted first or rejected after high bid");
+                TestSupport.check(highResponse.isSuccess()
+                                || "BID_ALREADY_LEADING".equals(highResponse.getErrorCode()),
+                        "leader cannot raise until another bidder takes the lead");
+                requireSuccess(lowResponse, "competing bidder can raise");
+                expectedFinalPrice = new BigDecimal(highResponse.isSuccess() ? "1400000" : "1300000");
 
                 ApiResponse fresh = auctionTwo.resync(auctionId).get(8, TimeUnit.SECONDS);
                 requireSuccess(fresh, "fresh snapshot");
                 ClientAuction finalAuction = ClientWireParser.auction(
                         fresh.getWireMessage().getData(), "");
                 TestSupport.check(
-                        finalAuction.getCurrentPrice().compareTo(new BigDecimal("1400000")) == 0,
+                        finalAuction.getCurrentPrice().compareTo(expectedFinalPrice) == 0,
                         "final price after concurrent bids");
-                TestSupport.check(bidUpdateEvents.get() >= 4, "room received realtime bid events");
+                TestSupport.check(bidUpdateEvents.get() >= 3, "room received realtime bid events");
 
                 clientOne.disconnect();
             }
@@ -153,7 +155,7 @@ public final class FullNetworkAuctionSelfTest {
                 ClientAuction synced = ClientWireParser.auction(
                         resync.getWireMessage().getData(), "");
                 TestSupport.check(
-                        synced.getCurrentPrice().compareTo(new BigDecimal("1400000")) == 0,
+                        synced.getCurrentPrice().compareTo(expectedFinalPrice) == 0,
                         "resync receives authoritative price");
 
                 TestSupport.check(endedEvent.await(6, TimeUnit.SECONDS), "timer ends auction");

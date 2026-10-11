@@ -2,6 +2,8 @@
 
 Cập nhật **07/09/2026**. Phân biệt chức năng có trong source, automated test đã chạy và thao tác GUI/LAN chưa kiểm tra. Bằng chứng tại [VERIFICATION](../VERIFICATION.md).
 
+Phần bên dưới là checklist lịch sử. Luật sửa ngày **11/10/2026** và cách kiểm tra mới xem [bộ luật hiện hành](LUAT_DAU_GIA_BTL16.md) cùng [07 – Kiểm thử](07_DEMO_KIEM_THU.md); không hiểu các mục host controls là quyền không giới hạn.
+
 ## Code và automated self-test
 
 - [x] Hai transport TCP/WS dùng chung ServerConnection/router/session/room/business core.

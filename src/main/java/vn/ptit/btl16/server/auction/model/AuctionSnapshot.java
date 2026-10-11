@@ -17,6 +17,7 @@ public final class AuctionSnapshot {
     private final String currentWinnerUsername;
     private final Instant startTime;
     private final Instant endTime;
+    private final Instant hardEndTime;
     private final AuctionStatus status;
     private final Instant endedAt;
     private final long version;
@@ -97,6 +98,20 @@ public final class AuctionSnapshot {
             String roomPasswordHash,
             String roomPasswordSalt,
             int roomPasswordIterations) {
+        this(auctionId, product, hostUserId, hostUsername, startPrice, minBidIncrement,
+                currentPrice, currentWinnerId, currentWinnerUsername, startTime, endTime,
+                status, endedAt, version, visibility, roomPasswordHash, roomPasswordSalt,
+                roomPasswordIterations, endTime.plusSeconds(
+                        vn.ptit.btl16.server.auction.service.AuctionRules.MAX_AUTO_EXTENSION_SECONDS));
+    }
+
+    public AuctionSnapshot(
+            long auctionId, Product product, long hostUserId, String hostUsername,
+            BigDecimal startPrice, BigDecimal minBidIncrement, BigDecimal currentPrice,
+            Long currentWinnerId, String currentWinnerUsername, Instant startTime,
+            Instant endTime, AuctionStatus status, Instant endedAt, long version,
+            RoomVisibility visibility, String roomPasswordHash, String roomPasswordSalt,
+            int roomPasswordIterations, Instant hardEndTime) {
         this.auctionId = auctionId;
         this.product = Objects.requireNonNull(product, "product");
         this.hostUserId = hostUserId;
@@ -108,6 +123,7 @@ public final class AuctionSnapshot {
         this.currentWinnerUsername = currentWinnerUsername == null ? "" : currentWinnerUsername;
         this.startTime = Objects.requireNonNull(startTime, "startTime");
         this.endTime = Objects.requireNonNull(endTime, "endTime");
+        this.hardEndTime = Objects.requireNonNull(hardEndTime, "hardEndTime");
         this.status = Objects.requireNonNull(status, "status");
         this.endedAt = endedAt;
         this.version = version;
@@ -128,6 +144,7 @@ public final class AuctionSnapshot {
     public String getCurrentWinnerUsername() { return currentWinnerUsername; }
     public Instant getStartTime() { return startTime; }
     public Instant getEndTime() { return endTime; }
+    public Instant getHardEndTime() { return hardEndTime; }
     public AuctionStatus getStatus() { return status; }
     public Instant getEndedAt() { return endedAt; }
     public long getVersion() { return version; }
@@ -142,7 +159,7 @@ public final class AuctionSnapshot {
     }
 
     public boolean isOpenAt(Instant now) {
-        return status == AuctionStatus.OPEN && now.isBefore(endTime);
+        return status == AuctionStatus.OPEN && !now.isBefore(startTime) && now.isBefore(endTime);
     }
 
     public boolean isHostedBy(long userId) {

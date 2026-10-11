@@ -27,7 +27,10 @@ public final class WireValues {
     }
 
     public static BigDecimal requireDecimal(Map<String, String> data, String key) {
-        String raw = require(data, key).replace(",", "").trim();
+        String raw = require(data, key).trim();
+        if (raw.length() > 32 || !raw.matches("[+-]?[0-9]+(?:\\.[0-9]+)?")) {
+            throw new IllegalArgumentException(key + " must be a plain decimal of at most 32 characters");
+        }
         try {
             return new BigDecimal(raw);
         } catch (NumberFormatException exception) {

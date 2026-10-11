@@ -248,6 +248,17 @@ public final class ServerConfig {
     }
 
     public String databaseJdbcUrl() {
+        if (isEmbeddedDatabase()) {
+            String local = System.getenv("LOCALAPPDATA");
+            String fallback = local == null || local.isBlank()
+                    ? System.getProperty("user.home") : local;
+            String directory = System.getProperty("btl16.dataDir",
+                    java.nio.file.Path.of(fallback, "BTL16", "AuctionServer").toString());
+            String file = java.nio.file.Path.of(directory, dbName).toAbsolutePath()
+                    .toString().replace('\\', '/');
+            return "jdbc:h2:file:" + file
+                    + ";MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_ON_EXIT=FALSE;LOCK_TIMEOUT=10000";
+        }
         return "jdbc:mysql://" + dbHost + ':' + dbPort + '/' + dbName
                 + "?useSSL=" + dbUseSsl
                 + "&allowPublicKeyRetrieval=" + dbAllowPublicKeyRetrieval
@@ -262,6 +273,7 @@ public final class ServerConfig {
     }
 
     public boolean isTcpEnabled() { return tcpEnabled; }
+    public boolean isEmbeddedDatabase() { return "org.h2.Driver".equals(dbDriver); }
     public String getBindAddress() { return bindAddress; }
     public int getPort() { return port; }
     public int getBacklog() { return backlog; }

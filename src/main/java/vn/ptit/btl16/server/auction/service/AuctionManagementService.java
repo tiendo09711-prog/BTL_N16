@@ -1,7 +1,9 @@
 package vn.ptit.btl16.server.auction.service;
 
 import vn.ptit.btl16.common.protocol.ErrorCode;
+import vn.ptit.btl16.server.media.*;
 import vn.ptit.btl16.common.protocol.MessageType;
+import vn.ptit.btl16.common.protocol.ProductRestorationStatus;
 import vn.ptit.btl16.server.auction.model.AuctionResult;
 import vn.ptit.btl16.server.auction.model.AuctionRuntime;
 import vn.ptit.btl16.server.auction.model.AuctionSnapshot;
@@ -13,17 +15,14 @@ import vn.ptit.btl16.server.auction.repository.BlockAuctionUserCommit;
 import vn.ptit.btl16.server.auction.repository.CancelAuctionCommit;
 import vn.ptit.btl16.server.auction.repository.CloseAuctionCommit;
 import vn.ptit.btl16.server.auction.repository.CreateAuctionCommit;
-import vn.ptit.btl16.server.auction.repository.CreateProductCommit;
 import vn.ptit.btl16.server.auction.repository.ExtendAuctionCommit;
 import vn.ptit.btl16.server.auction.repository.AuctionRepository;
-import vn.ptit.btl16.server.auction.repository.UpdateProductCommit;
 import vn.ptit.btl16.server.session.UserSession;
 import vn.ptit.btl16.server.session.SessionManager;
 import vn.ptit.btl16.server.account.security.PasswordHash;
 import vn.ptit.btl16.server.account.security.PasswordHasher;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
@@ -34,11 +33,10 @@ import java.util.Arrays;
 
 public final class AuctionManagementService {
     private static final Pattern PRODUCT_CODE = Pattern.compile("[A-Z0-9_-]{2,30}");
-    private static final BigDecimal MAX_MONEY = new BigDecimal("999999999999999.00");
-    private static final int MIN_DURATION_MINUTES = 1;
-    private static final int MAX_DURATION_MINUTES = 180;
-    private static final int MIN_EXTENSION_SECONDS = 10;
-    private static final int MAX_EXTENSION_SECONDS = 600;
+    private static final int MIN_DURATION_MINUTES = AuctionRules.MIN_DURATION_MINUTES;
+    private static final int MAX_DURATION_MINUTES = AuctionRules.MAX_DURATION_MINUTES;
+    private static final int MIN_EXTENSION_SECONDS = AuctionRules.MIN_EXTENSION_SECONDS;
+    private static final int MAX_EXTENSION_SECONDS = AuctionRules.MAX_EXTENSION_SECONDS;
 
     private final AuctionManager auctions;
     private final AuctionRepository repository;
@@ -46,7 +44,14 @@ public final class AuctionManagementService {
     private final AuctionBroadcastService broadcasts;
     private final PasswordHasher passwordHasher;
     private final SessionManager sessions;
-    private final ProductImageValidator imageValidator = new ProductImageValidator();
+    private MediaService media;
+
+    public void setMediaService(MediaService value) { media = value; }
+
+    public synchronized MediaService media() {
+        if (media == null) { media = new MediaService(MediaConfig.load(true), repository, sessions, this); }
+        return media;
+    }
 
     public AuctionManagementService(
             AuctionManager auctions,
@@ -63,104 +68,79 @@ public final class AuctionManagementService {
         this.sessions = sessions;
     }
 
-    public Product createProduct(
-            UserSession session,
-            String rawCode,
-            String rawName,
-            String rawDescription) {
-        String code = cleanCode(rawCode);
-        String name = cleanName(rawName);
-        String description = cleanDescription(rawDescription);
-        if (repository.findProductByCode(code).isPresent()) {
-            throw new AuctionException(ErrorCode.PRODUCT_CODE_EXISTS, "Ma san pham da ton tai");
-        }
-        Instant now = Instant.now();
-        return repository.createProduct(new CreateProductCommit(
-                session.getUserId(), session.getUsername(), code, name, description, now));
+    public Product createProduct(UserSession session, String code, String name, String description) {
+        return createProduct(session, code, name, description, null, null, null);
     }
 
-    public Product createProduct(
-            UserSession session,
-            String rawCode,
-            String rawName,
-            String rawDescription,
-            byte[] imageData,
-            String imageMime,
-            String imageName) {
-        String code = cleanCode(rawCode);
-        if (repository.findProductByCode(code).isPresent()) {
-            throw new AuctionException(ErrorCode.PRODUCT_CODE_EXISTS, "Ma san pham da ton tai");
-        }
-        ProductImageValidator.ValidatedImage image = imageValidator.validate(
-                imageData, imageMime, imageName);
-        Instant now = Instant.now();
-        return repository.createProduct(new CreateProductCommit(
-                session.getUserId(), session.getUsername(), code, cleanName(rawName),
-                cleanDescription(rawDescription), now, image.getData(), image.getMime(), image.getName()));
+    public Product createProduct(UserSession session, String code, String name, String description,
+                                 byte[] imageData, String imageMime, String imageName) {
+        return media().legacySave(session, 0, code, name, description, imageData, imageName);
     }
 
     public List<Product> myProducts(UserSession session) {
+        requireLoggedIn(session);
         return repository.findProductsByOwner(session.getUserId());
     }
 
-    public Product updateProduct(
-            UserSession session,
-            long productId,
-            String rawCode,
-            String rawName,
-            String rawDescription) {
-        Product current = requireOwnedProduct(session, productId);
-        if (repository.hasOpenAuctionForProduct(productId)) {
-            throw new AuctionException(
-                    ErrorCode.PRODUCT_IN_USE,
-                    "Khong the sua san pham dang co phien dau gia mo");
-        }
-        String code = cleanCode(rawCode);
-        Optional<Product> duplicate = repository.findProductByCode(code);
-        if (duplicate.isPresent() && duplicate.get().getProductId() != current.getProductId()) {
-            throw new AuctionException(ErrorCode.PRODUCT_CODE_EXISTS, "Ma san pham da ton tai");
-        }
-        return repository.updateProduct(new UpdateProductCommit(
-                productId,
-                session.getUserId(),
-                code,
-                cleanName(rawName),
-                cleanDescription(rawDescription),
-                Instant.now()));
+    public Product updateProduct(UserSession session, long productId, String code, String name, String description) {
+        return media().legacySave(session, productId, code, name, description, null, null);
     }
 
-    public Product updateProduct(
-            UserSession session,
-            long productId,
-            String rawCode,
-            String rawName,
-            String rawDescription,
-            byte[] imageData,
-            String imageMime,
-            String imageName) {
-        requireOwnedProduct(session, productId);
-        if (repository.hasOpenAuctionForProduct(productId)) {
-            throw new AuctionException(ErrorCode.PRODUCT_IN_USE,
-                    "Khong the sua san pham dang co phien dau gia mo");
-        }
-        String code = cleanCode(rawCode);
-        Optional<Product> duplicate = repository.findProductByCode(code);
+    public Product updateProduct(UserSession session, long productId, String code, String name, String description,
+                                 byte[] imageData, String imageMime, String imageName) {
+        return media().legacySave(session, productId, code, name, description, imageData, imageName);
+    }
+
+    public Product saveMediaProduct(UserSession session, long productId, String code, String name,
+                                    String description, List<ProductMedia> selected) {
+        return repository.saveMediaProduct(prepareMediaProduct(session, productId, code, name, description, selected));
+    }
+
+    public MediaProductCommit prepareMediaProduct(UserSession session, long productId, String code, String name,
+                                                  String description, List<ProductMedia> selected) {
+        requireMediaEdit(session, productId);
+        String clean = cleanCode(code);
+        Optional<Product> duplicate = repository.findProductByCode(clean);
         if (duplicate.isPresent() && duplicate.get().getProductId() != productId) {
             throw new AuctionException(ErrorCode.PRODUCT_CODE_EXISTS, "Ma san pham da ton tai");
         }
-        ProductImageValidator.ValidatedImage image = imageValidator.validate(
-                imageData, imageMime, imageName);
-        return repository.updateProduct(new UpdateProductCommit(
-                productId, session.getUserId(), code, cleanName(rawName),
-                cleanDescription(rawDescription), Instant.now(), image.getData(),
-                image.getMime(), image.getName(), true));
+        ProductRequirements.validate(description, selected);
+        return new MediaProductCommit(productId, session.getUserId(), session.getUsername(),
+                clean, cleanName(name), cleanDescription(description), selected);
     }
 
-    public ProductImage getProductImage(long productId) {
-        repository.findProductById(productId).orElseThrow(() -> new AuctionException(
+    public void requireMediaEdit(UserSession session, long productId) {
+        requireLoggedIn(session);
+        if (productId == 0) { return; }
+        requireOwnedProduct(session, productId);
+        if (repository.hasAuctionsForProduct(productId)) {
+            throw new AuctionException(ErrorCode.PRODUCT_FROZEN, "San pham da tung dau gia: noi dung, thu tu, anh dai dien va media da dong bang");
+        }
+    }
+
+    private void requireLoggedIn(UserSession session) {
+        if (session == null || !session.isActive()) { throw new AuctionException(ErrorCode.AUTH_REQUIRED, "Can dang nhap"); }
+    }
+
+    public void requireMediaRead(UserSession session, long productId, long auctionId) {
+        requireLoggedIn(session);
+        Product product = repository.findProductById(productId).orElseThrow(() -> new AuctionException(
                 ErrorCode.PRODUCT_NOT_FOUND, "Khong tim thay san pham"));
-        return repository.findProductImage(productId).orElseThrow(() -> new AuctionException(
-                ErrorCode.PRODUCT_IMAGE_INVALID, "San pham chua co anh"));
+        boolean allowed = auctionId == 0 && product.getOwnerId() == session.getUserId();
+        if (!allowed) {
+            allowed = (auctionId == 0 ? repository.findAllAuctions().stream() : repository.findAuctionById(auctionId).stream()).anyMatch(auction ->
+                    auction.getProduct().getProductId() == productId && (auctionId == 0 || auction.getAuctionId() == auctionId)
+                    && !repository.isAuctionUserBlocked(auction.getAuctionId(), session.getUserId())
+                    && (auction.getVisibility() == RoomVisibility.PUBLIC || auction.isHostedBy(session.getUserId())
+                        || sessions.hasPrivateRoomAccess(session, auction.getAuctionId())));
+        }
+        if (!allowed) { throw new AuctionException(ErrorCode.ROOM_ACCESS_DENIED, "Khong co quyen xem media trong phong nay"); }
+    }
+
+    public ProductImage getProductImage(UserSession session, long productId) {
+        requireMediaRead(session, productId, 0);
+        Product product = repository.findProductById(productId).orElseThrow();
+        return new ProductImage(productId, media().cover(productId), "image/jpeg", "thumbnail.jpg", product.getImageVersion());
     }
 
     public Product deactivateProduct(UserSession session, long productId) {
@@ -174,6 +154,33 @@ public final class AuctionManagementService {
                 .orElseThrow(() -> new AuctionException(
                         ErrorCode.PRODUCT_NOT_FOUND,
                         "Khong tim thay san pham"));
+    }
+
+    public ProductRestorationStatus restorationStatus(Product product) {
+        if (product.isActive()) {
+            return ProductRestorationStatus.ACTIVE;
+        }
+        if (repository.hasOpenAuctionForProduct(product.getProductId())) {
+            return ProductRestorationStatus.OPEN_AUCTION;
+        }
+        if (repository.hasSoldAuctionForProduct(product.getProductId())) {
+            return ProductRestorationStatus.SOLD;
+        }
+        return ProductRestorationStatus.ELIGIBLE;
+    }
+
+    public Product restoreProduct(UserSession session, long productId) {
+        Product product = requireOwnedProduct(session, productId);
+        ProductRestorationStatus status = restorationStatus(product);
+        if (status == ProductRestorationStatus.OPEN_AUCTION) {
+            throw new AuctionException(ErrorCode.PRODUCT_IN_USE,
+                    "Khong the khoi phuc mat hang dang co phien dau gia mo");
+        }
+        if (status == ProductRestorationStatus.SOLD) {
+            throw new AuctionException(ErrorCode.PRODUCT_ALREADY_SOLD,
+                    "Mat hang da co nguoi thang, khong duoc khoi phuc de dau gia lai ke ca chua thanh toan");
+        }
+        return repository.restoreProduct(productId, session.getUserId());
     }
 
     public AuctionSnapshot createAuction(
@@ -198,6 +205,10 @@ public final class AuctionManagementService {
         }
         BigDecimal startPrice = normalizeMoney(rawStartPrice, ErrorCode.INVALID_AMOUNT);
         BigDecimal minIncrement = normalizeMoney(rawMinIncrement, ErrorCode.INVALID_INCREMENT);
+        AuctionRules.requireCompetitivePrice(startPrice, minIncrement);
+        requireUnsoldProduct(productId);
+        ProductRequirements.validate(product.getDescription(), repository.findProductMedia(productId));
+        media().requireReady(productId);
         Instant startTime = Instant.now();
         AuctionSnapshot snapshot = repository.createAuction(new CreateAuctionCommit(
                 session.getUserId(),
@@ -250,6 +261,10 @@ public final class AuctionManagementService {
         }
         BigDecimal startPrice = normalizeMoney(rawStartPrice, ErrorCode.INVALID_AMOUNT);
         BigDecimal minIncrement = normalizeMoney(rawMinIncrement, ErrorCode.INVALID_INCREMENT);
+        AuctionRules.requireCompetitivePrice(startPrice, minIncrement);
+        requireUnsoldProduct(productId);
+        ProductRequirements.validate(product.getDescription(), repository.findProductMedia(productId));
+        media().requireReady(productId);
         Instant startTime = Instant.now();
         AuctionSnapshot snapshot = repository.createAuction(new CreateAuctionCommit(
                 session.getUserId(), session.getUsername(), productId, startPrice, minIncrement,
@@ -279,7 +294,8 @@ public final class AuctionManagementService {
             String connectionId,
             long auctionId,
             String roomPassword) {
-        AuctionSnapshot snapshot = auctions.requireRuntime(auctionId).snapshot();
+        AuctionRuntime runtime = auctions.requireRuntime(auctionId);
+        AuctionSnapshot snapshot = runtime.snapshot();
         if (repository.isAuctionUserBlocked(auctionId, session.getUserId())) {
             throw new AuctionException(
                     ErrorCode.USER_BLOCKED_FROM_AUCTION,
@@ -296,6 +312,9 @@ public final class AuctionManagementService {
                         "Phong nay yeu cau mat khau");
             }
             char[] password = roomPassword.toCharArray();
+            if (password.length < 4 || password.length > 100) {
+                throw new AuctionException(ErrorCode.ROOM_PASSWORD_INVALID, "Mat khau phong phai co 4-100 ky tu");
+            }
             boolean valid;
             try {
                 valid = passwordHasher.verify(
@@ -310,14 +329,51 @@ public final class AuctionManagementService {
                 throw new AuctionException(ErrorCode.ROOM_PASSWORD_INVALID,
                         "Mat khau phong khong dung");
             }
-            sessions.grantPrivateRoomAccess(session, auctionId);
         }
-        rooms.join(
-                auctionId,
-                connectionId,
-                session.getUserId(),
-                session.getUsername());
-        return snapshot;
+        runtime.getLock().lock();
+        try {
+            requireOpen(runtime);
+            requireNotBlocked(session, auctionId);
+            if (sessions.findByConnection(connectionId)
+                    .filter(active -> active.getSessionToken().equals(session.getSessionToken())).isEmpty()) {
+                throw new AuctionException(ErrorCode.AUTH_REQUIRED, "Phien dang nhap khong con hieu luc");
+            }
+            if (snapshot.getVisibility() == RoomVisibility.PRIVATE) {
+                sessions.grantPrivateRoomAccess(session, auctionId);
+            }
+            rooms.join(auctionId, connectionId, session.getUserId(), session.getUsername());
+            return runtime.snapshot();
+        } finally {
+            runtime.getLock().unlock();
+        }
+    }
+
+    public void requireReadAccess(UserSession session, long auctionId) {
+        AuctionRuntime runtime = auctions.requireRuntime(auctionId);
+        runtime.getLock().lock();
+        try {
+            requireNotBlocked(session, auctionId);
+            AuctionSnapshot snapshot = runtime.snapshot();
+            if (snapshot.getVisibility() == RoomVisibility.PRIVATE
+                    && !snapshot.isHostedBy(session.getUserId())
+                    && !sessions.hasPrivateRoomAccess(session, auctionId)) {
+                throw new AuctionException(ErrorCode.ROOM_ACCESS_DENIED, "Can quyen truy cap phong rieng");
+            }
+        } finally {
+            runtime.getLock().unlock();
+        }
+    }
+
+    private void requireNotBlocked(UserSession session, long auctionId) {
+        if (repository.isAuctionUserBlocked(auctionId, session.getUserId())) {
+            throw new AuctionException(ErrorCode.USER_BLOCKED_FROM_AUCTION, "Ban da bi chan khoi phong");
+        }
+    }
+
+    private void requireUnsoldProduct(long productId) {
+        if (repository.hasSoldAuctionForProduct(productId)) {
+            throw new AuctionException(ErrorCode.PRODUCT_ALREADY_SOLD, "San pham da co nguoi thang dau gia");
+        }
     }
 
     public AuctionSnapshot extendAuction(
@@ -336,7 +392,13 @@ public final class AuctionManagementService {
             requireHost(session, runtime);
             requireOpen(runtime);
             Instant oldEndTime = runtime.getEndTimeUnsafe();
+            if (repository.hasBids(auctionId)) {
+                throw new AuctionException(ErrorCode.AUCTION_HAS_BIDS, "Khong duoc gia han thu cong sau khi co bid");
+            }
             Instant newEndTime = oldEndTime.plusSeconds(extensionSeconds);
+            if (newEndTime.isAfter(runtime.getHardEndTimeUnsafe())) {
+                throw new AuctionException(ErrorCode.AUCTION_EXTENSION_LIMIT, "Vuot tong ngan sach gia han 600 giay");
+            }
             if (!repository.extendAuction(new ExtendAuctionCommit(
                     auctionId, oldEndTime, newEndTime))) {
                 throw new AuctionException(
@@ -363,6 +425,9 @@ public final class AuctionManagementService {
         try {
             requireHost(session, runtime);
             requireOpen(runtime);
+            if (repository.hasBids(auctionId)) {
+                throw new AuctionException(ErrorCode.AUCTION_HAS_BIDS, "Khong duoc ket thuc som phien da co bid");
+            }
             Instant now = Instant.now();
             result = repository.closeAuction(new CloseAuctionCommit(
                     auctionId,
@@ -439,6 +504,9 @@ public final class AuctionManagementService {
                         ErrorCode.CANNOT_KICK_HOST,
                         "Khong the moi chu tri khoi phong");
             }
+            if (repository.hasBidsByUser(auctionId, member.getUserId())) {
+                throw new AuctionException(ErrorCode.CANNOT_KICK_BIDDER, "Khong duoc kick nguoi da dat gia hop le");
+            }
             repository.blockAuctionUser(new BlockAuctionUserCommit(
                     auctionId, member.getUserId(), session.getUserId(), Instant.now()));
             Set<String> removedConnections = rooms.kickUser(auctionId, member.getUserId());
@@ -455,6 +523,9 @@ public final class AuctionManagementService {
     }
 
     private Product requireOwnedProduct(UserSession session, long productId) {
+        if (session == null || !session.isActive()) {
+            throw new AuctionException(ErrorCode.AUTH_REQUIRED, "Can dang nhap de quan ly mat hang");
+        }
         Product product = repository.findProductById(productId)
                 .orElseThrow(() -> new AuctionException(
                         ErrorCode.PRODUCT_NOT_FOUND,
@@ -477,6 +548,7 @@ public final class AuctionManagementService {
 
     private void requireOpen(AuctionRuntime runtime) {
         if (runtime.getStatusUnsafe() != AuctionStatus.OPEN
+                || Instant.now().isBefore(runtime.getStartTime())
                 || !Instant.now().isBefore(runtime.getEndTimeUnsafe())) {
             throw new AuctionException(ErrorCode.AUCTION_NOT_OPEN, "Phien dau gia khong con mo");
         }
@@ -503,28 +575,16 @@ public final class AuctionManagementService {
     }
 
     private String cleanDescription(String rawDescription) {
-        String description = rawDescription == null ? "" : rawDescription.trim();
-        if (description.length() > 2000) {
+        String description = rawDescription == null ? "" : rawDescription.strip();
+        if (description.codePointCount(0, description.length()) < 50 || description.codePointCount(0, description.length()) > 2000) {
             throw new AuctionException(
                     ErrorCode.VALIDATION_ERROR,
-                    "Mo ta san pham toi da 2000 ky tu");
+                    "Mo ta san pham phai co 50-2000 ky tu, gom dac diem, tinh trang va khuyet diem neu co");
         }
         return description;
     }
 
     private BigDecimal normalizeMoney(BigDecimal value, ErrorCode errorCode) {
-        if (value == null) {
-            throw new AuctionException(errorCode, "Gia tri tien khong hop le");
-        }
-        BigDecimal normalized;
-        try {
-            normalized = value.setScale(2, RoundingMode.UNNECESSARY);
-        } catch (ArithmeticException exception) {
-            throw new AuctionException(errorCode, "Gia tri tien chi duoc co toi da 2 so thap phan");
-        }
-        if (normalized.signum() <= 0 || normalized.compareTo(MAX_MONEY) > 0) {
-            throw new AuctionException(errorCode, "Gia tri tien nam ngoai khoang cho phep");
-        }
-        return normalized;
+        return AuctionRules.money(value, errorCode);
     }
 }

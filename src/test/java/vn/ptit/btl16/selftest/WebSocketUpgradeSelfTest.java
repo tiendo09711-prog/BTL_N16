@@ -24,10 +24,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public final class WebSocketUpgradeSelfTest {
-    private static final byte[] PNG = {
-            (byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
-            0x00, 0x00, 0x00, 0x00
-    };
+    private static final byte[] PNG = TestMedia.png();
 
     private WebSocketUpgradeSelfTest() {
     }
@@ -75,11 +72,13 @@ public final class WebSocketUpgradeSelfTest {
                 requireSuccess(bidderLogin, "bidder TCP login");
                 String bidderToken = bidderLogin.get("sessionToken");
 
-                ApiResponse product = hostAuctions.createProduct(
+                ApiResponse product = TestMedia.create(hostAuctions,
                         "WS-PNG", "Laptop Gaming WebSocket", "Cross transport product",
                         PNG, "image/png", "product.png").get(8, TimeUnit.SECONDS);
                 requireSuccess(product, "create image product");
                 long productId = Long.parseLong(product.get("productId"));
+                requireFailure(bidderAuctions.getProductImage(productId).get(8, TimeUnit.SECONDS),
+                        "ROOM_ACCESS_DENIED", "unlisted image is visible only to its owner");
 
                 ApiResponse created = hostAuctions.createAuction(
                         productId,
@@ -104,6 +103,12 @@ public final class WebSocketUpgradeSelfTest {
                 TestSupport.equals("PRIVATE", privateAuction.getVisibility(), "private metadata");
                 TestSupport.check(privateAuction.requiresPassword(), "private room requires password");
 
+                requireFailure(bidderAuctions.history(auctionId).get(8, TimeUnit.SECONDS),
+                        "ROOM_ACCESS_DENIED", "private history requires a grant");
+                requireFailure(bidderAuctions.resync(auctionId).get(8, TimeUnit.SECONDS),
+                        "ROOM_ACCESS_DENIED", "private resync cannot bypass password");
+                requireFailure(bidderAuctions.getProductImage(productId).get(8, TimeUnit.SECONDS),
+                        "ROOM_ACCESS_DENIED", "private image requires a grant");
                 requireFailure(bidderAuctions.join(auctionId).get(8, TimeUnit.SECONDS),
                         "ROOM_PASSWORD_REQUIRED", "join private without password");
                 requireFailure(bidderAuctions.join(auctionId, "wrong")
@@ -114,6 +119,10 @@ public final class WebSocketUpgradeSelfTest {
                 requireSuccess(bidderAuctions.join(auctionId, "room1234")
                                 .get(8, TimeUnit.SECONDS),
                         "join private correct password");
+                requireSuccess(bidderAuctions.history(auctionId).get(8, TimeUnit.SECONDS),
+                        "private history after join");
+                requireSuccess(bidderAuctions.getProductImage(productId).get(8, TimeUnit.SECONDS),
+                        "private image after join");
 
                 requireSuccess(bidderAuctions.bid(auctionId, new BigDecimal("110.00"))
                                 .get(8, TimeUnit.SECONDS),
@@ -136,8 +145,7 @@ public final class WebSocketUpgradeSelfTest {
 
                 ApiResponse image = hostAuctions.getProductImage(productId).get(8, TimeUnit.SECONDS);
                 requireSuccess(image, "get product image");
-                TestSupport.check(Arrays.equals(PNG,
-                                java.util.Base64.getDecoder().decode(image.get("imageBase64"))),
+                TestSupport.check(javax.imageio.ImageIO.read(new java.io.ByteArrayInputStream(java.util.Base64.getDecoder().decode(image.get("imageBase64")))) != null,
                         "product image roundtrip");
 
                 bidderTransport.disconnect();
@@ -151,15 +159,57 @@ public final class WebSocketUpgradeSelfTest {
                             "resume TCP session over WebSocket");
                     requireSuccess(resumedAuctions.resync(auctionId).get(8, TimeUnit.SECONDS),
                             "private room resync uses session grant");
-                    requireSuccess(hostAuctions.kickUser(auctionId, "alice")
+                    requireFailure(hostAuctions.kickUser(auctionId, "alice")
                                     .get(8, TimeUnit.SECONDS),
-                            "host kick private user");
-                    requireFailure(resumedAuctions.resync(auctionId).get(8, TimeUnit.SECONDS),
-                            "USER_BLOCKED_FROM_AUCTION", "kick blocks grant bypass");
+                            "CANNOT_KICK_BIDDER", "private bidder is protected from kick");
+                    requireSuccess(resumedAuctions.resync(auctionId).get(8, TimeUnit.SECONDS),
+                            "private bidder retains access after rejected kick");
+                    closedPrivateRoom(hostAuctions, resumedAuctions);
                 }
+                blockedPrivateViewer(wsUrl, hostAuctions, auctionId, productId);
             }
         }
         System.out.println("[PASS] WebSocketUpgradeSelfTest");
+    }
+
+    private static void blockedPrivateViewer(String wsUrl, AuctionApi hostAuctions,
+            long auctionId, long productId) throws Exception {
+        try (WebSocketClientTransport transport = webSocket(wsUrl)) {
+            transport.connect().get(8, TimeUnit.SECONDS);
+            AccountApi account = new AccountApi(transport);
+            AuctionApi auctions = new AuctionApi(transport);
+            requireSuccess(account.login("bob", "bob123").get(8, TimeUnit.SECONDS), "viewer login");
+            requireSuccess(auctions.join(auctionId, "room1234").get(8, TimeUnit.SECONDS), "viewer joins private room");
+            requireSuccess(auctions.history(auctionId).get(8, TimeUnit.SECONDS), "viewer has history grant");
+            requireSuccess(hostAuctions.kickUser(auctionId, "bob").get(8, TimeUnit.SECONDS), "kick non-bidding viewer");
+            requireFailure(auctions.history(auctionId).get(8, TimeUnit.SECONDS),
+                    "USER_BLOCKED_FROM_AUCTION", "kick revokes history grant");
+            requireFailure(auctions.resync(auctionId).get(8, TimeUnit.SECONDS),
+                    "USER_BLOCKED_FROM_AUCTION", "kick blocks detailed resync");
+            requireFailure(auctions.join(auctionId, "room1234").get(8, TimeUnit.SECONDS),
+                    "USER_BLOCKED_FROM_AUCTION", "knowing the password cannot undo kick");
+            requireFailure(auctions.bid(auctionId, new BigDecimal("120")).get(8, TimeUnit.SECONDS),
+                    "USER_BLOCKED_FROM_AUCTION", "kick blocks bids");
+            requireFailure(auctions.getProductImage(productId).get(8, TimeUnit.SECONDS),
+                    "ROOM_ACCESS_DENIED", "kick revokes private image access");
+        }
+    }
+
+    private static void closedPrivateRoom(AuctionApi host, AuctionApi outsider) throws Exception {
+        ApiResponse product = TestMedia.create(host, "WS-CLOSED", "Closed private room", "")
+                .get(8, TimeUnit.SECONDS);
+        requireSuccess(product, "create closed-room product");
+        ApiResponse created = host.createAuction(Long.parseLong(product.get("productId")),
+                new BigDecimal("100"), new BigDecimal("10"), 1, "PRIVATE", "room1234")
+                .get(8, TimeUnit.SECONDS);
+        requireSuccess(created, "create private room to close");
+        long auctionId = Long.parseLong(created.get("auctionId"));
+        requireSuccess(host.cancelAuction(auctionId).get(8, TimeUnit.SECONDS), "cancel empty private room");
+        requireSuccess(host.resync(auctionId).get(8, TimeUnit.SECONDS), "host can resync closed private room");
+        requireFailure(outsider.resync(auctionId).get(8, TimeUnit.SECONDS),
+                "ROOM_ACCESS_DENIED", "closure must not bypass private resync access");
+        requireFailure(outsider.history(auctionId).get(8, TimeUnit.SECONDS),
+                "ROOM_ACCESS_DENIED", "closure must not make private history public");
     }
 
     private static void basicWebSocketFlow(String wsUrl) throws Exception {

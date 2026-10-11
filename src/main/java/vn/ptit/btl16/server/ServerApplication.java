@@ -1,6 +1,9 @@
 package vn.ptit.btl16.server;
 
 import vn.ptit.btl16.common.config.ServerConfig;
+import vn.ptit.btl16.server.media.MediaConfig;
+import vn.ptit.btl16.server.media.MediaHttpServer;
+import vn.ptit.btl16.server.media.MediaService;
 import vn.ptit.btl16.common.protocol.LengthPrefixedMessageCodec;
 import vn.ptit.btl16.server.account.controller.AccountController;
 import vn.ptit.btl16.server.account.repository.JdbcConnectionFactory;
@@ -49,7 +52,10 @@ public final class ServerApplication implements AutoCloseable {
     private final WebSocketServerTransport webSocketServer;
     private final SessionCleanupService sessionCleanup;
     private final AuctionTimerService auctionTimer;
+    private final MediaHttpServer mediaServer;
+    private final MediaService media;
     private final AtomicBoolean started = new AtomicBoolean(false);
+    private final AtomicBoolean disposed = new AtomicBoolean(false);
 
     private ServerApplication(
             ServerConfig config,
@@ -61,7 +67,9 @@ public final class ServerApplication implements AutoCloseable {
             TcpServer tcpServer,
             WebSocketServerTransport webSocketServer,
             SessionCleanupService sessionCleanup,
-            AuctionTimerService auctionTimer) {
+            AuctionTimerService auctionTimer,
+            MediaHttpServer mediaServer,
+            MediaService media) {
         this.config = config;
         this.sessions = sessions;
         this.connections = connections;
@@ -72,6 +80,8 @@ public final class ServerApplication implements AutoCloseable {
         this.webSocketServer = webSocketServer;
         this.sessionCleanup = sessionCleanup;
         this.auctionTimer = auctionTimer;
+        this.mediaServer = mediaServer;
+        this.media = media;
     }
 
     public static ServerApplication create(ServerConfig config) {
@@ -82,8 +92,8 @@ public final class ServerApplication implements AutoCloseable {
         }
         UserRepository users = new JdbcUserRepository(factory);
         AuctionRepository auctionRepository = new JdbcAuctionRepository(factory);
-        System.out.println("[REPOSITORY] MySQL/JDBC " + config.databaseJdbcUrl());
-        return compose(config, users, auctionRepository, hasher);
+        System.out.println("[REPOSITORY] JDBC " + config.databaseJdbcUrl());
+        return compose(config, users, auctionRepository, hasher, false);
     }
 
     public static ServerApplication createForTests(
@@ -91,14 +101,15 @@ public final class ServerApplication implements AutoCloseable {
             UserRepository users,
             AuctionRepository auctionRepository,
             PasswordHasher hasher) {
-        return compose(config, users, auctionRepository, hasher);
+        return compose(config, users, auctionRepository, hasher, true);
     }
 
     private static ServerApplication compose(
             ServerConfig config,
             UserRepository users,
             AuctionRepository auctionRepository,
-            PasswordHasher hasher) {
+            PasswordHasher hasher,
+            boolean isolated) {
         ServerSequence sequence = new ServerSequence(auctionRepository.findMaxServerSequence());
         SessionManager sessions = new SessionManager(
                 Duration.ofSeconds(config.getResumeGraceSeconds()));
@@ -134,6 +145,9 @@ public final class ServerApplication implements AutoCloseable {
                 broadcasts,
                 hasher,
                 sessions);
+        MediaService media = new MediaService(MediaConfig.load(isolated), auctionRepository, sessions, managementService);
+        managementService.setMediaService(media);
+        MediaHttpServer mediaServer = new MediaHttpServer(media, config.getBindAddress());
         AuctionController auctionController = new AuctionController(
                 queryService,
                 bidService,
@@ -191,10 +205,13 @@ public final class ServerApplication implements AutoCloseable {
                 tcpServer,
                 webSocketServer,
                 cleanup,
-                timer);
+                timer,
+                mediaServer,
+                media);
     }
 
     public void start() throws IOException {
+        if (disposed.get()) { throw new IllegalStateException("Server application is closed"); }
         if (!started.compareAndSet(false, true)) {
             throw new IllegalStateException("Server application is already started");
         }
@@ -204,6 +221,8 @@ public final class ServerApplication implements AutoCloseable {
             if (!config.isTcpEnabled() && !config.isWebSocketEnabled()) {
                 throw new IOException("At least one server transport must be enabled");
             }
+            for (String warning : media.migrateLegacy()) { System.err.println("[MEDIA MIGRATION] " + warning + "; original retained"); }
+            mediaServer.start();
             if (config.isTcpEnabled()) {
                 tcpServer.start();
             }
@@ -254,15 +273,17 @@ public final class ServerApplication implements AutoCloseable {
                 auctions.openCount(),
                 auctions.endedCount(),
                 sequence.current(),
-                "MySQL/JDBC");
+                config.isEmbeddedDatabase() ? "Local / H2" : "MySQL / JDBC");
     }
 
     @Override
     public void close() {
-        if (!started.compareAndSet(true, false)) {
+        if (!disposed.compareAndSet(false, true)) {
             return;
         }
+        started.set(false);
         webSocketServer.close();
+        mediaServer.close();
         tcpServer.close();
         auctionTimer.close();
         sessionCleanup.close();

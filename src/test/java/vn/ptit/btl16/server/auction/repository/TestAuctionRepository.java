@@ -1,6 +1,12 @@
 package vn.ptit.btl16.server.auction.repository;
+import vn.ptit.btl16.server.media.ProductMedia;
+import vn.ptit.btl16.server.media.MediaProductCommit;
+import vn.ptit.btl16.server.media.ProductRequirements;
+import java.util.Map;
 
 import vn.ptit.btl16.common.config.ServerConfig;
+import vn.ptit.btl16.common.protocol.ErrorCode;
+import vn.ptit.btl16.server.auction.service.AuctionException;
 import vn.ptit.btl16.server.auction.model.AuctionResult;
 import vn.ptit.btl16.server.auction.model.AuctionSnapshot;
 import vn.ptit.btl16.server.auction.model.AuctionStatus;
@@ -28,6 +34,37 @@ public final class TestAuctionRepository implements AuctionRepository {
     private final AtomicLong productIds = new AtomicLong();
     private final AtomicLong auctionIds = new AtomicLong();
     private final AtomicLong bidIds = new AtomicLong();
+
+    private final Map<Long, List<ProductMedia>> mediaByProduct = new ConcurrentHashMap<>();
+
+    @Override public synchronized Product saveMediaProduct(MediaProductCommit commit) {
+        ProductRequirements.validate(commit.description(), commit.media());
+        Product current = commit.productId() == 0 ? null : products.get(commit.productId());
+        if (commit.productId() != 0 && (current == null || current.getOwnerId() != commit.ownerId())) { throw new AuctionException(ErrorCode.AUCTION_FORBIDDEN, "Not owner"); }
+        if (current != null && hasAuctionsForProduct(commit.productId())) { throw new AuctionException(ErrorCode.PRODUCT_FROZEN, "Frozen product"); }
+        Optional<Product> duplicate = findProductByCode(commit.code());
+        if (duplicate.isPresent() && duplicate.get().getProductId() != commit.productId()) { throw new AuctionException(ErrorCode.PRODUCT_CODE_EXISTS, "Duplicate code"); }
+        for (ProductMedia media : commit.media()) {
+            var existing = findMedia(media.id());
+            if (existing.isPresent() && (commit.productId() == 0 || existing.get().productId() != commit.productId())) { throw new AuctionException(ErrorCode.AUCTION_FORBIDDEN, "Media belongs to other product"); }
+        }
+        long id = current == null ? productIds.incrementAndGet() : current.getProductId();
+        ProductMedia cover = commit.media().stream().filter(ProductMedia::image).findFirst().orElseThrow();
+        Instant now = Instant.now();
+        Product product = new Product(id, commit.ownerId(), commit.ownerUsername(), commit.code(), commit.name(), commit.description(),
+                current == null || current.isActive(), current == null ? now : current.getCreatedAt(), now, true, "image/jpeg", cover.name(),
+                (int) cover.bytes(), current == null ? 1 : current.getImageVersion() + 1);
+        List<ProductMedia> attached = new ArrayList<>();
+        for (ProductMedia media : commit.media()) { attached.add(media.attached(id, attached.size())); }
+        products.put(id, product); mediaByProduct.put(id, List.copyOf(attached)); return product;
+    }
+    @Override public synchronized List<ProductMedia> findProductMedia(long productId) { return mediaByProduct.getOrDefault(productId, List.of()); }
+    @Override public synchronized Optional<ProductMedia> findMedia(String id) { return mediaByProduct.values().stream().flatMap(List::stream).filter(media -> media.id().equals(id)).findFirst(); }
+    @Override public synchronized List<Long> findLegacyImageProductIds() { return productImages.keySet().stream().filter(id -> findProductMedia(id).isEmpty()).toList(); }
+    @Override public synchronized void migrateLegacyImage(long id, long version, ProductMedia media) {
+        Product product = products.get(id);
+        if (product != null && product.getImageVersion() == version && findProductMedia(id).isEmpty()) { mediaByProduct.put(id, List.of(media.attached(id, 0))); }
+    }
 
     public static TestAuctionRepository withDemoAuctions(ServerConfig config) {
         TestAuctionRepository repository = new TestAuctionRepository();
@@ -110,6 +147,10 @@ public final class TestAuctionRepository implements AuctionRepository {
 
     @Override
     public synchronized Product updateProduct(UpdateProductCommit commit) {
+        if (hasAuctionsForProduct(commit.getProductId())) {
+            throw new vn.ptit.btl16.server.auction.service.AuctionException(
+                    vn.ptit.btl16.common.protocol.ErrorCode.PRODUCT_FROZEN, "Product is frozen");
+        }
         Product current = products.get(commit.getProductId());
         if (current == null || current.getOwnerId() != commit.getOwnerId()) {
             throw new AuctionRepositoryException("Product was not found for owner");
@@ -147,6 +188,9 @@ public final class TestAuctionRepository implements AuctionRepository {
         if (current == null || current.getOwnerId() != ownerId) {
             return Optional.empty();
         }
+        if (hasOpenAuctionForProduct(productId)) {
+            throw new AuctionException(ErrorCode.PRODUCT_IN_USE, "Product has an open auction");
+        }
         Product updated = new Product(
                 current.getProductId(), current.getOwnerId(), current.getOwnerUsername(),
                 current.getCode(), current.getName(), current.getDescription(),
@@ -155,6 +199,31 @@ public final class TestAuctionRepository implements AuctionRepository {
                 current.getImageVersion());
         products.put(productId, updated);
         return Optional.of(updated);
+    }
+
+    @Override
+    public synchronized Product restoreProduct(long productId, long ownerId) {
+        Product current = products.get(productId);
+        if (current == null || current.getOwnerId() != ownerId) {
+            throw new AuctionException(ErrorCode.AUCTION_FORBIDDEN, "Product does not belong to this user");
+        }
+        if (current.isActive()) {
+            return current;
+        }
+        if (hasOpenAuctionForProduct(productId)) {
+            throw new AuctionException(ErrorCode.PRODUCT_IN_USE, "Product has an open auction");
+        }
+        if (hasSoldAuctionForProduct(productId)) {
+            throw new AuctionException(ErrorCode.PRODUCT_ALREADY_SOLD, "Product already has a winner");
+        }
+        Product restored = new Product(
+                current.getProductId(), current.getOwnerId(), current.getOwnerUsername(),
+                current.getCode(), current.getName(), current.getDescription(),
+                true, current.getCreatedAt(), Instant.now(), current.hasImage(),
+                current.getImageMime(), current.getImageName(), current.getImageSize(),
+                current.getImageVersion());
+        products.put(productId, restored);
+        return restored;
     }
 
     @Override
@@ -191,11 +260,32 @@ public final class TestAuctionRepository implements AuctionRepository {
     }
 
     @Override
+    public boolean hasAuctionsForProduct(long productId) {
+        return auctions.values().stream().anyMatch(value -> value.getProduct().getProductId() == productId);
+    }
+
+    @Override
+    public boolean hasSoldAuctionForProduct(long productId) {
+        return auctions.values().stream().anyMatch(value -> value.getProduct().getProductId() == productId
+                && value.getStatus() == AuctionStatus.ENDED && value.getCurrentWinnerId() != null);
+    }
+
+    @Override
     public synchronized AuctionSnapshot createAuction(CreateAuctionCommit commit) {
         Product product = products.get(commit.getProductId());
-        if (product == null) {
-            throw new AuctionRepositoryException("Product does not exist");
+        if (product == null || product.getOwnerId() != commit.getHostUserId()) {
+            throw new AuctionException(ErrorCode.AUCTION_FORBIDDEN, "Product does not belong to this user");
         }
+        if (!product.isActive()) {
+            throw new AuctionException(ErrorCode.PRODUCT_INACTIVE, "Product is inactive");
+        }
+        if (hasOpenAuctionForProduct(commit.getProductId())) {
+            throw new AuctionException(ErrorCode.AUCTION_ALREADY_EXISTS, "Product has an open auction");
+        }
+        if (hasSoldAuctionForProduct(commit.getProductId())) {
+            throw new AuctionException(ErrorCode.PRODUCT_ALREADY_SOLD, "Product already has a winner");
+        }
+        ProductRequirements.validate(product.getDescription(), findProductMedia(product.getProductId()));
         long auctionId = auctionIds.incrementAndGet();
         AuctionSnapshot snapshot = new AuctionSnapshot(
                 auctionId, product, commit.getHostUserId(), commit.getHostUsername(),
@@ -257,6 +347,15 @@ public final class TestAuctionRepository implements AuctionRepository {
         if (!commit.getCreatedAt().isBefore(current.getEndTime())) {
             throw new AuctionConflictException("Bid arrived after end time");
         }
+        if (commit.getBidderId() == current.getHostUserId()
+                || Long.valueOf(commit.getBidderId()).equals(current.getCurrentWinnerId())
+                || commit.getAmount().compareTo(current.getCurrentPrice().add(current.getMinBidIncrement())) < 0
+                || commit.getCreatedAt().isBefore(current.getStartTime())
+                || commit.getNewEndTime().isBefore(current.getEndTime())
+                || commit.getNewEndTime().isAfter(current.getHardEndTime())
+                || isAuctionUserBlocked(commit.getAuctionId(), commit.getBidderId())) {
+            throw new AuctionConflictException("Bid violates auction rules");
+        }
         long bidId = bidIds.incrementAndGet();
         BidRecord bid = new BidRecord(
                 bidId, commit.getAuctionId(), commit.getBidderId(), commit.getBidderUsername(),
@@ -275,6 +374,8 @@ public final class TestAuctionRepository implements AuctionRepository {
     public synchronized boolean extendAuction(ExtendAuctionCommit commit) {
         AuctionSnapshot current = auctions.get(commit.getAuctionId());
         if (current == null || current.getStatus() != AuctionStatus.OPEN
+                || hasBids(commit.getAuctionId())
+                || commit.getNewEndTime().isAfter(current.getHardEndTime())
                 || !current.getEndTime().equals(commit.getExpectedEndTime())) {
             return false;
         }
@@ -289,6 +390,9 @@ public final class TestAuctionRepository implements AuctionRepository {
     public synchronized Optional<AuctionResult> closeAuction(CloseAuctionCommit commit) {
         AuctionSnapshot current = auctions.get(commit.getAuctionId());
         if (current == null || current.getStatus() != AuctionStatus.OPEN) {
+            return Optional.empty();
+        }
+        if (!commit.isRequireExpired() && hasBids(commit.getAuctionId())) {
             return Optional.empty();
         }
         if (commit.isRequireExpired() && commit.getEndedAt().isBefore(current.getEndTime())) {
@@ -333,13 +437,24 @@ public final class TestAuctionRepository implements AuctionRepository {
                 winnerId, winnerUsername, current.getStartTime(), endTime,
                 status, endedAt, current.getVersion() + 1, current.getVisibility(),
                 current.getRoomPasswordHash(), current.getRoomPasswordSalt(),
-                current.getRoomPasswordIterations());
+                current.getRoomPasswordIterations(), current.getHardEndTime());
     }
 
     @Override
     public boolean hasBids(long auctionId) {
         List<BidRecord> values = bidsByAuction.get(auctionId);
         return values != null && !values.isEmpty();
+    }
+
+    @Override
+    public boolean hasBidsByUser(long auctionId, long userId) {
+        List<BidRecord> values = bidsByAuction.get(auctionId);
+        if (values == null) {
+            return false;
+        }
+        synchronized (values) {
+            return values.stream().anyMatch(bid -> bid.getUserId() == userId);
+        }
     }
 
     @Override

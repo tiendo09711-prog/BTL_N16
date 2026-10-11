@@ -16,6 +16,7 @@ import vn.ptit.btl16.client.view.MainFrame;
 import vn.ptit.btl16.common.config.ClientConfig;
 import vn.ptit.btl16.common.protocol.MessageType;
 import vn.ptit.btl16.common.protocol.WireMessage;
+import vn.ptit.btl16.common.protocol.WireValues;
 
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
@@ -114,6 +115,7 @@ public final class ClientController implements AutoCloseable {
         auction.onAddProduct(event -> createProduct());
         auction.onEditProduct(event -> editProduct());
         auction.onDeactivateProduct(event -> deactivateProduct());
+        auction.onRestoreProduct(event -> restoreProduct());
         auction.onCreateAuction(event -> createAuction());
         auction.onJoin(event -> joinSelectedAuction());
         auction.onLeave(event -> leaveAuction());
@@ -339,6 +341,37 @@ public final class ClientController implements AutoCloseable {
                                     view.showInfo("Da vo hieu hoa san pham");
                                 }
                             }));
+                }));
+    }
+
+    private void restoreProduct() {
+        loadMyProducts(products -> view.chooseProduct(products.stream()
+                        .filter(product -> !product.isActive()).toList(), "Khoi phuc mat hang da ngung", false)
+                .ifPresent(product -> {
+                    if (!product.canRestore()) {
+                        view.showError(switch (product.getRestorationStatus()) {
+                            case SOLD -> "Mat hang da co nguoi thang, khong duoc dau gia lai ke ca chua thanh toan";
+                            case OPEN_AUCTION -> "Mat hang van con phien dang mo, chua the khoi phuc";
+                            default -> "Mat hang khong can khoi phuc";
+                        });
+                        return;
+                    }
+                    if (!view.confirm("Khoi phuc " + product.getName()
+                            + "? Khong mo lai phien cu, khong xoa lich su va khong cho sua thong tin da dong bang.")) {
+                        return;
+                    }
+                    setAuctionBusy(true);
+                    auctions.restoreProduct(product.getProductId()).whenComplete((response, error) -> onEdt(() -> {
+                        setAuctionBusy(false);
+                        if (error != null) {
+                            view.showError("Khoi phuc loi: " + rootMessage(error));
+                        } else if (!response.isSuccess()) {
+                            view.showError(failure(response));
+                        } else {
+                            view.showInfo("Mat hang dang hoat dong; co the tao phien moi neu du dieu kien");
+                            loadAuctionList(false);
+                        }
+                    }));
                 }));
     }
 
@@ -586,25 +619,11 @@ public final class ClientController implements AutoCloseable {
     }
 
     private BigDecimal parseBidAmount(String raw) {
-        String normalized = raw == null ? "" : raw.trim()
-                .replace(" ", "")
-                .replace(",", "")
-                .replace(".", "");
-        if (normalized.isBlank() || !normalized.matches("[0-9]+")) {
-            throw new IllegalArgumentException("Muc gia phai la so VND duong");
-        }
-        return new BigDecimal(normalized).setScale(2);
+        return parseMoneyInput(raw, "Muc gia");
     }
 
     private BigDecimal parseMoneyInput(String raw, String label) {
-        String normalized = raw == null ? "" : raw.trim()
-                .replace(" ", "")
-                .replace(",", "")
-                .replace(".", "");
-        if (normalized.isBlank() || !normalized.matches("[0-9]+")) {
-            throw new IllegalArgumentException(label + " phai la so VND duong");
-        }
-        return new BigDecimal(normalized).setScale(2);
+        return WireValues.requireDecimal(Map.of(label, raw == null ? "" : raw), label);
     }
 
     private void manageProfile() {
@@ -769,12 +788,7 @@ public final class ClientController implements AutoCloseable {
             }
             case AUCTION_EXTENDED -> {
                 long id = ClientWireParser.longValue(data, "auctionId", 0L);
-                model.applyTick(
-                        id,
-                        ClientWireParser.instant(data, "endTime"),
-                        "OPEN",
-                        -1,
-                        ClientWireParser.serverNow(data));
+                loadAuctionList(false);
                 onEdt(() -> {
                     view.renderAuction(model);
                     String source = data.getOrDefault("extensionSource", "ANTI_SNIPING");
@@ -804,6 +818,7 @@ public final class ClientController implements AutoCloseable {
                         ClientWireParser.instant(data, "endTime"),
                         data.getOrDefault("status", ""),
                         ClientWireParser.integer(data, "watcherCount", -1),
+                        ClientWireParser.longValue(data, "version", -1L),
                         ClientWireParser.serverNow(data));
                 onEdt(() -> view.renderAuction(model));
             }
@@ -847,10 +862,7 @@ public final class ClientController implements AutoCloseable {
             }
             case AUCTION_KICKED -> {
                 long auctionId = ClientWireParser.longValue(data, "auctionId", 0L);
-                Long joinedId = model.getJoinedAuctionId();
-                if (joinedId != null && joinedId.longValue() == auctionId) {
-                    model.leaveJoinedAuction();
-                }
+                model.markKicked(auctionId);
                 onEdt(() -> {
                     view.renderAuction(model);
                     view.showError(data.getOrDefault(

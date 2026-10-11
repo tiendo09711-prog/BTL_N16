@@ -18,7 +18,6 @@ import java.time.Duration;
 import java.time.Instant;
 
 public final class BidService {
-    private static final BigDecimal MAX_BID = new BigDecimal("999999999999999.00");
 
     private final AuctionManager auctions;
     private final AuctionRepository repository;
@@ -55,7 +54,10 @@ public final class BidService {
         runtime.getLock().lock();
         try {
             Instant now = Instant.now();
-            if (!rooms.isMember(auctionId, connectionId)) {
+            if (repository.isAuctionUserBlocked(auctionId, session.getUserId())) {
+                throw new AuctionException(ErrorCode.USER_BLOCKED_FROM_AUCTION, "Ban da bi chan khoi phong");
+            }
+            if (!rooms.isMember(auctionId, connectionId, session.getUserId())) {
                 throw new AuctionException(
                         ErrorCode.NOT_IN_AUCTION_ROOM,
                         "Join the auction room before placing a bid");
@@ -67,6 +69,12 @@ public final class BidService {
             }
             if (runtime.getStatusUnsafe() != AuctionStatus.OPEN) {
                 throw new AuctionException(ErrorCode.AUCTION_NOT_OPEN, "Auction is not open");
+            }
+            if (now.isBefore(runtime.getStartTime())) {
+                throw new AuctionException(ErrorCode.AUCTION_NOT_OPEN, "Phien dau gia chua bat dau");
+            }
+            if (Long.valueOf(session.getUserId()).equals(runtime.getCurrentWinnerIdUnsafe())) {
+                throw new AuctionException(ErrorCode.BID_ALREADY_LEADING, "Ban dang dan dau, khong the tu nang gia");
             }
             if (!now.isBefore(runtime.getEndTimeUnsafe())) {
                 throw new AuctionException(ErrorCode.BID_AFTER_END, "Bid arrived after auction end time");
@@ -90,6 +98,10 @@ public final class BidService {
             Instant newEndTime = extended
                     ? oldEndTime.plusSeconds(extensionSeconds)
                     : oldEndTime;
+            if (newEndTime.isAfter(runtime.getHardEndTimeUnsafe())) {
+                newEndTime = runtime.getHardEndTimeUnsafe();
+            }
+            extended = newEndTime.isAfter(oldEndTime);
             long bidSequence = sequence.next();
 
             BidRecord bid;
@@ -119,7 +131,7 @@ public final class BidService {
                     bid,
                     previousWinnerId,
                     previousWinnerUsername,
-                    extended);
+                    extended, (int) Duration.between(oldEndTime, newEndTime).getSeconds());
         } finally {
             runtime.getLock().unlock();
         }
@@ -149,7 +161,7 @@ public final class BidService {
             broadcasts.broadcastToRoom(
                     auction.getAuctionId(),
                     MessageType.AUCTION_EXTENDED,
-                    AuctionWireData.extended(auction, extensionSeconds, now));
+                    AuctionWireData.extended(auction, outcome.getAddedSeconds(), now));
         }
 
         Long previousWinnerId = outcome.getPreviousWinnerId();
@@ -162,18 +174,6 @@ public final class BidService {
     }
 
     private BigDecimal validateAmount(BigDecimal amount) {
-        if (amount == null) {
-            throw new AuctionException(ErrorCode.INVALID_AMOUNT, "Bid amount is missing");
-        }
-        BigDecimal normalized;
-        try {
-            normalized = amount.setScale(2);
-        } catch (ArithmeticException exception) {
-            throw new AuctionException(ErrorCode.INVALID_AMOUNT, "Bid amount has too many decimals");
-        }
-        if (normalized.signum() <= 0 || normalized.compareTo(MAX_BID) > 0) {
-            throw new AuctionException(ErrorCode.INVALID_AMOUNT, "Bid amount is outside allowed range");
-        }
-        return normalized;
+        return AuctionRules.money(amount, ErrorCode.INVALID_AMOUNT);
     }
 }

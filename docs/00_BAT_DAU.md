@@ -2,6 +2,8 @@
 
 Đối chiếu source ngày **07/09/2026**. Luồng chính: **JavaFX → WebSocket → Java server → JDBC → XAMPP**. TCP/Swing còn để học và kiểm thử; không phải UI EXE client mặc định.
 
+Luật nghiệp vụ cập nhật ngày **11/10/2026** nằm trong [bộ luật hiện hành](LUAT_DAU_GIA_BTL16.md) và [bản Word](LUAT_DAU_GIA_BTL16.docx). Đọc bộ luật này trước các tài liệu kiến trúc/phân công cũ; quyền host, kick, private history và gia hạn đã được siết lại.
+
 ## Thứ tự đọc
 
 1. [README](../README.md): mục đích, setup và sử dụng hai EXE.

@@ -60,7 +60,7 @@ public final class AuctionController {
                 MessageType.MY_PRODUCTS_RESULT,
                 AuctionWireData.productList(
                         management.myProducts(context.requireSession()),
-                        Instant.now()));
+                        Instant.now(), management::restorationStatus));
     }
 
     public void handleUpdateProduct(RequestContext context) throws Exception {
@@ -88,8 +88,23 @@ public final class AuctionController {
                 AuctionWireData.product(product, Instant.now()));
     }
 
+    public void handleRestoreProduct(RequestContext context) throws Exception {
+        Product product = management.restoreProduct(
+                context.requireSession(),
+                WireValues.requireLong(context.getRequest().getData(), "productId"));
+        context.replySuccess(
+                MessageType.RESTORE_PRODUCT_RESULT,
+                AuctionWireData.product(product, Instant.now()));
+    }
+
+    public void handleMediaEndpoint(RequestContext context) throws Exception {
+        context.requireSession();
+        context.replySuccess(MessageType.GET_MEDIA_ENDPOINT_RESULT, Map.of("mediaPort", Integer.toString(management.media().port())));
+    }
+
     public void handleGetProductImage(RequestContext context) throws Exception {
         ProductImage image = management.getProductImage(
+                context.requireSession(),
                 WireValues.requireLong(context.getRequest().getData(), "productId"));
         context.replySuccess(
                 MessageType.GET_PRODUCT_IMAGE_RESULT,
@@ -126,27 +141,30 @@ public final class AuctionController {
     }
 
     public void handleMyAuctions(RequestContext context) throws Exception {
+        Instant snapshotAt = Instant.now();
         context.replySuccess(
                 MessageType.MY_AUCTIONS_RESULT,
                 AuctionWireData.auctionList(
                         management.myAuctions(context.requireSession()),
                         rooms,
-                        Instant.now()));
+                        snapshotAt));
     }
 
     public void handleList(RequestContext context) throws Exception {
+        Instant snapshotAt = Instant.now();
         context.replySuccess(
                 MessageType.AUCTION_LIST_RESULT,
-                AuctionWireData.auctionList(queries.listAuctions(), rooms, Instant.now()));
+                AuctionWireData.auctionList(queries.listAuctions(), rooms, snapshotAt));
     }
 
     public void handleSearch(RequestContext context) throws Exception {
+        Instant snapshotAt = Instant.now();
         context.replySuccess(
                 MessageType.SEARCH_AUCTIONS_RESULT,
                 AuctionWireData.auctionList(
                         queries.searchAuctions(context.value("mode"), context.value("query")),
                         rooms,
-                        Instant.now()));
+                        snapshotAt));
     }
 
     public void handleJoin(RequestContext context) throws Exception {
@@ -178,6 +196,7 @@ public final class AuctionController {
 
     public void handleHistory(RequestContext context) throws Exception {
         long auctionId = auctionId(context);
+        management.requireReadAccess(context.requireSession(), auctionId);
         context.replySuccess(
                 MessageType.BID_HISTORY_RESULT,
                 AuctionWireData.history(queries.getRecentBids(auctionId), Instant.now()));
@@ -261,12 +280,14 @@ public final class AuctionController {
     public void handleResync(RequestContext context) throws Exception {
         String rawAuctionId = context.value("auctionId");
         if (rawAuctionId.isBlank()) {
+            Instant snapshotAt = Instant.now();
             context.replySuccess(
                     MessageType.RESYNC_RESULT,
-                    AuctionWireData.auctionList(queries.listAuctions(), rooms, Instant.now()));
+                    AuctionWireData.auctionList(queries.listAuctions(), rooms, snapshotAt));
             return;
         }
         long auctionId = Long.parseLong(rawAuctionId);
+        management.requireReadAccess(context.requireSession(), auctionId);
         AuctionSnapshot current = queries.getSnapshot(auctionId);
         AuctionSnapshot snapshot = current.isOpenAt(Instant.now())
                 ? management.joinAuction(

@@ -21,6 +21,10 @@ public final class AuctionApi {
         return request(MessageType.AUCTION_LIST, Map.of());
     }
 
+    public CompletableFuture<ApiResponse> mediaEndpoint() {
+        return request(MessageType.GET_MEDIA_ENDPOINT, Map.of());
+    }
+
     public CompletableFuture<ApiResponse> createProduct(
             String code,
             String name,
@@ -90,6 +94,11 @@ public final class AuctionApi {
 
     public CompletableFuture<ApiResponse> deactivateProduct(long productId) {
         return request(MessageType.DEACTIVATE_PRODUCT, Map.of(
+                "productId", Long.toString(productId)));
+    }
+
+    public CompletableFuture<ApiResponse> restoreProduct(long productId) {
+        return request(MessageType.RESTORE_PRODUCT, Map.of(
                 "productId", Long.toString(productId)));
     }
 

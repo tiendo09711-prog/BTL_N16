@@ -3,6 +3,7 @@ import { cpSync, existsSync, lstatSync, mkdirSync, readdirSync, realpathSync, rm
 import path from 'node:path';
 import { buildProject, projectRoot } from './dev-utils.mjs';
 import { desktopLayout, mainJar, verifyJavafxLibraries } from './package-layout.mjs';
+import { packageWindowsBundle } from './package-windows-bundle.mjs';
 
 export function removeBuildDirectory(directory) {
   const relative = path.relative(projectRoot, directory);
@@ -43,6 +44,18 @@ export async function packageApplications(roles) {
   for (const role of roles) {
     await packageApplication(role);
   }
+  if (process.platform === 'win32') {
+    cpSync(path.join(projectRoot, 'docs', '22_HAI_UNG_DUNG_JAVAFX.md'),
+      path.join(projectRoot, 'dist', 'HUONG_DAN.md'));
+    for (const guide of ['23_ANH_VIDEO_SAN_PHAM.md', 'LUAT_DAU_GIA_BTL16.docx']) {
+      cpSync(path.join(projectRoot, 'docs', guide), path.join(projectRoot, 'dist', guide));
+    }
+    const bundles = readdirSync(path.join(projectRoot, 'dist')).filter(file => /^BTL16-Auction-(Server|Client)\.exe$/.test(file));
+    const { createHash } = await import('node:crypto');
+    const { readFileSync } = await import('node:fs');
+    writeFileSync(path.join(projectRoot, 'dist', 'SHA256SUMS.txt'), bundles.map(file =>
+      `${createHash('sha256').update(readFileSync(path.join(projectRoot, 'dist', file))).digest('hex')}  ${file}`).join('\n') + '\n');
+  }
 }
 
 async function packageApplication(role) {
@@ -68,9 +81,18 @@ async function packageApplication(role) {
     }
   }
   if (server) {
+    const mediaTools = path.join(projectRoot, 'tools', 'media');
+    for (const binary of ['ffmpeg.exe', 'ffprobe.exe']) {
+      if (process.platform === 'win32' && !existsSync(path.join(mediaTools, binary))) {
+        throw new Error(`Missing ${binary}; run tools/prepare-media.ps1 before packaging.`);
+      }
+    }
+    if (existsSync(mediaTools)) {
+      cpSync(mediaTools, path.join(staging, 'tools', 'media'), { recursive: true });
+    }
     const previousConfig = path.join(appImage, layout.contentDirectory, 'config', 'server.properties');
     mkdirSync(path.join(staging, 'config'), { recursive: true });
-    cpSync(existsSync(previousConfig) ? previousConfig : path.join(projectRoot, 'config', 'server.properties'),
+    cpSync(existsSync(previousConfig) ? previousConfig : path.join(projectRoot, 'config', 'server-desktop.properties'),
       path.join(staging, 'config', 'server.properties'));
   }
   removeBuildDirectory(appImage);
@@ -82,6 +104,8 @@ async function packageApplication(role) {
     '--type', 'app-image', '--name', appName, '--dest', dist, '--input', staging,
     '--main-jar', mainJar,
     '--main-class', layout.mainClass,
+    ...(process.platform === 'win32' ? ['--icon', path.join(projectRoot, 'config', 'auction.ico')] : []),
+    '--add-modules', 'java.se,jdk.httpserver,jdk.unsupported,jdk.crypto.ec,jdk.charsets,jdk.localedata',
     '--app-version', '1.0.0', '--description', `BTL16 Auction ${role}`, '--vendor', 'PTIT BTL16',
     '--java-options', '-Dfile.encoding=UTF-8',
     ...(server
@@ -100,15 +124,16 @@ async function packageApplication(role) {
     writeFileSync(path.join(dist, `${appName}-START_HERE.txt`),
       `BTL16 macOS ${process.arch}\nOpen ${layout.imageName}. Java is included.\n`
       + (server
-        ? `Start MySQL locally first. Configure ${layout.imageName}/Contents/app/config/server.properties.\nAllow incoming connections to the server in macOS Firewall; WebSocket port is 8890 by default.\nCopy the current LAN address from the dashboard to clients.\n`
-        : 'Paste the current WebSocket address copied from the server. No local MySQL is required.\n')
+        ? `Local database is included. Optional MySQL settings: ${layout.imageName}/Contents/app/config/server.properties.\nAllow incoming connections to the server in macOS Firewall; WebSocket port is 8890 by default.\nCopy the current LAN address from the dashboard to clients.\n`
+        : 'Paste the current WebSocket address copied from the server. No separate Java or database installation is required.\n')
       + 'This is an unsigned local build. Only open builds whose source you trust.\n', 'utf8');
     console.log(`[DIST] Ready: ${appImage}`);
     return;
   }
   writeFileSync(path.join(appImage, 'START_HERE.txt'), server
-    ? 'BTL16 SERVER\r\n1. Start MySQL in XAMPP on this computer.\r\n2. Match db.port in app/config/server.properties to your XAMPP MySQL port; check DB credentials.\r\n3. Open BTL16-Auction-Server.exe. A new database starts empty; no demo data is created.\r\n4. Copy the LAN address shown in the dashboard to clients.\r\n5. Allow inbound TCP 8890 on Private networks in Windows Firewall (or your configured WebSocket port).\r\nKeep this whole folder, not only the EXE. Java is included; MySQL is not.\r\n'
-    : 'BTL16 CLIENT\r\n1. Open BTL16-Auction-Client.exe.\r\n2. Paste the address copied from the server, then click Ket noi.\r\n3. Register or log in to join auctions.\r\nKeep this whole folder, not only the EXE. No separate Java or MySQL installation is needed.\r\n', 'utf8');
+    ? 'AUCTION SERVER\r\nOpen BTL16-Auction-Server.exe. Java, media processing and a persistent local database are included.\r\nShare the connection code or LAN address with clients on the same trusted network.\r\nAllow inbound TCP 8890 and 8891 on Private networks in Windows Firewall.\r\nData: %LOCALAPPDATA%/BTL16/AuctionServer. Back up the database and the media folder together while the server is stopped.\r\nKeep this entire app-image folder together. The single-file EXE in the parent dist folder can be copied alone.\r\n'
+    : 'BTL16 CLIENT\r\n1. Open BTL16-Auction-Client.exe.\r\n2. Paste the connection code or address from the server, then click Ket noi.\r\n3. Register or log in to join auctions.\r\nKeep this entire app-image folder together. The single-file EXE in the parent dist folder can be copied alone. No separate Java or MySQL installation is needed.\r\n', 'utf8');
   console.log(`[DIST] Ready: ${path.join(appImage, `${appName}.exe`)}`);
   console.log('[DIST] Copy the WHOLE application directory, not the EXE alone.');
+  await packageWindowsBundle(appName, appImage);
 }

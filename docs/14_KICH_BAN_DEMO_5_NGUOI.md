@@ -13,7 +13,7 @@ Bắt đầu bằng DB trống. Nhóm tự nhập tài khoản/sản phẩm/phò
 1. Tiến mở server; Dũng/Thuận nhận URL và mở client, đăng ký account riêng.
 2. Phước tạo sản phẩm/phòng; người mua tìm tên/ID và vào phòng.
 3. Dũng/Thuận bid gần đồng thời, quan sát outbid; Phước thử tự bid và bị từ chối.
-4. Phòng PRIVATE: nhập sai rồi đúng password; kick một người và thử vào lại.
+4. Phòng PRIVATE: nhập sai rồi đúng password; kick người chỉ xem, chưa từng bid, rồi thử vào lại/xem lịch sử. Kick người đã bid phải thất bại. Thử host extend/end/cancel sau bid: phải thất bại; quyền trước bid theo [luật hiện hành](LUAT_DAU_GIA_BTL16.md).
 5. Phòng khác: bid sát cuối để Đức giải thích endTime tăng; Thuận thử reconnect trong grace.
 6. Kết thúc phòng: chờ 120 giây để tự archive; query DB thấy lịch sử còn nguyên.
 

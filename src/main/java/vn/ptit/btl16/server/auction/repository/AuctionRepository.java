@@ -10,11 +10,23 @@ import java.util.List;
 import java.util.Optional;
 
 public interface AuctionRepository {
+    Product saveMediaProduct(vn.ptit.btl16.server.media.MediaProductCommit commit);
+
+    List<vn.ptit.btl16.server.media.ProductMedia> findProductMedia(long productId);
+
+    Optional<vn.ptit.btl16.server.media.ProductMedia> findMedia(String mediaId);
+
+    List<Long> findLegacyImageProductIds();
+
+    void migrateLegacyImage(long productId, long expectedVersion, vn.ptit.btl16.server.media.ProductMedia media);
+
     Product createProduct(CreateProductCommit commit);
 
     Product updateProduct(UpdateProductCommit commit);
 
     Optional<Product> deactivateProduct(long productId, long ownerId);
+
+    Product restoreProduct(long productId, long ownerId);
 
     List<Product> findProductsByOwner(long ownerId);
 
@@ -25,6 +37,10 @@ public interface AuctionRepository {
     Optional<ProductImage> findProductImage(long productId);
 
     boolean hasOpenAuctionForProduct(long productId);
+
+    boolean hasAuctionsForProduct(long productId);
+
+    boolean hasSoldAuctionForProduct(long productId);
 
     AuctionSnapshot createAuction(CreateAuctionCommit commit);
 
@@ -45,6 +61,8 @@ public interface AuctionRepository {
     boolean cancelAuction(CancelAuctionCommit commit);
 
     boolean hasBids(long auctionId);
+
+    boolean hasBidsByUser(long auctionId, long userId);
 
     void blockAuctionUser(BlockAuctionUserCommit commit);
 

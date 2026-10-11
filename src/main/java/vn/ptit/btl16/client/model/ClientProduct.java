@@ -1,5 +1,7 @@
 package vn.ptit.btl16.client.model;
 
+import vn.ptit.btl16.common.protocol.ProductRestorationStatus;
+
 import java.time.Instant;
 
 public final class ClientProduct {
@@ -17,6 +19,7 @@ public final class ClientProduct {
     private final String imageName;
     private final int imageSize;
     private final long imageVersion;
+    private final ProductRestorationStatus restorationStatus;
 
     public ClientProduct(
             long productId,
@@ -47,6 +50,27 @@ public final class ClientProduct {
             String imageName,
             int imageSize,
             long imageVersion) {
+        this(productId, ownerId, ownerUsername, code, name, description, active,
+                createdAt, updatedAt, hasImage, imageMime, imageName, imageSize, imageVersion,
+                active ? ProductRestorationStatus.ACTIVE : ProductRestorationStatus.UNKNOWN);
+    }
+
+    public ClientProduct(
+            long productId,
+            long ownerId,
+            String ownerUsername,
+            String code,
+            String name,
+            String description,
+            boolean active,
+            Instant createdAt,
+            Instant updatedAt,
+            boolean hasImage,
+            String imageMime,
+            String imageName,
+            int imageSize,
+            long imageVersion,
+            ProductRestorationStatus restorationStatus) {
         this.productId = productId;
         this.ownerId = ownerId;
         this.ownerUsername = text(ownerUsername);
@@ -61,6 +85,8 @@ public final class ClientProduct {
         this.imageName = text(imageName);
         this.imageSize = imageSize;
         this.imageVersion = imageVersion;
+        this.restorationStatus = active ? ProductRestorationStatus.ACTIVE
+                : restorationStatus == null ? ProductRestorationStatus.UNKNOWN : restorationStatus;
     }
 
     private String text(String value) { return value == null ? "" : value; }
@@ -79,6 +105,11 @@ public final class ClientProduct {
     public String getImageName() { return imageName; }
     public int getImageSize() { return imageSize; }
     public long getImageVersion() { return imageVersion; }
+    public ProductRestorationStatus getRestorationStatus() { return restorationStatus; }
+    public boolean canRestore() {
+        return !active && (restorationStatus == ProductRestorationStatus.ELIGIBLE
+                || restorationStatus == ProductRestorationStatus.UNKNOWN);
+    }
 
     @Override
     public String toString() {

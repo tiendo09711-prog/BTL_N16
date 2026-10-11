@@ -7,6 +7,7 @@ out/
 config/server-local.properties
 config/client-local.properties
 /dist/
+/tools/media/*.exe
 
 # Generated archives and release bundles
 *.zip

@@ -79,6 +79,12 @@ public final class RoomManager {
         return room != null && room.containsKey(connectionId);
     }
 
+    public boolean isMember(long auctionId, String connectionId, long userId) {
+        ConcurrentHashMap<String, RoomMember> room = membersByAuction.get(auctionId);
+        RoomMember member = room == null ? null : room.get(connectionId);
+        return member != null && member.getUserId() == userId;
+    }
+
     public Optional<RoomMember> findByUsername(long auctionId, String username) {
         ConcurrentHashMap<String, RoomMember> room = membersByAuction.get(auctionId);
         if (room == null) {

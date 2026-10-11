@@ -62,6 +62,7 @@ public final class XamppDatabaseSelfTest {
                 result.next();
                 TestSupport.equals(1L, result.getLong(1), "setup preserves existing rows without seeding");
             }
+            JdbcAuctionRulesSelfTest.run(factory);
             DatabaseResetMain.main(new String[0]);
             assertEmpty(factory);
             System.out.println("[PASS] XamppDatabaseSelfTest: empty setup/startup, non-destructive setup, empty reset");

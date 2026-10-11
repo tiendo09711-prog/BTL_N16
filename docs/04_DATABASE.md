@@ -13,7 +13,7 @@ Maven cung cấp MySQL Connector/J 8.4.0. Đã kết nối local XAMPP MariaDB 1
 | users | Username duy nhất, profile, password hash/salt/iterations, active, last_login |
 | login_history | Audit login thành công, liên kết user |
 | products | created_by, mã/tên/mô tả, active, image_data/mime/name/size/version |
-| auctions | Host/product, start price/min increment/current price/winner, thời gian/status/version, visibility và room password hash/salt/iterations |
+| auctions | Host/product, start price/min increment/current price/winner, start_time/end_time/hard_end_time/status/version, visibility và room password hash/salt/iterations |
 | bids | Auction, user, amount, server_sequence và thời điểm |
 | auction_results | Một kết quả theo auction_id; winner NULL nếu không có bid |
 | auction_blocked_users | Khóa auction_id/user_id, người chặn và thời điểm; bền vững sau reconnect/restart |
@@ -33,11 +33,15 @@ InnoDB + utf8mb4; schema đầy đủ trong sql/00_schema.sql và server/db/Data
 
 **Login:** last_login và login_history được ghi trong cùng transaction.
 
-**Bid:** lấy khóa auction → kiểm tra membership/không tự bid/OPEN/chưa hết giờ/amount ≥ currentPrice + minBidIncrement → SELECT ... FOR UPDATE → đối chiếu giá/trạng thái → INSERT bid + UPDATE price/winner/endTime/version → COMMIT → cập nhật RAM → broadcast. Lỗi ROLLBACK; conflict yêu cầu snapshot mới.
+**Bid:** lấy khóa auction → kiểm tra membership đúng connection/user, block, không phải host/người dẫn đầu, OPEN/đúng thời gian, amount ≥ currentPrice + minBidIncrement → SELECT ... FOR UPDATE → đối chiếu giá/trạng thái/quyền/giới hạn → INSERT bid + UPDATE price/winner/endTime/version → COMMIT → cập nhật RAM → broadcast. Lỗi SQL hoặc runtime ROLLBACK; conflict yêu cầu snapshot mới. Bid đầu cũng cần startPrice + minBidIncrement.
 
-**End:** cùng khóa runtime và khóa row, kiểm tra OPEN, UPDATE ENDED + ghi auction_results → commit → event. Timer/host end dùng cơ chế đóng một lần.
+**End:** cùng khóa runtime và khóa row, kiểm tra OPEN và đối chiếu winner/price/endTime, UPDATE ENDED + ghi auction_results → commit → event. Host chỉ được chốt sớm khi chưa có bid; timer chốt đúng hạn. Đóng một lần; winner NULL không phải bán thành công.
 
-**Extend/cancel/kick:** extend đối chiếu endTime kỳ vọng; cancel chỉ khi chưa có bid; kick ghi block rồi bỏ membership/revoke grant.
+**Extend/cancel/kick:** extend thủ công và cancel chỉ khi chưa có bid. Extend đối chiếu endTime kỳ vọng và hard_end_time; anti-sniping dùng chung ngân sách gia hạn tổng 600 giây. Kick chỉ người chưa từng bid, ghi block rồi bỏ membership/revoke grant. JOIN recheck quyền và thêm membership dưới cùng khóa với BID/KICK.
+
+**Product:** tạo phiên/sửa/vô hiệu hóa khóa dòng sản phẩm trong transaction. Cấm hai phiên OPEN cho cùng productId; đã có bất kỳ phiên nào thì đóng băng nội dung/ảnh; đã có người thắng thì không được mở phiên mới. Migration hard_end_time chỉ điền giá trị NULL một lần bằng end_time hiện có + 600 giây, không reset hạn đã lưu.
+
+Chi tiết nghiệp vụ và giới hạn vận hành một server/database: [bộ luật hiện hành](LUAT_DAU_GIA_BTL16.md).
 
 **Archive:** sau retention mặc định 120 giây, ẩn phòng khỏi runtime/list/dashboard và dọn RoomManager; không DELETE lịch sử auctions/bids/results.
 

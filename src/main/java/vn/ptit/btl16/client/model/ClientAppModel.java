@@ -26,6 +26,10 @@ public final class ClientAppModel {
     private String lastLoginAt = "";
     private final Map<Long, ClientAuction> auctions = new LinkedHashMap<>();
     private final Set<Long> archivedAuctionIds = new HashSet<>();
+    private final Set<Long> kickedAuctionIds = new HashSet<>();
+    private final Map<Long, Instant> observedAt = new LinkedHashMap<>();
+    private Instant lastListAt = Instant.MIN;
+    private Instant lastServerAt = Instant.MIN;
     private List<ClientBid> currentBids = new ArrayList<>();
     private Long joinedAuctionId;
     private long serverClockOffsetMillis;
@@ -56,15 +60,37 @@ public final class ClientAppModel {
         joinedAuctionId = null;
         currentBids = new ArrayList<>();
         archivedAuctionIds.clear();
+        kickedAuctionIds.clear();
+        auctions.clear();
+        observedAt.clear();
+        lastListAt = Instant.MIN;
+        lastServerAt = Instant.MIN;
     }
 
     public synchronized void replaceAuctions(List<ClientAuction> values, Instant serverNow) {
         updateServerClock(serverNow);
-        auctions.clear();
+        if (serverNow != null && serverNow.isBefore(lastListAt)) {
+            return;
+        }
+        Map<Long, ClientAuction> next = new LinkedHashMap<>();
         for (ClientAuction value : values) {
             if (!archivedAuctionIds.contains(value.getAuctionId())) {
-                auctions.put(value.getAuctionId(), value);
+                ClientAuction previous = auctions.get(value.getAuctionId());
+                next.put(value.getAuctionId(), canApply(previous, value) ? value : previous);
+                observe(value.getAuctionId(), serverNow);
             }
+        }
+        for (ClientAuction previous : auctions.values()) {
+            Instant observed = observedAt.get(previous.getAuctionId());
+            if (!next.containsKey(previous.getAuctionId()) && observed != null
+                    && serverNow != null && observed.isAfter(serverNow)) {
+                next.put(previous.getAuctionId(), previous);
+            }
+        }
+        auctions.clear();
+        auctions.putAll(next);
+        if (serverNow != null) {
+            lastListAt = serverNow;
         }
     }
 
@@ -77,12 +103,20 @@ public final class ClientAppModel {
         if (archivedAuctionIds.contains(auction.getAuctionId())) {
             return;
         }
-        auctions.put(auction.getAuctionId(), auction);
-        if (markJoined) {
+        ClientAuction previous = auctions.get(auction.getAuctionId());
+        boolean accepted = canApply(previous, auction);
+        if (accepted) {
+            auctions.put(auction.getAuctionId(), auction);
+            observe(auction.getAuctionId(), serverNow);
+        }
+        if (markJoined && !kickedAuctionIds.contains(auction.getAuctionId())) {
+            if (joinedAuctionId == null || joinedAuctionId.longValue() != auction.getAuctionId()) {
+                currentBids = new ArrayList<>();
+            }
             joinedAuctionId = auction.getAuctionId();
         }
         if (joinedAuctionId != null && joinedAuctionId.longValue() == auction.getAuctionId()) {
-            currentBids = new ArrayList<>(bids);
+            mergeBids(bids.stream().filter(bid -> bid.getAuctionId() == auction.getAuctionId()).toList());
         }
     }
 
@@ -95,22 +129,19 @@ public final class ClientAppModel {
             return;
         }
         ClientAuction previous = auctions.get(auction.getAuctionId());
-        if (previous == null || auction.getVersion() >= previous.getVersion()) {
+        if (canApply(previous, auction)) {
             auctions.put(auction.getAuctionId(), auction);
+            observe(auction.getAuctionId(), serverNow);
         }
         if (joinedAuctionId != null && joinedAuctionId.longValue() == auction.getAuctionId()) {
-            List<ClientBid> next = new ArrayList<>(currentBids);
-            boolean exists = next.stream().anyMatch(value -> value.getBidId() == bid.getBidId());
-            if (!exists) {
-                next.add(0, bid);
-            }
-            currentBids = next;
+            mergeBids(List.of(bid));
         }
     }
 
     public synchronized void applyHistory(List<ClientBid> bids, Instant serverNow) {
         updateServerClock(serverNow);
-        currentBids = new ArrayList<>(bids);
+        mergeBids(bids.stream().filter(bid -> joinedAuctionId != null
+                && bid.getAuctionId() == joinedAuctionId.longValue()).toList());
     }
 
     public synchronized void applyTick(
@@ -119,10 +150,47 @@ public final class ClientAppModel {
             String status,
             int watcherCount,
             Instant serverNow) {
+        applyTick(auctionId, endTime, status, watcherCount, -1L, serverNow);
+    }
+
+    public synchronized void applyTick(long auctionId, Instant endTime, String status,
+            int watcherCount, long version, Instant serverNow) {
         updateServerClock(serverNow);
         ClientAuction old = auctions.get(auctionId);
-        if (old != null) {
+        if (old != null && old.isOpen() && "OPEN".equals(status) && endTime != null
+                && !endTime.isBefore(old.getEndTime()) && version == old.getVersion()) {
             auctions.put(auctionId, old.withTiming(endTime, status, watcherCount));
+            observe(auctionId, serverNow);
+        }
+    }
+
+    private boolean canApply(ClientAuction previous, ClientAuction incoming) {
+        return previous == null || (incoming.getVersion() >= previous.getVersion()
+                && (previous.isOpen() || !incoming.isOpen()));
+    }
+
+    private void observe(long auctionId, Instant serverNow) {
+        if (serverNow != null) {
+            observedAt.merge(auctionId, serverNow, (previous, next) -> previous.isAfter(next) ? previous : next);
+        }
+    }
+
+    private void mergeBids(List<ClientBid> incoming) {
+        Map<Long, ClientBid> merged = new LinkedHashMap<>();
+        for (ClientBid bid : currentBids) {
+            merged.put(bid.getBidId(), bid);
+        }
+        for (ClientBid bid : incoming) {
+            merged.put(bid.getBidId(), bid);
+        }
+        currentBids = new ArrayList<>(merged.values());
+        currentBids.sort(Comparator.comparingLong(ClientBid::getServerSequence).reversed());
+    }
+
+    public synchronized void markKicked(long auctionId) {
+        kickedAuctionIds.add(auctionId);
+        if (joinedAuctionId != null && joinedAuctionId.longValue() == auctionId) {
+            leaveJoinedAuction();
         }
     }
 
@@ -147,7 +215,8 @@ public final class ClientAppModel {
     }
 
     public synchronized void updateServerClock(Instant serverNow) {
-        if (serverNow != null) {
+        if (serverNow != null && !serverNow.isBefore(lastServerAt)) {
+            lastServerAt = serverNow;
             serverClockOffsetMillis = serverNow.toEpochMilli() - System.currentTimeMillis();
         }
     }

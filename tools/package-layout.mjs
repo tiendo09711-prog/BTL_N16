@@ -9,7 +9,7 @@ export function applicationDetails(role) {
   return {
     appName: `BTL16-Auction-${role === 'server' ? 'Server' : 'Client'}`,
     mainClass: role === 'server'
-      ? 'vn.ptit.btl16.server.dashboard.ServerDashboardMain'
+      ? 'vn.ptit.btl16.server.fx.ServerFxMain'
       : 'vn.ptit.btl16.client.ClientMain'
   };
 }

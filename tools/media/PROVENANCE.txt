@@ -1,0 +1,10 @@
+Media tools: FFmpeg / ffprobe 8.1.2, Windows x64 static essentials build from Gyan.
+Original archive: https://www.gyan.dev/ffmpeg/builds/packages/ffmpeg-8.1.2-essentials_build.zip
+Archive SHA256: db580001caa24ac104c8cb856cd113a87b0a443f7bdf47d8c12b1d740584a2ec
+FFmpeg source revision: https://github.com/FFmpeg/FFmpeg/commit/38b88335f9
+Build provider and dependency/source information: https://www.gyan.dev/ffmpeg/builds/
+The binaries are unmodified. See LICENSE (GPLv3) and the provider's README.txt for
+the full build configuration and linked third-party libraries. Keep those files
+with any redistribution. Review upstream source-distribution requirements before
+publishing a redistributed bundle; these notices do not relicense FFmpeg.
+JavaFX and the remaining Java libraries keep their own bundled licenses.

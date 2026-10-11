@@ -15,7 +15,7 @@ public final class JdbcConnectionFactory {
             Class.forName(config.getDbDriver());
         } catch (ClassNotFoundException exception) {
             throw new IllegalStateException(
-                    "MySQL Connector/J was not found. Reload Maven or add the driver to classpath.",
+                    "JDBC driver was not found: " + config.getDbDriver(),
                     exception);
         }
     }

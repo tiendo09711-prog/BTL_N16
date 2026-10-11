@@ -9,18 +9,20 @@ public final class BidOutcome {
     private final Long previousWinnerId;
     private final String previousWinnerUsername;
     private final boolean extended;
+    private final int addedSeconds;
 
     public BidOutcome(
             AuctionSnapshot auction,
             BidRecord bid,
             Long previousWinnerId,
             String previousWinnerUsername,
-            boolean extended) {
+            boolean extended, int addedSeconds) {
         this.auction = auction;
         this.bid = bid;
         this.previousWinnerId = previousWinnerId;
         this.previousWinnerUsername = previousWinnerUsername == null ? "" : previousWinnerUsername;
         this.extended = extended;
+        this.addedSeconds = addedSeconds;
     }
 
     public AuctionSnapshot getAuction() { return auction; }
@@ -28,4 +30,5 @@ public final class BidOutcome {
     public Long getPreviousWinnerId() { return previousWinnerId; }
     public String getPreviousWinnerUsername() { return previousWinnerUsername; }
     public boolean isExtended() { return extended; }
+    public int getAddedSeconds() { return addedSeconds; }
 }

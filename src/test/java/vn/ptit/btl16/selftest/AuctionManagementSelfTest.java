@@ -56,7 +56,7 @@ public final class AuctionManagementSelfTest {
                 requireSuccess(guestAccount.login("alice", "alice123").get(8, TimeUnit.SECONDS),
                         "guest login");
 
-                ApiResponse createdProduct = host.createProduct(
+                ApiResponse createdProduct = TestMedia.create(host,
                                 "MGMT_TEST", "San pham quan tri", "Dung de test host control")
                         .get(8, TimeUnit.SECONDS);
                 requireSuccess(createdProduct, "create product");
@@ -74,7 +74,7 @@ public final class AuctionManagementSelfTest {
                                 productId,
                                 "MGMT_TEST_2",
                                 "San pham da sua",
-                                "OP01 update product")
+                                TestMedia.DESCRIPTION)
                         .get(8, TimeUnit.SECONDS), "update product");
 
                 ApiResponse createdAuction = host.createAuction(
@@ -99,7 +99,7 @@ public final class AuctionManagementSelfTest {
                 requireSuccess(guest.bid(auctionId, new BigDecimal("1050000.00"))
                         .get(8, TimeUnit.SECONDS), "valid minimum increment bid");
 
-                ApiResponse guestProduct = guest.createProduct(
+                ApiResponse guestProduct = TestMedia.create(guest,
                                 "ALICE_MARKET", "San pham cua Alice", "Buyer can also become a seller")
                         .get(8, TimeUnit.SECONDS);
                 requireSuccess(guestProduct, "buyer creates own product");
@@ -132,21 +132,20 @@ public final class AuctionManagementSelfTest {
                 ApiResponse guestExtend = guest.extendAuction(auctionId, 60)
                         .get(8, TimeUnit.SECONDS);
                 requireFailure(guestExtend, "AUCTION_FORBIDDEN", "guest cannot extend auction");
-                requireSuccess(host.extendAuction(auctionId, 60).get(8, TimeUnit.SECONDS),
-                        "host extends auction");
+                requireFailure(host.extendAuction(auctionId, 60).get(8, TimeUnit.SECONDS),
+                        "AUCTION_HAS_BIDS", "host cannot extend after bidding starts");
 
-                requireSuccess(host.kickUser(auctionId, "alice").get(8, TimeUnit.SECONDS),
-                        "host kicks guest");
-                TestSupport.check(kickedEvent.await(3, TimeUnit.SECONDS), "guest receives kicked event");
+                requireFailure(host.kickUser(auctionId, "alice").get(8, TimeUnit.SECONDS),
+                        "CANNOT_KICK_BIDDER", "host cannot kick an accepted bidder");
                 ApiResponse rejoin = guest.join(auctionId).get(8, TimeUnit.SECONDS);
-                requireFailure(rejoin, "USER_BLOCKED_FROM_AUCTION", "kicked guest cannot rejoin");
+                requireSuccess(rejoin, "bidder remains allowed in room");
 
                 ApiResponse cancelWithBid = host.cancelAuction(auctionId).get(8, TimeUnit.SECONDS);
                 requireFailure(cancelWithBid, "AUCTION_HAS_BIDS", "auction with bids cannot cancel");
-                requireSuccess(host.endAuction(auctionId).get(8, TimeUnit.SECONDS),
-                        "host manually ends auction");
+                requireFailure(host.endAuction(auctionId).get(8, TimeUnit.SECONDS),
+                        "AUCTION_HAS_BIDS", "host cannot close early after a bid");
 
-                ApiResponse inactiveProduct = host.createProduct(
+                ApiResponse inactiveProduct = TestMedia.create(host,
                                 "INACTIVE_TEST", "San pham an", "OP02 soft delete")
                         .get(8, TimeUnit.SECONDS);
                 requireSuccess(inactiveProduct, "create product for deactivate");
@@ -161,7 +160,7 @@ public final class AuctionManagementSelfTest {
                         .get(8, TimeUnit.SECONDS);
                 requireFailure(inactiveCreate, "PRODUCT_INACTIVE", "inactive product cannot auction");
 
-                ApiResponse cancelProduct = host.createProduct(
+                ApiResponse cancelProduct = TestMedia.create(host,
                                 "CANCEL_TEST", "San pham huy", "Auction cancellation test")
                         .get(8, TimeUnit.SECONDS);
                 requireSuccess(cancelProduct, "create cancel product");

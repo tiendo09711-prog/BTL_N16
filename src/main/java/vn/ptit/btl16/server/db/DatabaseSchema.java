@@ -20,6 +20,9 @@ public final class DatabaseSchema {
     }
 
     public static void dropDatabase(JdbcConnectionFactory factory) {
+        if (factory.getConfig().isEmbeddedDatabase()) {
+            throw new IllegalStateException("Embedded database reset is not supported by the MySQL reset command");
+        }
         String name = factory.getConfig().getDbName();
         try (Connection connection = factory.openMysqlServer();
              Statement statement = connection.createStatement()) {
@@ -30,6 +33,9 @@ public final class DatabaseSchema {
     }
 
     private static void createDatabase(JdbcConnectionFactory factory) {
+        if (factory.getConfig().isEmbeddedDatabase()) {
+            return;
+        }
         String name = factory.getConfig().getDbName();
         String sql = "CREATE DATABASE IF NOT EXISTS `" + name
                 + "` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci";
@@ -110,6 +116,7 @@ public final class DatabaseSchema {
                     current_winner_id BIGINT NULL,
                     start_time DATETIME(3) NOT NULL,
                     end_time DATETIME(3) NOT NULL,
+                    hard_end_time DATETIME(3) NOT NULL,
                     status VARCHAR(16) NOT NULL,
                     ended_at DATETIME(3) NULL,
                     version BIGINT NOT NULL DEFAULT 0,
@@ -184,6 +191,22 @@ public final class DatabaseSchema {
             statement.executeUpdate(users);
             statement.executeUpdate(loginHistory);
             statement.executeUpdate(products);
+            statement.executeUpdate("""
+                    CREATE TABLE IF NOT EXISTS product_media (
+                        media_id VARCHAR(36) PRIMARY KEY,
+                        product_id BIGINT NOT NULL,
+                        kind VARCHAR(8) NOT NULL,
+                        original_name VARCHAR(150) NOT NULL,
+                        source_type VARCHAR(80) NOT NULL,
+                        stored_bytes BIGINT NOT NULL,
+                        width INT NOT NULL,
+                        height INT NOT NULL,
+                        duration_seconds DOUBLE NOT NULL,
+                        sort_order INT NOT NULL,
+                        CONSTRAINT fk_media_product FOREIGN KEY(product_id) REFERENCES products(product_id),
+                        INDEX idx_media_product(product_id, sort_order)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                    """);
             statement.executeUpdate(auctions);
             statement.executeUpdate(bids);
             statement.executeUpdate(results);
@@ -194,8 +217,15 @@ public final class DatabaseSchema {
     }
 
     private static void upgradeAuctionManagementSchema(JdbcConnectionFactory factory) {
+        if (factory.getConfig().isEmbeddedDatabase()) {
+            return;
+        }
         try (Connection connection = factory.openDatabase();
              Statement statement = connection.createStatement()) {
+            addColumnIfMissing(connection, statement, "auctions", "hard_end_time", "DATETIME(3) NULL");
+            statement.executeUpdate("UPDATE auctions SET hard_end_time = DATE_ADD(end_time, INTERVAL "
+                    + vn.ptit.btl16.server.auction.service.AuctionRules.MAX_AUTO_EXTENSION_SECONDS
+                    + " SECOND) WHERE hard_end_time IS NULL");
             addColumnIfMissing(connection, statement, "products", "created_by", "BIGINT NULL");
             addColumnIfMissing(connection, statement, "products", "active", "BOOLEAN NOT NULL DEFAULT TRUE");
             addColumnIfMissing(

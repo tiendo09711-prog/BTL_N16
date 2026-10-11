@@ -37,6 +37,7 @@ public final class AuctionPanel extends JPanel {
     private final JButton addProductButton = new JButton("Them san pham");
     private final JButton editProductButton = new JButton("Sua san pham");
     private final JButton deactivateProductButton = new JButton("An san pham");
+    private final JButton restoreProductButton = new JButton("Khoi phuc mat hang");
     private final JButton createAuctionButton = new JButton("Tao phong");
     private final JButton profileButton = new JButton("Ho so");
     private final JButton logoutButton = new JButton("Dang xuat");
@@ -81,6 +82,7 @@ public final class AuctionPanel extends JPanel {
         managementActions.add(addProductButton);
         managementActions.add(editProductButton);
         managementActions.add(deactivateProductButton);
+        managementActions.add(restoreProductButton);
         managementActions.add(createAuctionButton);
         managementActions.add(profileButton);
         managementActions.add(logoutButton);
@@ -287,6 +289,7 @@ public final class AuctionPanel extends JPanel {
         addProductButton.setEnabled(!busy);
         editProductButton.setEnabled(!busy);
         deactivateProductButton.setEnabled(!busy);
+        restoreProductButton.setEnabled(!busy);
         createAuctionButton.setEnabled(!busy);
         profileButton.setEnabled(!busy);
         logoutButton.setEnabled(!busy);
@@ -314,6 +317,9 @@ public final class AuctionPanel extends JPanel {
     public void onEditProduct(ActionListener listener) { editProductButton.addActionListener(listener); }
     public void onDeactivateProduct(ActionListener listener) {
         deactivateProductButton.addActionListener(listener);
+    }
+    public void onRestoreProduct(ActionListener listener) {
+        restoreProductButton.addActionListener(listener);
     }
     public void onCreateAuction(ActionListener listener) { createAuctionButton.addActionListener(listener); }
     public void onProfile(ActionListener listener) { profileButton.addActionListener(listener); }

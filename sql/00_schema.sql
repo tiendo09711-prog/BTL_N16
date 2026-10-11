@@ -58,6 +58,21 @@ CREATE TABLE IF NOT EXISTS products (
         FOREIGN KEY(created_by) REFERENCES users(user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS product_media (
+    media_id VARCHAR(36) PRIMARY KEY,
+    product_id BIGINT NOT NULL,
+    kind VARCHAR(8) NOT NULL,
+    original_name VARCHAR(150) NOT NULL,
+    source_type VARCHAR(80) NOT NULL,
+    stored_bytes BIGINT NOT NULL,
+    width INT NOT NULL,
+    height INT NOT NULL,
+    duration_seconds DOUBLE NOT NULL,
+    sort_order INT NOT NULL,
+    INDEX idx_product_media_order(product_id, sort_order),
+    CONSTRAINT fk_product_media_product FOREIGN KEY(product_id) REFERENCES products(product_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS auctions (
     auction_id BIGINT PRIMARY KEY AUTO_INCREMENT,
     host_user_id BIGINT NOT NULL,
@@ -68,6 +83,7 @@ CREATE TABLE IF NOT EXISTS auctions (
     current_winner_id BIGINT NULL,
     start_time DATETIME(3) NOT NULL,
     end_time DATETIME(3) NOT NULL,
+    hard_end_time DATETIME(3) NOT NULL,
     status VARCHAR(16) NOT NULL,
     ended_at DATETIME(3) NULL,
     version BIGINT NOT NULL DEFAULT 0,

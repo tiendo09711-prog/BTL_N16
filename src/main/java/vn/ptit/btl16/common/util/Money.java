@@ -5,7 +5,7 @@ import java.math.RoundingMode;
 import java.text.DecimalFormat;
 
 public final class Money {
-    private static final DecimalFormat DISPLAY = new DecimalFormat("#,##0");
+    private static final DecimalFormat DISPLAY = new DecimalFormat("#,##0.##");
 
     private Money() {
     }
@@ -18,6 +18,9 @@ public final class Money {
     }
 
     public static String wire(BigDecimal value) {
+        if (value != null && (value.precision() > 32 || Math.abs((long) value.scale()) > 32)) {
+            throw new IllegalArgumentException("Money value has excessive precision or scale");
+        }
         return value == null ? "" : value.stripTrailingZeros().toPlainString();
     }
 

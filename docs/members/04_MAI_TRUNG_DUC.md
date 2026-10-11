@@ -23,11 +23,11 @@ Chịu trách nhiệm thời gian authoritative của server, anti-sniping phố
 
 **Tick:** scheduler chạy kiểm tra mặc định 200 ms; phát countdown khoảng 1000 ms với serverNow/endTime. Client chỉ hiển thị thời gian theo server, không tự chốt winner.
 
-**Anti-sniping:** BidService đang giữ khóa, bid hợp lệ trong cửa sổ cuối mặc định 10 giây thì cộng 10 giây vào endTime cũ, lưu transaction cùng bid; event extension phản ánh kết quả thật.
+**Anti-sniping:** BidService đang giữ khóa, bid hợp lệ trong cửa sổ cuối mặc định 10 giây thì cộng tối đa 10 giây vào endTime cũ, không vượt hardEndTime. Hạn cứng bằng hạn ban đầu + 600 giây, lưu DB và dùng chung cho gia hạn host/tự động; event báo số giây thực cộng. Xem [luật hiện hành](../LUAT_DAU_GIA_BTL16.md).
 
-**Đóng đến hạn:** closeIfExpired lấy khóa runtime, kiểm tra OPEN và thời gian → repository close transaction → runtime ENDED/result → unlock → event. Host END dùng cùng cơ chế và bỏ điều kiện phải đến hạn; không tạo hai kết quả khi timer/host tranh nhau.
+**Đóng đến hạn:** closeIfExpired lấy khóa runtime, kiểm tra OPEN và thời gian → repository close transaction → runtime ENDED/result → unlock → event. Host END dùng cùng cơ chế nhưng chỉ được chốt sớm khi chưa có bid; không tạo hai kết quả khi timer/host tranh nhau.
 
-**Extend/cancel:** host sở hữu phòng mới được gọi. Extend kiểm tra trạng thái/endTime kỳ vọng; cancel chỉ khi chưa có bid và chuyển CANCELLED, không giả làm ENDED.
+**Extend/cancel:** host sở hữu phòng mới được gọi, chỉ trước bid đầu. Extend kiểm tra trạng thái/endTime kỳ vọng/hardEndTime; cancel chuyển CANCELLED, không giả làm ENDED.
 
 **Archive:** giữ phòng đóng trong retention mặc định 120 giây → AuctionManager bỏ runtime/đánh dấu tombstone → RoomManager dọn membership → AUCTION_ARCHIVED toàn hệ thống. DB auctions/bids/results không bị xóa.
 

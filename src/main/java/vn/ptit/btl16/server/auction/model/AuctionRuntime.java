@@ -22,6 +22,7 @@ public final class AuctionRuntime {
     private Long currentWinnerId;
     private String currentWinnerUsername;
     private Instant endTime;
+    private final Instant hardEndTime;
     private AuctionStatus status;
     private Instant endedAt;
     private long version;
@@ -42,6 +43,7 @@ public final class AuctionRuntime {
         this.roomPasswordSalt = snapshot.getRoomPasswordSalt();
         this.roomPasswordIterations = snapshot.getRoomPasswordIterations();
         this.endTime = snapshot.getEndTime();
+        this.hardEndTime = snapshot.getHardEndTime();
         this.status = snapshot.getStatus();
         this.endedAt = snapshot.getEndedAt();
         this.version = snapshot.getVersion();
@@ -58,6 +60,8 @@ public final class AuctionRuntime {
     public Long getCurrentWinnerIdUnsafe() { return currentWinnerId; }
     public String getCurrentWinnerUsernameUnsafe() { return currentWinnerUsername; }
     public Instant getEndTimeUnsafe() { return endTime; }
+    public Instant getHardEndTimeUnsafe() { return hardEndTime; }
+    public Instant getStartTime() { return startTime; }
     public AuctionStatus getStatusUnsafe() { return status; }
     public long getVersionUnsafe() { return version; }
 
@@ -115,7 +119,7 @@ public final class AuctionRuntime {
                     visibility,
                     roomPasswordHash,
                     roomPasswordSalt,
-                    roomPasswordIterations);
+                    roomPasswordIterations, hardEndTime);
         } finally {
             lock.unlock();
         }

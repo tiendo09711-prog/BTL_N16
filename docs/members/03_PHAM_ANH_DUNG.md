@@ -21,13 +21,13 @@ Chịu trách nhiệm tính đúng đắn khi nhiều client bid, quyền vào p
 
 ## Luồng phải tự giải thích
 
-**Bid:** lấy session từ server → parse amount → require runtime → lock → recheck membership → chặn host tự bid → OPEN/chưa hết giờ → amount ≥ currentPrice + minBidIncrement → tính anti-sniping → commitAcceptedBid → applyAcceptedBid → unlock → BID_UPDATE/outbid/extension. Exception không được làm kẹt khóa.
+**Bid:** lấy session từ server → parse amount → require runtime → lock → recheck block/membership đúng connection và user → chặn host/người dẫn đầu tự bid → OPEN/đúng thời gian → amount ≥ currentPrice + minBidIncrement → tính anti-sniping có hardEndTime → commitAcceptedBid → applyAcceptedBid → unlock → BID_UPDATE/outbid/extension. Exception không được làm kẹt khóa. Bid đầu cần giá khởi điểm + bước; xem [luật hiện hành](../LUAT_DAU_GIA_BTL16.md).
 
 **Transaction:** SELECT FOR UPDATE đối chiếu trạng thái/giá kỳ vọng, INSERT bid, UPDATE winner/price/endTime/version, COMMIT; lỗi ROLLBACK. Java lock bảo vệ RAM trong process; DB lock bảo vệ row/transaction.
 
-**Private join:** kiểm tra bị block trước khi cho dùng grant; password đúng thì session được cấp quyền. Membership thuộc connection, grant thuộc session, block lưu DB.
+**Private join:** kiểm tra bị block trước khi cho dùng grant; sau khi xác minh password phải lấy khóa auction và recheck block/thời gian/session rồi mới cấp grant + membership. Membership thuộc connection, grant thuộc session, block lưu DB. Lịch sử/RESYNC chi tiết cũng kiểm tra quyền private và block.
 
-**Kick:** host kiểm tra quyền, ghi block, revoke grant và bỏ membership. Bid phải kiểm tra membership bên trong cùng khóa, không chỉ kiểm tra trước khi chờ khóa.
+**Kick:** host kiểm tra quyền/OPEN và người bị kick chưa từng bid, ghi block, revoke grant và bỏ membership. JOIN/BID/KICK cùng khóa; bid kiểm tra cả block và membership. Không được kick người đã bị vượt giá nếu họ từng có bid hợp lệ.
 
 **Outbid:** thông báo riêng người dẫn đầu cũ qua messaging/session; update room đến cả TCP lẫn WS.
 

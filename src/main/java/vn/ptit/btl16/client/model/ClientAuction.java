@@ -19,6 +19,7 @@ public final class ClientAuction {
     private final String currentWinnerUsername;
     private final Instant startTime;
     private final Instant endTime;
+    private final Instant hardEndTime;
     private final String status;
     private final Instant endedAt;
     private final long version;
@@ -78,6 +79,18 @@ public final class ClientAuction {
             boolean hasImage,
             String imageMime,
             long imageVersion) {
+        this(auctionId, productId, productCode, productName, description, hostUserId, hostUsername,
+                startPrice, minBidIncrement, currentPrice, currentWinnerId, currentWinnerUsername,
+                startTime, endTime, status, endedAt, version, watcherCount, visibility,
+                requiresPassword, hasImage, imageMime, imageVersion, null);
+    }
+
+    public ClientAuction(long auctionId, long productId, String productCode, String productName,
+            String description, long hostUserId, String hostUsername, BigDecimal startPrice,
+            BigDecimal minBidIncrement, BigDecimal currentPrice, Long currentWinnerId,
+            String currentWinnerUsername, Instant startTime, Instant endTime, String status,
+            Instant endedAt, long version, int watcherCount, String visibility, boolean requiresPassword,
+            boolean hasImage, String imageMime, long imageVersion, Instant hardEndTime) {
         this.auctionId = auctionId;
         this.productId = productId;
         this.productCode = text(productCode);
@@ -92,6 +105,7 @@ public final class ClientAuction {
         this.currentWinnerUsername = text(currentWinnerUsername);
         this.startTime = startTime;
         this.endTime = endTime;
+        this.hardEndTime = hardEndTime;
         this.status = text(status);
         this.endedAt = endedAt;
         this.version = version;
@@ -127,7 +141,7 @@ public final class ClientAuction {
                 requiresPassword,
                 hasImage,
                 imageMime,
-                imageVersion);
+                imageVersion, hardEndTime);
     }
 
     private String text(String value) { return value == null ? "" : value; }
@@ -146,6 +160,7 @@ public final class ClientAuction {
     public String getCurrentWinnerUsername() { return currentWinnerUsername; }
     public Instant getStartTime() { return startTime; }
     public Instant getEndTime() { return endTime; }
+    public Instant getHardEndTime() { return hardEndTime; }
     public String getStatus() { return status; }
     public Instant getEndedAt() { return endedAt; }
     public long getVersion() { return version; }

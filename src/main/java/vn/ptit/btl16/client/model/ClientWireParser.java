@@ -1,5 +1,7 @@
 package vn.ptit.btl16.client.model;
 
+import vn.ptit.btl16.common.protocol.ProductRestorationStatus;
+
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -44,7 +46,8 @@ public final class ClientWireParser {
                 Boolean.parseBoolean(text(data, prefix + "requiresPassword")),
                 Boolean.parseBoolean(text(data, prefix + "hasImage")),
                 text(data, prefix + "imageMime"),
-                longValue(data, prefix + "imageVersion", 0L));
+                longValue(data, prefix + "imageVersion", 0L),
+                instant(data, prefix + "hardEndTime"));
     }
 
     public static List<ClientProduct> products(Map<String, String> data) {
@@ -71,7 +74,16 @@ public final class ClientWireParser {
                 text(data, prefix + "imageMime"),
                 text(data, prefix + "imageName"),
                 integer(data, prefix + "imageSize", 0),
-                longValue(data, prefix + "imageVersion", 0L));
+                longValue(data, prefix + "imageVersion", 0L),
+                restorationStatus(text(data, prefix + "restorationStatus")));
+    }
+
+    private static ProductRestorationStatus restorationStatus(String value) {
+        try {
+            return ProductRestorationStatus.valueOf(value);
+        } catch (IllegalArgumentException exception) {
+            return ProductRestorationStatus.UNKNOWN;
+        }
     }
 
     public static List<ClientBid> bids(Map<String, String> data) {
