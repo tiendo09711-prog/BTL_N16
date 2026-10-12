@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import test from 'node:test';
-import { applicationDetails, desktopLayout, portableLauncher, verifyJavafxLibraries } from './package-layout.mjs';
+import { applicationDetails, desktopLayout, portableArchitectures, portableLauncher, verifyJavafxLibraries } from './package-layout.mjs';
 
 test('Windows packaging keeps the existing EXE directory and config layout', () => {
   const layout = desktopLayout('server', 'win32', 'x64');
@@ -33,12 +33,22 @@ test('unsupported roles, operating systems and architectures fail before packagi
 
 test('JavaFX validation rejects Windows libraries and mixed Mac architectures', () => {
   for (const classifier of ['mac', 'mac-aarch64']) {
-    const libraries = ['base', 'graphics', 'controls'].map(module => `javafx-${module}-21.0.4-${classifier}.jar`);
+    const libraries = ['base', 'graphics', 'controls', 'media'].map(module => `javafx-${module}-21.0.4-${classifier}.jar`);
     assert.doesNotThrow(() => verifyJavafxLibraries([...libraries, 'javafx-controls-21.0.4.jar'], classifier));
     assert.throws(() => verifyJavafxLibraries(libraries.slice(1), classifier), /Missing JavaFX/);
+    assert.throws(() => verifyJavafxLibraries(libraries.slice(0, -1), classifier), /Missing JavaFX media/);
     assert.throws(() => verifyJavafxLibraries([...libraries, 'javafx-graphics-21.0.4-win.jar'], classifier), /Mixed/);
     const other = classifier === 'mac' ? 'mac-aarch64' : 'mac';
     assert.throws(() => verifyJavafxLibraries([...libraries, `javafx-graphics-21.0.4-${other}.jar`], classifier), /Mixed/);
+  }
+});
+
+test('portable packaging can select only Intel without changing the default architectures', () => {
+  assert.deepEqual(portableArchitectures([]), ['arm64', 'x64']);
+  assert.deepEqual(portableArchitectures(['--arch=x64']), ['x64']);
+  assert.deepEqual(portableArchitectures(['--arch=arm64']), ['arm64']);
+  for (const args of [['--arch=ia32'], ['--arch'], ['--unknown'], ['--arch=x64', '--arch=arm64']]) {
+    assert.throws(() => portableArchitectures(args), /Usage:/);
   }
 });
 

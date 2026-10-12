@@ -1,11 +1,14 @@
+import { createHash } from 'node:crypto';
 import { chmodSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { buildProject, projectRoot, runCommand } from './dev-utils.mjs';
 import { removeBuildDirectory } from './package-apps.mjs';
-import { applicationDetails, mainJar, portableLauncher, verifyJavafxLibraries } from './package-layout.mjs';
+import { applicationDetails, mainJar, portableArchitectures, portableLauncher, verifyJavafxLibraries } from './package-layout.mjs';
 
+const architectures = portableArchitectures(process.argv.slice(2));
 await buildProject();
-for (const architecture of ['arm64', 'x64']) {
+for (const architecture of architectures) {
+  const checksums = [];
   const classifier = architecture === 'arm64' ? 'mac-aarch64' : 'mac';
   const dependencies = path.join(projectRoot, 'target', `macos-${architecture}-dependency`);
   removeBuildDirectory(dependencies);
@@ -18,8 +21,11 @@ for (const architecture of ['arm64', 'x64']) {
     const folderName = `${appName}-macOS-${architecture}-portable`;
     const destination = path.join(projectRoot, 'dist', folderName);
     const configPath = path.join(destination, 'config', 'server.properties');
+    const mediaBin = architecture === 'x64' ? '/usr/local/bin' : '/opt/homebrew/bin';
     const serverConfig = role === 'server'
-      ? readFileSync(existsSync(configPath) ? configPath : path.join(projectRoot, 'config', 'server.properties'))
+      ? (existsSync(configPath) ? readFileSync(configPath, 'utf8')
+        : readFileSync(path.join(projectRoot, 'config', 'server.properties'), 'utf8')
+          + `\nmedia.ffmpeg=${mediaBin}/ffmpeg\nmedia.ffprobe=${mediaBin}/ffprobe\n`)
       : null;
     removeBuildDirectory(destination);
     mkdirSync(path.join(destination, 'app'), { recursive: true });
@@ -39,13 +45,18 @@ for (const architecture of ['arm64', 'x64']) {
       + `Extract the WHOLE archive, then open ${appName}.command.\n`
       + `If executable permission was lost, open Terminal in this folder and run:\nbash ./${appName}.command\n\n`
       + (role === 'server'
-        ? 'Start a local MySQL service (XAMPP or another installation). Edit config/server.properties for its port and credentials.\nAllow incoming connections to Java in macOS Firewall. Keep server open; share its current ws://IP:8890/ws address.\n'
+        ? 'Start a local MySQL service (XAMPP or another installation). Edit config/server.properties for its port and credentials.\n'
+          + `For image/video uploads, install macOS FFmpeg and ffprobe. The default tool paths are ${mediaBin}/ffmpeg and ${mediaBin}/ffprobe.\n`
+          + 'If installed elsewhere, set media.ffmpeg and media.ffprobe in config/server.properties to the actual absolute paths.\n'
+          + 'Allow incoming connections to Java in macOS Firewall on ports 8890 and 8891. Keep server open; share its current ws://IP:8890/ws address.\n'
         : 'No MySQL, Maven or Node.js is required. Paste the address from the running server, then connect.\n')
       + '\nWindows and macOS clients/servers use the same network protocol. No fixed server IP.\n'
       + 'For a native .app with Java included, build the source ON macOS with npm run dist.\n', 'utf8');
     const archive = path.join(projectRoot, 'dist', `${folderName}.tar.gz`);
     await runCommand('tar', ['-czf', archive, '-C', path.join(projectRoot, 'dist'), folderName],
       `Archive ${folderName}`);
+    checksums.push(`${createHash('sha256').update(readFileSync(archive)).digest('hex')}  ${path.basename(archive)}`);
     console.log(`[DIST] Ready: ${archive}`);
   }
+  writeFileSync(path.join(projectRoot, 'dist', `SHA256SUMS-macOS-${architecture}.txt`), checksums.join('\n') + '\n');
 }

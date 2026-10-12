@@ -29,7 +29,7 @@ export function desktopLayout(role, platform, architecture) {
 }
 
 export function verifyJavafxLibraries(files, classifier) {
-  for (const module of ['base', 'graphics', 'controls']) {
+  for (const module of ['base', 'graphics', 'controls', 'media']) {
     if (!files.some(file => file.startsWith(`javafx-${module}-`) && file.endsWith(`-${classifier}.jar`))) {
       throw new Error(`Missing JavaFX ${module} native library for ${classifier}`);
     }
@@ -39,6 +39,16 @@ export function verifyJavafxLibraries(files, classifier) {
   if (foreign.length) {
     throw new Error(`Mixed JavaFX platforms in package: ${foreign.join(', ')}`);
   }
+}
+
+export function portableArchitectures(args) {
+  if (args.length === 0) {
+    return ['arm64', 'x64'];
+  }
+  if (args.length !== 1 || !['--arch=arm64', '--arch=x64'].includes(args[0])) {
+    throw new Error('Usage: node tools/package-mac-portable.mjs [--arch=arm64|--arch=x64]');
+  }
+  return [args[0].slice('--arch='.length)];
 }
 
 export function portableLauncher(role, architecture) {

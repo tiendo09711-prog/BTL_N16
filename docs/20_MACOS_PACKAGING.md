@@ -10,6 +10,14 @@ Tại thư mục source, cài JDK 17+, Maven, Node.js 20+ và công cụ `tar`, 
 npm run dist:mac:portable
 ```
 
+Để chỉ tạo một cặp client/server cho **Mac Intel (x64)**, chạy:
+
+```text
+npm run dist:mac:intel
+```
+
+Lệnh này không tạo bản ARM và không ghi đè EXE Windows. Hai archive Intel kèm file `SHA256SUMS-macOS-x64.txt` nằm trong `dist/`.
+
 Lệnh build Java và tải riêng thư viện JavaFX gốc cho từng kiến trúc Mac; không sao chép thư viện JavaFX Windows sang Mac. Kết quả trong `dist/`:
 
 | Gói `.tar.gz` | Máy nhận |
@@ -50,6 +58,8 @@ bash ./BTL16-Auction-Server.command
 Các lệnh `New-NetFirewallRule`/`Test-NetConnection` là dành cho Windows, không chạy trên Mac. Có thể kiểm tra cổng từ Terminal Mac bằng `nc -vz IP_MAY_SERVER 8890`.
 
 Script đóng gói giữ lại cấu hình server trong thư mục output nếu đã tồn tại. Kiểm tra/xóa thông tin DB riêng tư trước khi chia sẻ gói server; chỉ gửi gói client cho người mua/bán.
+
+Server cần FFmpeg và ffprobe cho chức năng tải ảnh/video. Cấu hình mới mặc định trỏ đến `/usr/local/bin/ffmpeg` và `/usr/local/bin/ffprobe` trên Intel (`/opt/homebrew/bin` trên ARM). Nếu công cụ nằm ở nơi khác, sửa `media.ffmpeg` và `media.ffprobe` trong `config/server.properties` thành đường dẫn tuyệt đối thực tế. Client không cần cài FFmpeg. Cho phép cổng 8891 cho media bên cạnh cổng WebSocket 8890, chỉ trên mạng tin cậy.
 
 ## 2. Bản `.app` có Java đi kèm: build trên Mac
 
