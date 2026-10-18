@@ -39,7 +39,7 @@ public final class MediaSystemSelfTest {
         Path directory = Files.createTempDirectory("btl16-media-jdbc-").toRealPath();
         String database = "btl16_verify_media_" + UUID.randomUUID().toString().replace("-", "");
         Path settings = directory.resolve("server.properties");
-        Files.writeString(settings, "db.driver=org.h2.Driver\ndb.name=" + database + "\ndb.user=sa\ndb.password=\ndb.autoInitialize=false\nmedia.port=0\n");
+        Files.writeString(settings, "db.driver=org.h2.Driver\ndb.name=" + database + "\ndb.user=sa\ndb.password=\ndb.autoInitialize=false\nmedia.port=0\nmedia.imageMaxPixels=24000000\n");
         System.setProperty("btl16.server.config", settings.toString()); System.setProperty("btl16.dataDir", directory.toString());
         try {
             ServerConfig config = ServerConfig.loadDefault();

@@ -18,6 +18,7 @@ import javafx.stage.Window;
 import vn.ptit.btl16.client.model.ClientProduct;
 import vn.ptit.btl16.client.service.ProductMediaApi;
 import vn.ptit.btl16.common.fx.DesktopTheme;
+import vn.ptit.btl16.common.media.ImageFormats;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -97,7 +98,7 @@ public final class ProductMediaEditor {
             if (error != null) { message.setText(ProductMediaApi.message(error)); return; }
             draft = id; if (closed) { api.cancel(id); return; }
             api.limits().whenComplete((body, failure) -> Platform.runLater(() -> {
-                if (failure == null && !closed) { limits.setText("JPEG, PNG, BMP, GIF, TIFF, WebP \u00b7 \u1ea3nh \u2264 " + (body.path("imageBytes").asLong() >> 20) + " MiB; video \u2264 " + (body.path("videoBytes").asLong() >> 20) + " MiB / " + body.path("videoSeconds").asInt() + " gi\u00e2y"); }
+                if (failure == null && !closed) { limits.setText(ImageFormats.LABEL + " \u00b7 \u1ea3nh \u2264 " + (body.path("imageBytes").asLong() >> 20) + " MiB / " + body.path("imagePixels").asLong() / 1_000_000 + " MP; video \u2264 " + (body.path("videoBytes").asLong() >> 20) + " MiB / " + body.path("videoSeconds").asInt() + " gi\u00e2y"); }
             }));
             if (product == null) { message.setText(""); refresh(); }
             else {
@@ -114,9 +115,9 @@ public final class ProductMediaEditor {
 
     private FileChooser chooser(String kind) {
         FileChooser chooser = new FileChooser(); chooser.setTitle(kind.equals("IMAGE") ? "Ch\u1ecdn \u1ea3nh s\u1ea3n ph\u1ea9m" : "Ch\u1ecdn video");
-        chooser.getExtensionFilters().add(kind.equals("IMAGE") ? new FileChooser.ExtensionFilter("JPEG, PNG, BMP, GIF, TIFF, WebP", "*.jpg", "*.jpeg", "*.png", "*.bmp", "*.gif", "*.tif", "*.tiff", "*.webp")
+        chooser.getExtensionFilters().add(kind.equals("IMAGE") ? new FileChooser.ExtensionFilter(ImageFormats.LABEL, ImageFormats.chooserPatterns())
                 : new FileChooser.ExtensionFilter("MP4, MOV, WebM, MKV, AVI", "*.mp4", "*.mov", "*.webm", "*.mkv", "*.avi"));
-        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("T\u1ea5t c\u1ea3 t\u1ec7p", "*.*")); return chooser;
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("T\u1ea5t c\u1ea3 t\u1ec7p", "*")); return chooser;
     }
     private void choose(String kind, boolean replace) {
         if (draft == null || busy) { return; }

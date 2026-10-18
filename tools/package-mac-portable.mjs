@@ -21,11 +21,9 @@ for (const architecture of architectures) {
     const folderName = `${appName}-macOS-${architecture}-portable`;
     const destination = path.join(projectRoot, 'dist', folderName);
     const configPath = path.join(destination, 'config', 'server.properties');
-    const mediaBin = architecture === 'x64' ? '/usr/local/bin' : '/opt/homebrew/bin';
     const serverConfig = role === 'server'
       ? (existsSync(configPath) ? readFileSync(configPath, 'utf8')
-        : readFileSync(path.join(projectRoot, 'config', 'server.properties'), 'utf8')
-          + `\nmedia.ffmpeg=${mediaBin}/ffmpeg\nmedia.ffprobe=${mediaBin}/ffprobe\n`)
+        : readFileSync(path.join(projectRoot, 'config', 'server.properties'), 'utf8'))
       : null;
     removeBuildDirectory(destination);
     mkdirSync(path.join(destination, 'app'), { recursive: true });
@@ -46,12 +44,15 @@ for (const architecture of architectures) {
       + `If executable permission was lost, open Terminal in this folder and run:\nbash ./${appName}.command\n\n`
       + (role === 'server'
         ? 'Start a local MySQL service (XAMPP or another installation). Edit config/server.properties for its port and credentials.\n'
-          + `For image/video uploads, install macOS FFmpeg and ffprobe. The default tool paths are ${mediaBin}/ffmpeg and ${mediaBin}/ffprobe.\n`
-          + 'If installed elsewhere, set media.ffmpeg and media.ffprobe in config/server.properties to the actual absolute paths.\n'
+          + 'For image/video uploads, install FFmpeg 8+ and ffprobe once (Homebrew: brew install ffmpeg). Media tools are NOT bundled.\n'
+          + 'The server discovers bundled tools, /opt/homebrew/bin, /usr/local/bin and PATH automatically.\n'
+          + 'If an older config has incorrect media.ffmpeg/media.ffprobe paths, remove those two lines to enable discovery, or correct the paths.\n'
           + 'Allow incoming connections to Java in macOS Firewall on ports 8890 and 8891. Keep server open; share its current ws://IP:8890/ws address.\n'
         : 'No MySQL, Maven or Node.js is required. Paste the address from the running server, then connect.\n')
       + '\nWindows and macOS clients/servers use the same network protocol. No fixed server IP.\n'
       + 'For a native .app with Java included, build the source ON macOS with npm run dist.\n', 'utf8');
+    cpSync(path.join(projectRoot, 'docs', '23_ANH_VIDEO_SAN_PHAM.md'), path.join(destination, '23_ANH_VIDEO_SAN_PHAM.md'));
+    cpSync(path.join(projectRoot, 'docs', '24_KIEM_THU_TOAN_BO.md'), path.join(destination, '24_KIEM_THU_TOAN_BO.md'));
     const archive = path.join(projectRoot, 'dist', `${folderName}.tar.gz`);
     await runCommand('tar', ['-czf', archive, '-C', path.join(projectRoot, 'dist'), folderName],
       `Archive ${folderName}`);

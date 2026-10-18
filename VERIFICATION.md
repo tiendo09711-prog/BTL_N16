@@ -1,4 +1,54 @@
-# VERIFICATION – Kiểm tra ngày 07/09/2026
+# VERIFICATION - Kết quả mới nhất: 18/10/2026
+
+## Kiểm tra lại toàn bộ dist sau khi tiếp tục context - 18/10/2026
+
+Bản sửa đăng sản phẩm/tải ảnh của lượt trước đã có trong tất cả sáu gói phân phối. Lượt này kiểm tra lại trực tiếp tệp bàn giao, không chỉ dựa vào kết quả cũ hoặc mã nguồn.
+
+### Đối chiếu toàn bộ bản phân phối
+
+- Windows: `dist/BTL16-Auction-Server.exe`, `dist/BTL16-Auction-Client.exe` và hai thư mục app-image. Toàn bộ **248 tệp server / 242 tệp client** khớp SHA-256 với payload tương ứng bên trong EXE.
+- Mac: đủ client/server cho `arm64` và `x64`, cả bốn `.tar.gz` lẫn bốn thư mục portable trong `dist/`. Danh sách và SHA-256 **từng tệp** khớp giữa archive và thư mục giải nén; JAR ứng dụng trùng bản Windows, JavaFX đúng classifier, cấu hình media không chứa đường dẫn Windows và giới hạn ảnh là 64 MP.
+- JAR bàn giao khớp cả **172 class/resource production đã biên dịch**. Đã bổ sung các phép kiểm tra này vào `npm run test:bundles`, để bản giải nén cũ hoặc EXE chưa cập nhật không lọt qua chỉ vì archive còn đúng.
+- Sửa hướng dẫn LAN trong `README.md` và `docs/19_MULTI_MACHINE_AND_PACKAGING.md`: phải thông cả TCP **8890 và 8891**. Mở được WebSocket không có nghĩa kênh ảnh/video đã thông. Không tự thay đổi firewall của máy người dùng.
+- Đồng bộ hướng dẫn kiểm thử vào `dist/` và cả bốn gói Mac, tạo lại archive và checksum Mac. Không thay đổi JAR, EXE, cấu hình server hoặc dữ liệu người dùng trong lượt tiếp tục này.
+
+### Kết quả chạy lại
+
+- PASS `npm run test:full`: **8/8 nhóm**, gồm luồng sản phẩm/ảnh, nút JavaFX, luật đấu giá, tranh chấp bid, hết hạn thật và khởi động lại. Bằng chứng: `target/qa/results.json`.
+- PASS `node tools/run-tests.mjs --ui --packaged --skip-build`: **7/7 nhóm**, bằng runtime/JAR/native đóng gói Windows. Bằng chứng: `target/qa-packaged/results.json`.
+- PASS `npm run test:bundles` với đối chiếu toàn bộ tệp vừa bổ sung. Log: `target/qa-bundles.log`.
+- PASS chạy lại `tools/smoke-windows-bundles.ps1`: hai EXE thật mở ngoài workspace khi không có Java trên PATH; tải HEIC, ba client WebSocket, bid cạnh tranh và giữ dữ liệu sau mở lại server. Log: `target/qa-exe-smoke.log`; dữ liệu thử riêng tại `target/bundle-smoke-e8f21415a2ce474d8eaa60b36f14ecea`.
+
+**Giới hạn vẫn giữ nguyên:** chưa chạy GUI/codec trên Mac thật và chưa thử LAN giữa nhiều máy vật lý. Server Mac cần FFmpeg/ffprobe 8+ cài riêng; gói portable còn cần JDK 17+ đúng kiến trúc và MySQL. Không cam kết mọi phiên bản hệ điều hành hoặc mọi tệp ảnh; tệp hỏng, SVG/RAW và ảnh vượt quota vẫn bị từ chối. MySQL riêng đã PASS trong lượt trước, không chạy lại hay sửa DB production ở lượt tiếp tục này.
+
+## Tải ảnh đa nền tảng và kiểm thử hành trình - 18/10/2026
+
+Môi trường thực thi: Windows x64, Temurin JDK 26.0.1, JavaFX 21.0.4, FFmpeg/ffprobe 8.1.2; mã Java vẫn biên dịch với `--release 17`. Các mục ngày cũ được giữ làm lịch sử, không thay cho kết quả mới này.
+
+### Sửa lỗi và đóng gói
+
+- Tái hiện được lỗi HEIC bằng test tệp thật trước khi sửa. Server mới nhận HEIC/HEIF, AVIF, JPEG 2000, ICO/PNM bên cạnh JPEG/JFIF, PNG/APNG, BMP, GIF, TIFF và WebP. Nhận diện nội dung thật, không tin phần mở rộng/MIME. Video đổi tên ảnh, SVG và dữ liệu hỏng vẫn bị từ chối.
+- HEIC điện thoại dạng 48 ô được ghép thành ảnh 4032x3024 đầy đủ; không lấy một ô 512 px làm cả ảnh. Kiểm tra quota bằng toàn bộ lưới. Ngưỡng mặc định tăng từ 24 lên 64 MP, có test PNG 48 MP; thu nhỏ trước compositing để giảm RAM, đầu ra JPEG thống nhất cho JavaFX Windows/Mac.
+- Bộ lọc chọn ảnh nhận cả đuôi viết hoa trên Mac. Server tự dò công cụ đóng gói, Homebrew và PATH khi không cấu hình đường dẫn riêng; vẫn ưu tiên cấu hình/JVM property rõ ràng. Không chép EXE native Windows vào `.app` Mac.
+- Khóa nút tự nâng giá khi đang dẫn đầu; khóa kết thúc/hủy/gia hạn thủ công sau bid. Kiểm thử cả trạng thái mở lại quyền bid khi bị vượt giá. Luật chặn ở server vẫn giữ nguyên, kể cả client cũ gửi yêu cầu trái luật.
+- Tạo lại hai EXE Windows và bốn archive Mac portable (client/server x Intel/Apple Silicon). Runtime Windows có launcher Java để kiểm thử chính runtime đóng gói; JAR/native/checksum và không kèm dữ liệu người dùng được audit bằng `npm run test:bundles`. Gói Mac vẫn cần JDK 17+ đúng kiến trúc; **server Mac cần FFmpeg/ffprobe 8+ cài riêng**.
+
+### Kết quả đã thực thi
+
+- PASS `npm run test:full`: 8/8 nhóm, gồm compile, 8 test Node, toàn bộ self-test core và 5 JVM giao diện độc lập. Bằng chứng: `target/qa/results.json` và log từng nhóm.
+- PASS `node tools/run-tests.mjs --ui --packaged --skip-build`: 7/7 nhóm (bỏ compile vì đã compile thành công), chạy lại core và cả 5 JVM UI bằng chính Java/JAR/native của gói server Windows. Module-path chỉ chứa JavaFX, không để JAR ứng dụng chiếm package của fixture test. Bằng chứng: `target/qa-packaged/results.json`. Đây là lượt chạy cuối sau khi sửa race chờ nút kết nối sẵn sàng trong test; các log thử lỗi cũ không phải kết quả bàn giao.
+- PASS hành trình WebSocket + HTTP + H2 thật: đăng ký/đăng nhập, tải HEIC, lưu sản phẩm, tạo phòng riêng/mật khẩu/tìm kiếm, bid/outbid/kick, rời/vào lại, resume session, bid đồng thời, chờ hết hạn một phút thật, đúng người thắng/giá/lịch sử, khởi động lại và giữ dữ liệu. Thêm test hủy/kết thúc phòng chưa có bid, cap gia hạn 600 giây, restore hàng chưa bán và cấm đấu giá lại hàng đã bán.
+- PASS nút client thực: kết nối, đăng ký/đăng nhập, tạo phòng/gia hạn/kick, tìm kiếm/xóa lọc/làm mới, vào/đặt giá/lịch sử/rời phòng, hồ sơ/đổi mật khẩu/đăng xuất, hủy/kết thúc. PASS nút server: copy địa chỉ/mã vào clipboard, xác nhận tạm dừng, dừng/khởi động lại và còn tài khoản. Nội dung clipboard trước test được khôi phục.
+- PASS editor/gallery thực: HEIC lưới + AVIF, upload nhiều tệp, lưu, cover/order, crop/xoay/reset, zoom/fit, video playback/seek/volume/mute, toàn màn hình và hủy. FileChooser native được kiểm tra bộ lọc; test truyền tệp vào handler chung, không tự click hộp thoại chọn tệp của Windows/macOS.
+- PASS MySQL 8.4.3 trong instance tạm riêng, chỉ bind loopback và cổng ngẫu nhiên: `XamppDatabaseSelfTest`, `JdbcAuctionRulesSelfTest`, `JdbcProductRestorationSelfTest --mysql`. Chỉ tạo/xóa DB `btl16_verify_*`; instance thử đã dừng, không bật/sửa database production. Log: `target/qa-mysql.log`, `target/qa-mysql-restore.log`.
+- PASS mở cả hai **EXE tự bung thật** từ ngoài workspace, bỏ JAVA_HOME/Java khỏi PATH; server nhận HEIC 48 ô qua HTTP, ba client WebSocket và bid đồng thời. Dừng/mở lại EXE còn ảnh JPEG 4032 px, tài khoản, giá/người dẫn đầu và lịch sử. Dữ liệu thử nằm trong `target/bundle-smoke-*`, không dùng thư mục dữ liệu người dùng. Log: `target/qa-exe-smoke.log`.
+
+### Giới hạn kiểm chứng
+
+- Mac Intel và Apple Silicon mới được build/audit archive, JAR và thư viện native đúng kiến trúc trên Windows. **Chưa chạy GUI/codec trên Mac thật, chưa xác nhận mọi phiên bản macOS/Windows.** Chạy `npm run test:full` trên từng máy Mac để xác nhận runtime; không coi checksum là bằng chứng chạy được GUI.
+- Không cam kết nhận mọi tệp ảnh vô điều kiện: SVG/RAW, tệp hỏng, vượt 32 MiB/64 MP, codec không có hoặc lưới quá phức tạp vẫn bị từ chối có chủ đích. HDR, ảnh chiều sâu/không gian và mọi biến thể xoay HEIC chưa được kiểm chứng đầy đủ.
+- JavaFX/JDK hiện tại có cảnh báo native-access/Unsafe và đôi lúc lookup CSS; không giấu các cảnh báo trong log. Chưa kiểm thử LAN/firewall nhiều máy vật lý, Internet/TLS, mất điện hay toàn bộ media streaming/migration trên MySQL. Thanh toán/giao nhận không nằm trong luật ứng dụng.
+- Hướng dẫn chạy lại và ma trận phạm vi: `docs/24_KIEM_THU_TOAN_BO.md`. Đây là kiểm thử chức năng/rule/regression trong phạm vi ghi rõ, không phải cam kết tuyệt đối không còn lỗi.
 
 ## Nâng cấp ảnh/video và hai EXE JavaFX - 11/10/2026
 

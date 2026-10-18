@@ -94,10 +94,29 @@ public final class MediaUiSelfTest {
             fx(()->{pane.select(1);pane.imagePane().zoom(2);gallery.setFullScreenExitHint("");gallery.setFullScreen(true);return null;});
             waitFor(gallery::isFullScreen,"fullscreen gallery");fx(()->{gallery.setFullScreen(false);return null;});snapshot(gallery,"viewer-media-gallery.png");
             fx(()->{gallery.close();return null;});
+            Path heic = directory.resolve("PHONE.HEIC");
+            try (var input = MediaUiSelfTest.class.getResourceAsStream("/media/tiled-phone.heic")) { Files.copy(input, heic); }
+            Path avif = directory.resolve("browser.avif");
+            MediaSystemSelfTest.tool(media.config().ffmpeg(), "-f", "lavfi", "-i", "testsrc2=size=160x100:rate=1", "-frames:v", "1", "-c:v", "libaom-av1", "-cpu-used", "8", "-still-picture", "1", avif.toString());
+            ProductMediaEditor modern = fx(() -> { ProductMediaEditor value = new ProductMediaEditor(null, api, null, () -> { }); value.show(); return value; });
+            waitFor(() -> field(modern, "draft") != null, "modern image editor gets draft");
+            fx(() -> { ((TextField) field(modern, "code")).setText("UI_MODERN"); ((TextField) field(modern, "name")).setText("Phone and browser images");
+                ((TextArea) field(modern, "description")).setText(TestMedia.DESCRIPTION);
+                invoke(modern, "addFiles", new Class<?>[]{List.class, String.class, boolean.class}, List.of(heic.toFile(), avif.toFile()), "IMAGE", false); return null; });
+            waitFor(() -> ready(modern, 2), "HEIC grid and AVIF upload through actual editor");
+            MediaGalleryPane modernPreview = fx(() -> (MediaGalleryPane) field(modern, "preview"));
+            waitFor(() -> modernPreview.imagePane().getImage() != null && modernPreview.imagePane().getImage().getProgress() == 1
+                    && !modernPreview.imagePane().getImage().isError(), "JavaFX displays canonical JPEG from a tiled HEIC");
+            fx(() -> { modernPreview.select(1); return null; });
+            waitFor(() -> modernPreview.imagePane().getImage() != null && modernPreview.imagePane().getImage().getProgress() == 1
+                    && !modernPreview.imagePane().getImage().isError(), "JavaFX displays canonical JPEG from AVIF");
+            fx(() -> { ((Button) field(modern, "save")).fire(); return null; });
+            waitFor(() -> !((Stage) field(modern, "stage")).isShowing(), "modern images save through real UI button");
+            TestSupport.equals(2, repository.findProductsByOwner(1).size(), "modern product is committed with its media");
             ProductMediaEditor cancelled=fx(()->{ProductMediaEditor value=new ProductMediaEditor(null,api,null,()->{});value.show();return value;});
             waitFor(()->field(cancelled,"draft")!=null,"cancel editor ready");
             fx(()->{invoke(cancelled,"addFiles",new Class<?>[]{List.class,String.class,boolean.class},List.of(directory.resolve("large.png").toFile()),"IMAGE",false);((Stage)field(cancelled,"stage")).close();return null;});
-            Thread.sleep(1200);TestSupport.equals(1,repository.findProductsByOwner(1).size(),"cancelled editor never saves a partial product");
+            Thread.sleep(1200);TestSupport.equals(2,repository.findProductsByOwner(1).size(),"cancelled editor never saves a partial product");
             System.out.println("[PASS] MediaUiSelfTest: multi-select/cover/order, real upload + FX heartbeat, lazy preview, zoom/fit, drag crop/rotation/reset, muted video playback/seek/volume, gallery/fullscreen/save/cancel");
         } finally {
             fx(()->{heartbeat.stop();new ArrayList<>(javafx.stage.Window.getWindows()).forEach(window->window.hide());return null;}); media.close();Platform.exit();

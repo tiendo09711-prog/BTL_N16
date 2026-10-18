@@ -46,6 +46,7 @@ public final class DesktopLanSelfTest {
         Files.writeString(properties, """
                 server.tcp.enabled=false
                 server.websocket.port=0
+                media.port=0
                 db.driver=org.h2.Driver
                 db.name=auction
                 db.user=sa

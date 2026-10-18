@@ -11,6 +11,7 @@ public final class AllSelfTests {
         SessionManagerSelfTest.run();
         ServerAddressesSelfTest.run();
         DatabaseConfigSelfTest.run();
+        MediaConfigurationSelfTest.run();
         AuctionRulesSelfTest.run();
         ProductRestorationSelfTest.run();
         JdbcProductRestorationSelfTest.run();
@@ -19,7 +20,9 @@ public final class AllSelfTests {
         AuctionManagementSelfTest.run();
         WebSocketUpgradeSelfTest.run();
         DesktopLanSelfTest.run();
+        ImageCompatibilitySelfTest.run();
         MediaSystemSelfTest.run();
+        AuctionJourneySelfTest.run();
         System.out.println("====================================");
         System.out.println("ALL SELF-TESTS PASSED");
         System.out.println("====================================");

@@ -4,6 +4,8 @@ import vn.ptit.btl16.common.config.AppProperties;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 
 public record MediaConfig(Path root, Path ffmpeg, Path ffprobe, int port, long imageBytes, long videoBytes,
                           long imagePixels, long videoPixels, long storageBytes, long productBytes,
@@ -34,12 +36,12 @@ public record MediaConfig(Path root, Path ffmpeg, Path ffprobe, int port, long i
         String suffix = System.getProperty("os.name").startsWith("Windows") ? ".exe" : "";
         Path tools = application.resolve("tools/media");
         return new MediaConfig(root.toAbsolutePath().normalize(),
-                Path.of(System.getProperty("btl16.ffmpeg", properties.get("media.ffmpeg", tools.resolve("ffmpeg" + suffix).toString()))),
-                Path.of(System.getProperty("btl16.ffprobe", properties.get("media.ffprobe", tools.resolve("ffprobe" + suffix).toString()))),
+                resolveTool(properties, "ffmpeg", tools, suffix),
+                resolveTool(properties, "ffprobe", tools, suffix),
                 isolated ? 0 : properties.getInt("media.port", 8891, 0, 65535),
                 properties.getLong("media.imageMaxBytes", 32L << 20, 1024, 1L << 30),
                 properties.getLong("media.videoMaxBytes", 200L << 20, 1024, 4L << 30),
-                properties.getLong("media.imageMaxPixels", 24_000_000L, 100, 100_000_000L),
+                properties.getLong("media.imageMaxPixels", 64_000_000L, 100, 100_000_000L),
                 properties.getLong("media.videoMaxPixels", 8_500_000L, 100, 100_000_000L),
                 properties.getLong("media.storageMaxBytes", 5L << 30, 1L << 20, 1L << 44),
                 properties.getLong("media.productMaxBytes", 400L << 20, 1024, 8L << 30),
@@ -47,5 +49,23 @@ public record MediaConfig(Path root, Path ffmpeg, Path ffprobe, int port, long i
                 properties.getInt("media.videoMaxSeconds", 180, 1, 3600),
                 properties.getInt("media.detailMaxEdge", 4096, 512, 8192),
                 properties.getInt("media.workers", 2, 1, 8));
+    }
+
+    private static Path resolveTool(AppProperties properties, String name, Path tools, String suffix) {
+        String configured = System.getProperty("btl16." + name, properties.get("media." + name, ""));
+        if (!configured.isBlank()) { return Path.of(configured).toAbsolutePath().normalize(); }
+        List<Path> candidates = new ArrayList<>(List.of(tools.resolve(name + suffix)));
+        if (System.getProperty("os.name").startsWith("Mac")) {
+            candidates.add(Path.of("/opt/homebrew/bin", name));
+            candidates.add(Path.of("/usr/local/bin", name));
+        }
+        String environment = System.getenv("PATH");
+        if (environment != null) {
+            for (String folder : environment.split(java.util.regex.Pattern.quote(java.io.File.pathSeparator))) {
+                if (!folder.isBlank()) { candidates.add(Path.of(folder).resolve(name + suffix)); }
+            }
+        }
+        return candidates.stream().filter(path -> Files.isRegularFile(path) && Files.isExecutable(path))
+                .findFirst().orElse(candidates.get(0)).toAbsolutePath().normalize();
     }
 }

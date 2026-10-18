@@ -59,7 +59,7 @@ Các lệnh `New-NetFirewallRule`/`Test-NetConnection` là dành cho Windows, kh
 
 Script đóng gói giữ lại cấu hình server trong thư mục output nếu đã tồn tại. Kiểm tra/xóa thông tin DB riêng tư trước khi chia sẻ gói server; chỉ gửi gói client cho người mua/bán.
 
-Server cần FFmpeg và ffprobe cho chức năng tải ảnh/video. Cấu hình mới mặc định trỏ đến `/usr/local/bin/ffmpeg` và `/usr/local/bin/ffprobe` trên Intel (`/opt/homebrew/bin` trên ARM). Nếu công cụ nằm ở nơi khác, sửa `media.ffmpeg` và `media.ffprobe` trong `config/server.properties` thành đường dẫn tuyệt đối thực tế. Client không cần cài FFmpeg. Cho phép cổng 8891 cho media bên cạnh cổng WebSocket 8890, chỉ trên mạng tin cậy.
+Server cần FFmpeg **8 trở lên** và ffprobe cho chức năng tải ảnh/video (`brew install ffmpeg`). Công cụ media chưa được đóng gói trong bản Mac. Khi không cấu hình đường dẫn riêng, server tự tìm công cụ đi kèm, `/opt/homebrew/bin`, `/usr/local/bin`, rồi `PATH`, kể cả khi mở `.command` từ Finder. Nếu gói cũ còn `media.ffmpeg`/`media.ffprobe` trỏ sai nơi, xóa hai dòng này để bật tự dò, hoặc sửa thành đường dẫn tuyệt đối thực tế. Client không cần cài FFmpeg. Cho phép cổng 8891 cho media bên cạnh cổng WebSocket 8890, chỉ trên mạng tin cậy.
 
 ## 2. Bản `.app` có Java đi kèm: build trên Mac
 

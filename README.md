@@ -53,6 +53,8 @@ Maven tự tải JDBC **MySQL Connector/J 8.4.0** từ `pom.xml`; không cần c
 
 Chạy riêng server: `npm run dev:server`; mở thêm client: `npm run client`; kiểm thử: `npm test`. Tạo lại hai EXE sau khi sửa code: `npm run dist` (JDK cần có `jpackage`).
 
+Kiểm thử cả nút JavaFX, tải HEIC/AVIF và hành trình đấu giá đến hết hạn thật: `npm run test:full`. Kiểm tra tất cả gói Mac/Windows: `npm run test:bundles`; kiểm thử lại bằng runtime/JAR đóng gói Windows: `npm run test:dist`. Log và JSON nằm trong `target/qa/` hoặc `target/qa-packaged/`. Chi tiết phạm vi và phần chưa kiểm chứng: [docs/24_KIEM_THU_TOAN_BO.md](docs/24_KIEM_THU_TOAN_BO.md).
+
 Đọc code theo [docs/00_BAT_DAU.md](docs/00_BAT_DAU.md), setup chi tiết tại [docs/05_CACH_CHAY_VSCODE_XAMPP.md](docs/05_CACH_CHAY_VSCODE_XAMPP.md); nhiệm vụ từng người nằm trong [docs/members](docs/members).
 
 ## 5. Hướng dẫn sử dụng server, client
@@ -60,7 +62,7 @@ Chạy riêng server: `npm run dev:server`; mở thêm client: `npm run client`;
 **Máy server**
 1. Bật MySQL trong XAMPP. Kiểm tra `dist/BTL16-Auction-Server/app/config/server.properties`, nhất là `db.port` và mật khẩu; cấu hình này độc lập với file trong source và được giữ khi đóng gói lại.
 2. Mở `BTL16-Auction-Server.exe`, chọn IP LAN cùng mạng với client, bấm **Sao chep dia chi** và gửi địa chỉ cho các bạn.
-3. Cho phép inbound TCP **8890** (hoặc cổng WebSocket đã cấu hình) trên mạng Private của Windows Firewall. Không mở cổng MySQL cho client. Giữ cửa sổ server mở khi sử dụng.
+3. Cho phép inbound TCP **8890 và 8891** (WebSocket và ảnh/video; đổi theo cấu hình nếu cần) trên mạng Private của Windows Firewall. Nếu chỉ mở 8890, client có thể đăng nhập nhưng không đăng sản phẩm có ảnh được. Không mở cổng MySQL cho client. Giữ cửa sổ server mở khi sử dụng.
 
 **Máy client**
 1. Mở `BTL16-Auction-Client.exe`, dán địa chỉ `ws://IP_SERVER:8890/ws`, bấm **Kết nối**. Nếu chạy cùng máy server, dùng `ws://127.0.0.1:8890/ws`.

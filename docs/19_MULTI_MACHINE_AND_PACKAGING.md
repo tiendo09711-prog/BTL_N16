@@ -67,6 +67,7 @@ Server bind:
 ```text
 TCP       0.0.0.0:8888
 WebSocket 0.0.0.0:8890/ws
+Media HTTP 0.0.0.0:8891
 ```
 
 Windows Firewall inbound:
@@ -74,6 +75,7 @@ Windows Firewall inbound:
 ```text
 TCP 8888 - legacy/test
 TCP 8890 - JavaFX WebSocket
+TCP 8891 - product image/video upload and download
 ```
 
 Không mở MySQL 3306 cho máy client. Client chỉ kết nối Java server.
@@ -118,10 +120,11 @@ Tunnel không phải dependency bắt buộc. LAN phải chạy độc lập.
 
 Runtime Java được đóng gói sẵn; MySQL vẫn là dịch vụ riêng trên server. Bộ Windows phải được build trên Windows và dùng trên máy tương thích với kiến trúc runtime được đóng gói. Không gửi bộ server chứa cấu hình database cho máy client.
 
-Firewall cần cho phép cổng WebSocket trên máy server; ứng dụng không tự thay đổi firewall hay yêu cầu quyền Administrator. Sau khi mở server, kiểm tra từ một máy client bằng PowerShell:
+Firewall cần cho phép cả cổng WebSocket và cổng ảnh/video trên máy server; ứng dụng không tự thay đổi firewall hay yêu cầu quyền Administrator. Chỉ mở 8890 có thể đăng nhập nhưng vẫn lỗi đăng sản phẩm có ảnh. Sau khi mở server, kiểm tra từ một máy client bằng PowerShell:
 
 ```powershell
 Test-NetConnection IP_MAY_SERVER -Port 8890
+Test-NetConnection IP_MAY_SERVER -Port 8891
 ```
 
 Cần `TcpTestSucceeded : True`, rồi thử hai client cùng vào một phòng, bid và kiểm tra cập nhật realtime. Cùng Wi-Fi nhưng mạng guest/AP isolation vẫn có thể chặn kết nối giữa các máy.
@@ -136,7 +139,7 @@ Cần `TcpTestSucceeded : True`, rồi thử hai client cùng vào một phòng,
 - Với mạng LAN tin cậy đã đặt Private, có thể mở PowerShell **Run as administrator** và tạo rule giới hạn mạng con nội bộ (đổi cổng nếu cấu hình khác):
 
 ```powershell
-New-NetFirewallRule -DisplayName "BTL16 WebSocket LAN" -Direction Inbound -Action Allow -Protocol TCP -LocalPort 8890 -Profile Private -RemoteAddress LocalSubnet
+New-NetFirewallRule -DisplayName "BTL16 Auction LAN" -Direction Inbound -Action Allow -Protocol TCP -LocalPort 8890,8891 -Profile Private -RemoteAddress LocalSubnet
 ```
 
 Sau khi sửa source, cần đóng gói lại bằng `npm run dist:client` rồi gửi lại **nguyên thư mục** `dist/BTL16-Auction-Client`. EXE đã gửi trước đó không tự nhận bản sửa. Không cần đóng gói lại server nếu chỉ cập nhật luồng kết nối client.

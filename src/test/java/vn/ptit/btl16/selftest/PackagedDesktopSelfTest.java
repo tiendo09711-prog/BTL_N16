@@ -5,12 +5,20 @@ import vn.ptit.btl16.client.network.WebSocketClientTransport;
 import vn.ptit.btl16.client.service.AccountApi;
 import vn.ptit.btl16.client.service.ApiResponse;
 import vn.ptit.btl16.client.service.AuctionApi;
+import vn.ptit.btl16.client.service.ProductMediaApi;
 import vn.ptit.btl16.common.protocol.MessageType;
 
 import java.math.BigDecimal;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.io.ByteArrayInputStream;
+import javax.imageio.ImageIO;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Properties;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -27,7 +35,7 @@ public final class PackagedDesktopSelfTest {
             Properties state = new Properties();
             try (var stream = Files.newInputStream(stateFile)) { state.load(stream); }
             try (var host = client(endpoint)) {
-                ok(new AccountApi(host).login("packaged_host", "Password123!"));
+                ApiResponse identity = ok(new AccountApi(host).login("packaged_host", "Password123!"));
                 AuctionApi api = new AuctionApi(host);
                 var products = ClientWireParser.products(ok(api.myProducts()).getWireMessage().getData());
                 TestSupport.equals(1, products.size(), "packaged product survives process restart");
@@ -37,20 +45,33 @@ public final class PackagedDesktopSelfTest {
                 TestSupport.check(new BigDecimal("110000").compareTo(auctions.get(0).getCurrentPrice()) == 0, "packaged price persists");
                 TestSupport.equals(1, ClientWireParser.bids(ok(api.history(Long.parseLong(state.getProperty("room"))))
                         .getWireMessage().getData()).size(), "packaged bid history persists");
+                ProductMediaApi media = media(endpoint, api, identity.get("sessionToken"));
+                var manifest = media.manifest(Long.parseLong(state.getProperty("product")), 0).get(10, TimeUnit.SECONDS);
+                var image = manifest.path("media").get(0);
+                TestSupport.equals(4032, image.path("width").asInt(), "packaged HEIC grid width persists after restart");
+                byte[] detail = HttpClient.newHttpClient().send(HttpRequest.newBuilder(URI.create(media.url(image.path("detail").asText()))).GET().build(), HttpResponse.BodyHandlers.ofByteArray()).body();
+                TestSupport.equals(4032, ImageIO.read(new ByteArrayInputStream(detail)).getWidth(), "packaged HTTP serves the persisted HEIC-derived JPEG");
             }
             System.out.println("[PASS] Single-file packaged server restart preserves accounts, products, prices, winner and history");
             return;
         }
         TestSupport.equals("create", args[1], "supported smoke-test mode");
         try (var host = client(endpoint); var first = client(endpoint); var second = client(endpoint)) {
-            register(host, "packaged_host");
+            ApiResponse identity = register(host, "packaged_host");
             register(first, "packaged_buyer1");
             register(second, "packaged_buyer2");
             AuctionApi hostApi = new AuctionApi(host);
             AuctionApi firstApi = new AuctionApi(first);
             AuctionApi secondApi = new AuctionApi(second);
-            ApiResponse product = ok(TestMedia.create(hostApi, "PACKAGED_01", "Portable runtime test", ""));
-            ApiResponse room = ok(hostApi.createAuction(Long.parseLong(product.get("productId")),
+            ProductMediaApi media = media(endpoint, hostApi, identity.get("sessionToken"));
+            Path photo = stateFile.toAbsolutePath().getParent().resolve("PHONE.HEIC");
+            try (var input = PackagedDesktopSelfTest.class.getResourceAsStream("/media/tiled-phone.heic")) { Files.copy(input, photo); }
+            String draft = media.begin(0).get(10, TimeUnit.SECONDS);
+            var uploaded = media.upload(draft, photo, "IMAGE", progress -> { }).get(30, TimeUnit.SECONDS);
+            TestSupport.equals(4032, uploaded.path("width").asInt(), "single-file server decodes every HEIC tile using bundled native tools");
+            long product = media.commit(draft, "PACKAGED_01", "Portable runtime test", TestMedia.DESCRIPTION,
+                    List.of(uploaded.path("id").asText())).get(10, TimeUnit.SECONDS).path("productId").asLong();
+            ApiResponse room = ok(hostApi.createAuction(product,
                     new BigDecimal("100000"), new BigDecimal("10000"), 5));
             long roomId = Long.parseLong(room.get("auctionId"));
             ok(firstApi.join(roomId));
@@ -66,6 +87,7 @@ public final class PackagedDesktopSelfTest {
             TestSupport.check(updates.await(10, TimeUnit.SECONDS), "packaged realtime broadcasting");
             Properties state = new Properties();
             state.setProperty("room", Long.toString(roomId));
+            state.setProperty("product", Long.toString(product));
             state.setProperty("winner", resultOne.isSuccess() ? "packaged_buyer1" : "packaged_buyer2");
             try (var stream = Files.newOutputStream(stateFile)) { state.store(stream, null); }
         }
@@ -78,10 +100,16 @@ public final class PackagedDesktopSelfTest {
         return transport;
     }
 
-    private static void register(WebSocketClientTransport transport, String username) throws Exception {
+    private static ApiResponse register(WebSocketClientTransport transport, String username) throws Exception {
         AccountApi api = new AccountApi(transport);
         ok(api.register(username, "Password123!", username, "", ""));
-        ok(api.login(username, "Password123!"));
+        return ok(api.login(username, "Password123!"));
+    }
+
+    private static ProductMediaApi media(String endpoint, AuctionApi api, String token) throws Exception {
+        URI address = URI.create(endpoint);
+        URI base = new URI("http", null, address.getHost(), Integer.parseInt(ok(api.mediaEndpoint()).get("mediaPort")), "/", null, null);
+        return new ProductMediaApi(base, () -> token);
     }
 
     private static ApiResponse ok(CompletableFuture<ApiResponse> future) throws Exception {

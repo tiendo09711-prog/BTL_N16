@@ -12,11 +12,12 @@
 
 ## Định dạng đã kiểm chứng
 
-- Ảnh tĩnh: JPEG, PNG, BMP, GIF, TIFF và WebP. Kiểm thử bằng tệp thật được giải mã, không dùng header giả. GIF dùng khung đầu; TIFF dùng trang đầu; chưa cam kết phát ảnh động hoặc xem nhiều trang TIFF.
+- Ảnh: JPEG/JFIF/JPE, PNG/APNG, BMP, GIF, TIFF, WebP, HEIC/HEIF, AVIF, JPEG 2000, ICO và PNM. Có test tệp HEIC thật, HEIC điện thoại 4032x3024 ghép từ 48 ô, AVIF/JP2/ICO/PPM sinh bằng encoder thật; không chỉ kiểm tra header hay đuôi tệp. GIF/APNG dùng khung đầu; TIFF dùng trang đầu; chưa cam kết phát ảnh động hoặc xem nhiều trang TIFF.
 - JPEG có EXIF hướng xoay đã được thử; hướng được chuẩn hóa trước xoay/cắt. PNG trong suốt được đặt trên nền trắng, không thành nền đen. Ảnh lớn được thu vừa, giữ tỷ lệ; bản chi tiết tối đa cạnh 4096 px, thumbnail tối đa cạnh 360 px, đều là JPEG riêng biệt.
 - Video: MP4/MOV với MPEG-4 + AAC, WebM với VP9 + Opus, MKV/AVI với MPEG-4 + AAC đã được thử. Server nhận diện container/luồng thật bằng ffprobe và giải mã lại; đổi đuôi hoặc MIME không làm tệp lỗi thành hợp lệ. Không cam kết mọi codec trong mọi container.
 - Video được chuyển sang MP4 H.264/AAC, yuv420p, tối đa 1920x1080, 30 fps, fast-start; không tự cắt ngắn video để lách giới hạn thời lượng. Đã kiểm tra phát, tua và điều chỉnh âm lượng bằng JavaFX MediaPlayer thật trên máy Windows hiện tại.
-- SVG, HEIC/HEIF, AVIF và ảnh RAW chưa được hỗ trợ trong luồng ảnh này; cần chuyển sang định dạng đã hỗ trợ. Các biến thể định dạng khác, HDR, màu in chuyên nghiệp và mọi thiết bị ghi hình thực tế chưa được kiểm chứng đầy đủ.
+- HEIC dạng lưới được ghép đủ ảnh trước khi thu nhỏ, không lấy nhầm một ô 512 px làm cả ảnh; kiểm tra tổng kích thước lưới để không lách quota. Tên viết hoa, tên không có đuôi hoặc đuôi sai không quyết định bộ giải mã. Tệp được chuẩn hóa thành JPEG để client Windows và Mac không phải tự giải mã HEIC/AVIF bằng JavaFX.
+- Không thể cam kết nhận mọi tệp mang tên ảnh: SVG/RAW, dữ liệu hỏng, codec không có trong FFmpeg hoặc tệp vượt quota vẫn bị từ chối. Các biến thể HDR, ảnh chiều sâu/không gian, màu in chuyên nghiệp, mọi hướng xoay của HEIC và mọi thiết bị ghi hình thực tế chưa được kiểm chứng đầy đủ. Giữ giới hạn tài nguyên để tránh làm treo server.
 
 ## Giới hạn và cấu hình
 
@@ -27,7 +28,7 @@ Cấu hình trong file server đang dùng (bản desktop: `app/config/server.pro
 | `media.port` | 8891 | HTTP media, tách khỏi WebSocket 8890; 0 dùng cổng động trong test |
 | `media.imageMaxBytes` | 33554432 | 32 MiB mỗi ảnh nguồn |
 | `media.videoMaxBytes` | 209715200 | 200 MiB mỗi video nguồn |
-| `media.imageMaxPixels` | 24000000 | 24 triệu điểm ảnh nguồn |
+| `media.imageMaxPixels` | 64000000 | 64 triệu điểm ảnh nguồn/lưới; có test PNG điện thoại 48 MP |
 | `media.videoMaxPixels` | 8500000 | 8,5 triệu điểm ảnh mỗi khung nguồn |
 | `media.videoMaxSeconds` | 180 | Tối đa ba phút; kiểm tra cả đầu vào và đầu ra |
 | `media.processingTimeoutSeconds` | 180 | Hạn tải một tệp và mỗi bước xử lý native |
@@ -37,6 +38,10 @@ Cấu hình trong file server đang dùng (bản desktop: `app/config/server.pro
 | `media.workers` | 2 | Số tệp tải/xử lý đồng thời, cấu hình 1-8 |
 
 Kích thước tối thiểu của đầu vào là 2x2. Mỗi phiên đăng nhập có tối đa ba bản nháp, toàn server 64; bản nháp hết hạn sau một giờ. Một bản nháp được giữ tối đa 12 tệp trung gian để thay/chỉnh, nhưng khi lưu vẫn kiểm tra 1-5 ảnh và tối đa một video, không trùng tham chiếu. Hãy xóa tệp không dùng nếu vượt ngân sách bản nháp.
+
+Server Windows kèm FFmpeg/ffprobe trong gói. Server Mac cần cài FFmpeg 8+ và ffprobe một lần (`brew install ffmpeg`); client Mac không cần. Nếu không đặt `media.ffmpeg`/`media.ffprobe`, server tự tìm công cụ đóng gói, `/opt/homebrew/bin`, `/usr/local/bin`, rồi `PATH`. Nếu bản cũ có đường dẫn sai, xóa hai dòng này để tự dò hoặc sửa thành đường dẫn đúng. Không dùng tệp `.exe` Windows trên Mac. Bản cài cũ giữ cấu hình riêng; nếu vẫn có ngưỡng 24 MP, đổi `media.imageMaxPixels=64000000` trong file cấu hình server đang dùng rồi khởi động lại.
+
+Kiểm thử đầy đủ và giới hạn kiểm chứng: [24_KIEM_THU_TOAN_BO.md](24_KIEM_THU_TOAN_BO.md).
 
 Trước xử lý, server dự trữ ngân sách bằng `media.productMaxBytes` cho mỗi worker và kiểm tra dung lượng trống ổ đĩa (chừa thêm 64 MiB). Đây là dự trữ bảo thủ: có thể từ chối tệp nhỏ khi phần kho còn lại không đủ cả ngân sách, thay vì làm đầy đĩa giữa chuyển đổi. Nên cấu hình giới hạn toàn kho lớn hơn ngân sách mỗi worker. Giới hạn điểm ảnh được truyền cả vào ffprobe/FFmpeg trước giải mã. Đầu ra native bị giám sát dung lượng và thời gian; stdout/stderr được đọc đồng thời qua pipe có giới hạn, tránh log tăng vô hạn và lỗi Windows giữ khóa tệp log.
 

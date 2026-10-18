@@ -47,7 +47,7 @@ export async function packageApplications(roles) {
   if (process.platform === 'win32') {
     cpSync(path.join(projectRoot, 'docs', '22_HAI_UNG_DUNG_JAVAFX.md'),
       path.join(projectRoot, 'dist', 'HUONG_DAN.md'));
-    for (const guide of ['23_ANH_VIDEO_SAN_PHAM.md', 'LUAT_DAU_GIA_BTL16.docx']) {
+    for (const guide of ['23_ANH_VIDEO_SAN_PHAM.md', '24_KIEM_THU_TOAN_BO.md', 'LUAT_DAU_GIA_BTL16.docx']) {
       cpSync(path.join(projectRoot, 'docs', guide), path.join(projectRoot, 'dist', guide));
     }
     const bundles = readdirSync(path.join(projectRoot, 'dist')).filter(file => /^BTL16-Auction-(Server|Client)\.exe$/.test(file));
@@ -87,7 +87,7 @@ async function packageApplication(role) {
         throw new Error(`Missing ${binary}; run tools/prepare-media.ps1 before packaging.`);
       }
     }
-    if (existsSync(mediaTools)) {
+    if (process.platform === 'win32' && existsSync(mediaTools)) {
       cpSync(mediaTools, path.join(staging, 'tools', 'media'), { recursive: true });
     }
     const previousConfig = path.join(appImage, layout.contentDirectory, 'config', 'server.properties');
@@ -106,6 +106,7 @@ async function packageApplication(role) {
     '--main-class', layout.mainClass,
     ...(process.platform === 'win32' ? ['--icon', path.join(projectRoot, 'config', 'auction.ico')] : []),
     '--add-modules', 'java.se,jdk.httpserver,jdk.unsupported,jdk.crypto.ec,jdk.charsets,jdk.localedata',
+    '--jlink-options', '--strip-debug --no-man-pages --no-header-files',
     '--app-version', '1.0.0', '--description', `BTL16 Auction ${role}`, '--vendor', 'PTIT BTL16',
     '--java-options', '-Dfile.encoding=UTF-8',
     ...(server
@@ -124,7 +125,7 @@ async function packageApplication(role) {
     writeFileSync(path.join(dist, `${appName}-START_HERE.txt`),
       `BTL16 macOS ${process.arch}\nOpen ${layout.imageName}. Java is included.\n`
       + (server
-        ? `Local database is included. Optional MySQL settings: ${layout.imageName}/Contents/app/config/server.properties.\nAllow incoming connections to the server in macOS Firewall; WebSocket port is 8890 by default.\nCopy the current LAN address from the dashboard to clients.\n`
+        ? `Local database is included. Optional MySQL settings: ${layout.imageName}/Contents/app/config/server.properties.\nImage/video uploads require FFmpeg 8+ and ffprobe (brew install ffmpeg); media tools are not bundled in the Mac app.\nAllow incoming connections on ports 8890 and 8891 in macOS Firewall.\nCopy the current LAN address from the dashboard to clients.\n`
         : 'Paste the current WebSocket address copied from the server. No separate Java or database installation is required.\n')
       + 'This is an unsigned local build. Only open builds whose source you trust.\n', 'utf8');
     console.log(`[DIST] Ready: ${appImage}`);

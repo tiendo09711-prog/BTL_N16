@@ -32,7 +32,7 @@ public final class DesktopUiSelfTest {
         Files.createDirectories(output);
         Path data = Files.createTempDirectory("btl16-ui-test-");
         Path config = data.resolve("server.properties");
-        Files.writeString(config, "server.tcp.enabled=false\nserver.websocket.port=0\ndb.driver=org.h2.Driver\n"
+        Files.writeString(config, "server.tcp.enabled=false\nserver.websocket.port=0\nmedia.port=0\ndb.driver=org.h2.Driver\n"
                 + "db.user=sa\ndb.name=auction\nsecurity.passwordIterations=10000\n");
         System.setProperty("btl16.server.config", config.toString());
         System.setProperty("btl16.dataDir", data.toString());

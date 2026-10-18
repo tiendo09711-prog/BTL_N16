@@ -1415,7 +1415,8 @@ public final class FxClientController implements AutoCloseable {
         boolean hosted = auction != null && auction.isHostedBy(model.getUserId());
         joinButton.setDisable(!available || joined);
         leaveButton.setDisable(model.getJoinedAuctionId() == null);
-        bidButton.setDisable(!available || !joined || hosted);
+        boolean leading = auction != null && java.util.Objects.equals(auction.getCurrentWinnerId(), model.getUserId());
+        bidButton.setDisable(!available || !joined || hosted || leading);
         bidField.setDisable(bidButton.isDisabled());
         historyButton.setDisable(auction == null);
         managementPane.setVisible(hosted);
@@ -1424,9 +1425,10 @@ public final class FxClientController implements AutoCloseable {
         detailVisibility.setVisible(auction != null);
         boolean disabled = auction == null || !auction.isOpen()
                 || !auction.isHostedBy(model.getUserId());
-        extendButton.setDisable(disabled);
-        endButton.setDisable(disabled);
-        cancelButton.setDisable(disabled);
+        boolean hasBids = auction != null && auction.getCurrentWinnerId() != null;
+        extendButton.setDisable(disabled || hasBids);
+        endButton.setDisable(disabled || hasBids);
+        cancelButton.setDisable(disabled || hasBids);
         kickButton.setDisable(disabled);
     }
 
