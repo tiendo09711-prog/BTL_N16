@@ -14,6 +14,7 @@ Quy định dành cho người bán và người tham gia đấu giá.
 ## Điều 2. Điều kiện và tư cách tham gia
 
 - Người bán và người tham gia phải có tài khoản và đăng nhập trước khi sử dụng các quyền liên quan đến đấu giá.
+- Mỗi tài khoản có ví mô phỏng với số dư ban đầu bằng 0. Người dùng chọn số tiền, tạo mã QR demo và bấm **Đã nhập** để gửi yêu cầu nạp; tiền chỉ được cộng khi người vận hành chấp nhận. Mã QR không thực hiện chuyển khoản thật. Mỗi tài khoản chỉ có một yêu cầu đang chờ; yêu cầu bị từ chối không làm tăng số dư, yêu cầu đã duyệt không được cộng lại.
 - Một người có thể là người bán ở phiên của mình và là người mua ở phiên của người khác. Tư cách người bán không tạo ra đặc quyền trả giá ở những phiên khác.
 - Chủ phiên không được trả giá cho chính mặt hàng mình đang tổ chức đấu giá. Việc theo dõi phiên hoặc điều hành phiên không làm chủ phiên trở thành người mua trong phiên đó.
 - Muốn trả giá, người tham gia phải vào đúng phiên, được phép tham gia và không bị cấm tham gia phiên đó.
@@ -62,6 +63,7 @@ Quy định dành cho người bán và người tham gia đấu giá.
 
 - Người trả giá phải đang được tham gia đúng phiên; không phải chủ phiên, không bị cấm tham gia và không đang là người dẫn đầu.
 - Phiên phải còn mở, đã bắt đầu và chưa đến thời hạn kết thúc hiện tại. Mức giá phải đáp ứng đầy đủ quy định về bước giá và giới hạn tiền.
+- Số dư khả dụng phải đủ toàn bộ mức trả giá. Khi lượt được chấp nhận, đúng số tiền đó được giữ chỗ cho phiên; tiền đang giữ ở phiên khác không được dùng lại. Khi có người khác vượt giá hợp lệ, khoản giữ chỗ của người dẫn đầu trước được giải phóng. Không đủ tiền thì lượt bị từ chối và không thay đổi phiên.
 - Người đang dẫn đầu không được tự nâng giá của mình, kể cả để kéo dài thời gian. Khi bị người khác vượt giá, họ được trả giá tiếp nếu vẫn đáp ứng các điều kiện của phiên.
 - Một lượt trả giá không được chấp nhận thì không làm thay đổi giá hiện tại, người dẫn đầu hoặc thời hạn của phiên.
 - Một lượt trả giá đã được chấp nhận không được rút lại, sửa xuống hoặc hủy theo ý muốn của người đã trả giá.
@@ -114,7 +116,9 @@ Quy định dành cho người bán và người tham gia đấu giá.
 - Khi không có lượt trả giá hợp lệ nào, phiên kết thúc mà không có người thắng. Giá khởi điểm vẫn là mức niêm yết, không được hiểu là đã có người mua hoặc đã bán thành công.
 - Phiên bị hủy hợp lệ không có người thắng. Cần phân biệt việc hủy phiên với việc kết thúc một phiên đã có người trả giá.
 - Một phiên chỉ có một kết quả được công nhận và không được mở lại để nhận thêm lượt trả giá sau khi đã đóng.
-- Việc người thắng rời phiên hoặc mất liên lạc không tự chuyển quyền thắng sang người đứng sau. Chưa có quy tắc tự chọn người thắng thay thế hoặc tự xử lý trường hợp người thắng không thanh toán.
+- Khi phiên có người thắng kết thúc, khoản giữ chỗ của người mua được dùng để thanh toán đúng giá thắng và cộng cho người bán trong cùng lần xử lý. Không tính phí trong bản demo. Một phiên không bị thu hoặc trả tiền lần thứ hai khi được kiểm tra lại. Không có người thắng thì không chuyển tiền.
+- Việc người thắng rời phiên, đăng xuất hoặc mất liên lạc không giải phóng khoản giữ chỗ, không hủy thanh toán và không chuyển quyền thắng sang người đứng sau.
+- Phòng kết thúc bị ẩn khỏi danh sách phòng đang mở. Người đang ở phòng được xem kết quả và đồng hồ đếm ngược 60 giây, sau đó tự trở về danh sách; kết quả, lịch sử và giao dịch vẫn được giữ lại.
 - Phiên không còn xuất hiện trong danh sách theo dõi không có nghĩa là các lượt trả giá đã bị rút lại hay kết quả đã bị hủy. Quyền xem lịch sử riêng tiếp tục tuân theo điều kiện về quyền xem, không trở thành công khai chỉ vì phiên đã kết thúc.
 
 ## Điều 13. Điều kiện đấu giá lại, ngừng và khôi phục mặt hàng
@@ -133,9 +137,10 @@ Quy định dành cho người bán và người tham gia đấu giá.
 ## Điều 14. Hiệu lực lượt trả giá và phạm vi cam kết
 
 - Người tham gia tự quyết định mức mình trả và phải coi lượt đã được chấp nhận là có hiệu lực trong phiên. Việc đổi ý, rời phiên hoặc gián đoạn liên lạc không phải căn cứ tự xóa lượt đó.
-- Bộ quy tắc hiện tại chỉ xác định điều kiện tham gia, mức giá hợp lệ, quyền điều hành, thời gian và kết quả đấu giá. Kết quả có người thắng không đồng nghĩa tiền đã được thu hoặc hàng đã được bàn giao.
-- Chưa có quy định thực hiện đặt cọc, thu tiền, giữ tiền, giao nhận, tính phí hoặc phạt người thắng bỏ cuộc. Không được tự trình bày các biện pháp này như những quy tắc đã có.
-- Chưa có quy trình xác minh danh tính thật, chứng minh khả năng thanh toán, giải quyết tranh chấp hoặc xử lý thông đồng giữa nhiều tài khoản. Vì vậy, việc một mức giá được chấp nhận chưa chứng minh người trả giá có đủ tiền mua hàng.
+- Tiền trong ví, nạp qua QR và thanh toán khi kết thúc phiên đều là mô phỏng phục vụ học tập. Số dư đủ chỉ chứng minh khả năng chi trả trong ví demo, không chứng minh người dùng đã nộp tiền thật hoặc hàng đã được bàn giao.
+- Chưa có quy định giao nhận, rút tiền, hoàn tiền sau khi đã thanh toán, thu phí hoặc phạt người thắng bỏ cuộc. Không được trình bày các biện pháp này như những chức năng đã có.
+- Chưa có quy trình xác minh danh tính thật, giải quyết tranh chấp hoặc xử lý thông đồng giữa nhiều tài khoản.
+- Các kết quả có từ trước khi áp dụng ví mà chưa có tiền giữ chỗ cần được đối soát riêng. Không tự tạo tiền cho người bán hoặc trừ âm ví người mua để bù cho các kết quả cũ; việc nâng cấp không xóa lịch sử của họ.
 - Người tham gia trực tiếp quyết định từng mức trả giá. Chưa có hình thức tự trả thay theo mức tối đa, mua ngay, giá dự trữ hoặc trả giá kín.
 
 ## Điều 15. Các tình huống minh họa
@@ -162,8 +167,12 @@ An đang dẫn đầu và phiên còn hai phút. Chủ phiên không được k�
 
 ### 6. Không có người trả giá và có người thắng là hai trường hợp khác nhau
 
-Nếu phiên kết thúc mà không có ai trả giá hợp lệ, mặt hàng chưa có người thắng và có thể được đấu giá lại nếu còn đủ điều kiện. Nếu Bình đã thắng một phiên kết thúc hợp lệ, người bán không được mở lại phiên hoặc mở phiên mới cho chính mặt hàng đó chỉ vì chưa nhận tiền; các vấn đề thanh toán chưa có quy trình xử lý trong bộ quy tắc hiện tại.
+Nếu phiên kết thúc mà không có ai trả giá hợp lệ, mặt hàng chưa có người thắng và có thể được đấu giá lại nếu còn đủ điều kiện. Nếu Bình đã thắng một phiên có ví hợp lệ, đúng giá thắng được chuyển từ phần giữ chỗ của Bình sang người bán. Người bán không được mở lại phiên hoặc mở phiên mới cho chính mặt hàng đã có người thắng chỉ vì hai bên chưa giao nhận hàng.
+
+### 7. Giữ chỗ và số dư khả dụng
+
+An được duyệt nạp 2.000.000 đồng. Khi dẫn đầu một phiên ở mức 1.200.000 đồng, An còn 800.000 đồng khả dụng để trả ở các phiên khác. Nếu Bình vượt giá hợp lệ, 1.200.000 đồng của An được giải phóng. Nếu An vẫn dẫn đầu khi hết phiên thì bị trừ 1.200.000 đồng, người bán được cộng đúng 1.200.000 đồng; An còn số dư 800.000 đồng. Rời phòng trước khi hết giờ không hủy cam kết này.
 
 ## Nội dung cốt lõi để trình bày
 
-Đề tài áp dụng hình thức đấu giá tăng giá trực tiếp. Người bán công bố mặt hàng, giá khởi điểm, bước giá và thời hạn; người mua cạnh tranh bằng những mức trả giá hợp lệ. Lượt đầu phải cao hơn giá khởi điểm ít nhất một bước, các lượt sau phải cao hơn giá hiện tại ít nhất một bước. Người đang dẫn đầu không được tự nâng giá, nhưng được trả tiếp sau khi bị người khác vượt. Khi đã có người trả giá hợp lệ, người bán không được chốt sớm, hủy, chủ động gia hạn hoặc loại người đã trả giá khỏi phiên. Trả giá sát giờ có thể tạo thêm thời gian phản hồi, nhưng tổng gia hạn vẫn bị giới hạn. Đến hạn, người có mức hợp lệ cao nhất thắng ở chính mức mình đã trả. Không có lượt hợp lệ thì không có người thắng. Thông tin hàng hóa được giữ nguyên sau khi đã đưa ra đấu giá, và hàng đã có người thắng không được đấu giá lại. Các vấn đề thanh toán, giao nhận và xử lý tranh chấp chưa nằm trong phạm vi quy tắc hiện có.
+Đề tài áp dụng hình thức đấu giá tăng giá trực tiếp. Người bán công bố mặt hàng, giá khởi điểm, bước giá và thời hạn; người mua cạnh tranh bằng những mức trả giá hợp lệ. Lượt đầu phải cao hơn giá khởi điểm ít nhất một bước, các lượt sau phải cao hơn giá hiện tại ít nhất một bước. Người đang dẫn đầu không được tự nâng giá, nhưng được trả tiếp sau khi bị người khác vượt. Ví ban đầu bằng 0; yêu cầu nạp QR demo chỉ được cộng sau khi người vận hành duyệt. Mỗi lượt dẫn đầu phải có đủ số dư khả dụng và được giữ chỗ toàn bộ giá. Khi đã có người trả giá hợp lệ, người bán không được chốt sớm, hủy, chủ động gia hạn hoặc loại người đã trả giá khỏi phiên. Trả giá sát giờ có thể tạo thêm thời gian phản hồi, nhưng tổng gia hạn vẫn bị giới hạn. Đến hạn, người có mức hợp lệ cao nhất thắng ở chính mức mình đã trả; tiền giữ chỗ được trừ ở người thắng và cộng cho người bán đúng một lần. Không có lượt hợp lệ thì không có người thắng hoặc chuyển tiền. Phòng đóng được ẩn, người đang xem tự trở về sàn sau 60 giây nhưng lịch sử được giữ lại. Thông tin hàng hóa được giữ nguyên sau khi đã đưa ra đấu giá, và hàng đã có người thắng không được đấu giá lại. Toàn bộ tiền là mô phỏng; thanh toán ngân hàng thật, giao nhận và xử lý tranh chấp chưa thuộc phạm vi của đề tài.

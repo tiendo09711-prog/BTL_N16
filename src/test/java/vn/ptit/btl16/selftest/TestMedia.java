@@ -13,6 +13,15 @@ import java.io.ByteArrayOutputStream;
 import java.util.concurrent.CompletableFuture;
 
 final class TestMedia {
+    static void fundWallets(vn.ptit.btl16.server.wallet.WalletRepository wallets) {
+        for (var account : wallets.accounts()) {
+            if (wallets.entries(account.userId()).isEmpty()) {
+                String id = java.util.UUID.randomUUID().toString();
+                wallets.submit(account.userId(), id, new java.math.BigDecimal("1000000000"));
+                wallets.review(id, true);
+            }
+        }
+    }
     static final String DESCRIPTION = "Study fixture: original item in good working condition, with a small visible mark on the rear cover.";
     static byte[] png() {
         try {

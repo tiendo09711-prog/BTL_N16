@@ -50,26 +50,29 @@ async function check(name, command, args, timeout = 300_000) {
 }
 
 if (!flags.has('--skip-build')) {
-  if (!await check('compile', 'mvn', ['-q', 'test-compile', 'dependency:copy-dependencies', '-DincludeScope=runtime'])) process.exit(1);
+  if (!await check('compile', 'mvn', ['-q', 'test-compile', 'dependency:copy-dependencies', '-DincludeScope=test'])) process.exit(1);
 }
 const packaged = flags.has('--packaged');
 const app = path.join(projectRoot, 'dist', 'BTL16-Auction-Server');
 const libraries = packaged ? path.join(app, 'app') : path.join(projectRoot, 'target', 'dependency');
 const classpath = [packaged ? path.join(libraries, 'btl16-realtime-auction-1.0.0.jar') : path.join(projectRoot, 'target', 'classes'),
-  path.join(projectRoot, 'target', 'test-classes'), path.join(libraries, '*')].join(path.delimiter);
+  path.join(projectRoot, 'target', 'test-classes'), path.join(libraries, '*'),
+  ...readdirSync(path.join(projectRoot, 'target', 'dependency')).filter(file => file.startsWith('h2-'))
+    .map(file => path.join(projectRoot, 'target', 'dependency', file))].join(path.delimiter);
 const java = packaged ? path.join(app, 'runtime', 'bin', 'java.exe') : 'java';
 const javafxModules = readdirSync(libraries).filter(file => file.startsWith('javafx-')
   && /-(?:win|mac(?:-aarch64)?|linux(?:-aarch64)?)\.jar$/.test(file)).map(file => path.join(libraries, file)).join(path.delimiter);
 if (packaged && !existsSync(java)) throw new Error('Build the Windows distribution first: npm run dist');
 await check('packaging-unit', 'node', ['--test', 'tools/package-layout.test.mjs', 'tools/package-windows-bundle.test.mjs']);
-await check('AllSelfTests', java, ['-cp', classpath, 'vn.ptit.btl16.selftest.AllSelfTests'], 600_000);
+await check('AllSelfTests', java, ['-Dbtl16.test.allowEmbedded=true', '-cp', classpath, 'vn.ptit.btl16.selftest.AllSelfTests'], 600_000);
 if (flags.has('--ui')) {
-  for (const test of ['AuctionButtonsUiSelfTest', 'ServerButtonsUiSelfTest', 'DesktopUiSelfTest', 'MediaUiSelfTest', 'ProductRestorationUiSelfTest']) {
-    await check(test, java, ['--module-path', javafxModules, '--add-modules', 'javafx.controls,javafx.media',
+  for (const test of ['AuctionButtonsUiSelfTest', 'ServerButtonsUiSelfTest', 'DesktopUiSelfTest', 'MediaUiSelfTest', 'ProductRestorationUiSelfTest', 'WalletUiSelfTest']) {
+    await check(test, java, ['-Dbtl16.test.allowEmbedded=true', '--module-path', javafxModules, '--add-modules', 'javafx.controls,javafx.media',
       '-cp', classpath, `vn.ptit.btl16.selftest.${test}`]);
   }
 }
 if (flags.has('--mysql')) {
+  await check('MysqlStorageSelfTest', java, ['-cp', classpath, 'vn.ptit.btl16.selftest.MysqlStorageSelfTest']);
   await check('XamppDatabaseSelfTest', java, ['-cp', classpath, 'vn.ptit.btl16.selftest.XamppDatabaseSelfTest']);
   await check('JdbcProductRestorationMySqlSelfTest', java, ['-cp', classpath, 'vn.ptit.btl16.selftest.JdbcProductRestorationSelfTest', '--mysql']);
 }

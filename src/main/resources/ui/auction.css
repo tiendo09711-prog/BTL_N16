@@ -124,3 +124,28 @@
 .titled-pane > .title { -fx-background-color: #edf2ec; -fx-padding: 10 14; -fx-background-radius: 8; }
 .titled-pane > .content { -fx-background-color: white; -fx-border-color: #e4e9e0; -fx-padding: 6; }
 .tooltip { -fx-background-color: #172b33; -fx-text-fill: white; -fx-background-radius: 6; }
+.product-editor { -fx-background-color: #eef5f4; }
+.editor-footer { -fx-padding: 14 20; -fx-background-color: white; -fx-border-color: #dce4df transparent transparent transparent; }
+.validation-hint { -fx-text-fill: #94632a; -fx-font-size: 12px; }
+.error-text { -fx-text-fill: #b44932; }
+.media-file-list { -fx-background-color: white; -fx-border-color: #dce4df; -fx-border-radius: 8; -fx-background-radius: 8; }
+.media-file-list .list-cell { -fx-padding: 9; -fx-background-color: white; }
+.media-file-list .list-cell:selected { -fx-background-color: #e0f0e9; }
+.room-product { -fx-padding: 20; -fx-spacing: 14; }
+.room-product .detail-title { -fx-font-size: 23px; }
+.room-image { -fx-background-color: linear-gradient(to bottom right, #e5eee4, #f5ecdd); -fx-background-radius: 14; }
+.bid-card { -fx-background-color: linear-gradient(to bottom right, #183d43, #162d35); -fx-background-radius: 16; -fx-padding: 22; -fx-spacing: 12; }
+.bid-card .label { -fx-text-fill: #edf5ef; }
+.bid-card .eyebrow, .bid-card .muted { -fx-text-fill: #b0cbc5; }
+.bid-card .price { -fx-font-size: 32px; -fx-text-fill: #c0e8b6; }
+.bid-card .countdown { -fx-font-size: 23px; -fx-text-fill: #ffb38e; }
+.bid-card .bid-hint { -fx-text-fill: #d6e5dc; -fx-font-size: 11px; }
+.bid-card .button.ghost { -fx-background-color: #ffffff12; -fx-border-color: #ffffff30; -fx-text-fill: #edf5ef; }
+.bid-card .button.ghost:hover { -fx-background-color: #ffffff25; }
+.bid-card .button { -fx-padding: 9 12; }
+.bid-card .text-field { -fx-text-fill: -ink; -fx-font-size: 15px; }
+.room-history { -fx-padding: 18 20; -fx-spacing: 12; }
+.bid-row { -fx-padding: 10 0; -fx-border-color: transparent transparent #e8ede6 transparent; }
+.bid-amount { -fx-text-fill: -teal; -fx-font-weight: bold; }
+.room-heading { -fx-background-color: #e7eee5; -fx-background-radius: 10; -fx-padding: 10 14; }
+.wallet-qr { -fx-background-color: white; -fx-background-radius: 12; -fx-border-color: #d5e3d9; -fx-border-radius: 12; -fx-padding: 10; }

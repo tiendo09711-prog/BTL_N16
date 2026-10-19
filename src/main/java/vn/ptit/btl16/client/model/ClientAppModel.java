@@ -82,8 +82,9 @@ public final class ClientAppModel {
         }
         for (ClientAuction previous : auctions.values()) {
             Instant observed = observedAt.get(previous.getAuctionId());
-            if (!next.containsKey(previous.getAuctionId()) && observed != null
-                    && serverNow != null && observed.isAfter(serverNow)) {
+            boolean joinedResult = java.util.Objects.equals(joinedAuctionId, previous.getAuctionId()) && !previous.isOpen();
+            if (!next.containsKey(previous.getAuctionId()) && (joinedResult || (observed != null
+                    && serverNow != null && observed.isAfter(serverNow)))) {
                 next.put(previous.getAuctionId(), previous);
             }
         }

@@ -47,6 +47,41 @@ public final class MediaUiSelfTest {
             int before = ticks.get();
             fx(() -> { invoke(editor,"addFiles",new Class<?>[]{List.class,String.class,boolean.class},List.of(directory.resolve("large.png").toFile(),directory.resolve("fixture.webp").toFile()),"IMAGE",false); return null; });
             waitFor(() -> ready(editor,2),"multi-select images finish processing without blocking JavaFX");
+            fx(() -> {
+                TextArea description = (TextArea) field(editor, "description");
+                Button save = (Button) field(editor, "save");
+                Label validation = (Label) field(editor, "validation");
+                description.setText("Oke nh\u00e9");
+                TestSupport.check(save.isDisabled(), "short description disables save even with uploaded images");
+                TestSupport.check(validation.getText().contains("7/50") && validation.getText().contains("43"), "visible explanation identifies the missing 43 characters");
+                invoke(editor, "save", new Class<?>[0]);
+                TestSupport.equals(0, repository.findProductsByOwner(1).size(), "invalid form never commits uploaded draft");
+                description.setText("  " + "\uD83C\uDF3C".repeat(49) + "  ");
+                TestSupport.check(save.isDisabled() && validation.getText().contains("49/50"), "count Unicode code points rather than UTF-16 units");
+                description.setText("\uD83C\uDF3C".repeat(50));
+                TestSupport.check(!save.isDisabled(), "exactly 50 code points enables save");
+                description.setText("x".repeat(2001)); TestSupport.check(save.isDisabled(), "description maximum is enforced");
+                description.setText(TestMedia.DESCRIPTION);
+                TextField code = (TextField) field(editor, "code");
+                code.setText("!"); TestSupport.check(save.isDisabled(), "invalid product code disables save"); code.setText("UI_MEDIA");
+                TextField name = (TextField) field(editor, "name");
+                name.setText(""); TestSupport.check(save.isDisabled(), "empty product name disables save"); name.setText("Study camera");
+                TestSupport.check(!save.isDisabled(), "valid form enables save immediately");
+                Stage window = (Stage) field(editor, "stage"); window.setWidth(1020); window.setHeight(560);
+                return null;
+            });
+            Thread.sleep(250);
+            fx(() -> {
+                Stage window = (Stage) field(editor, "stage"); Button save = (Button) field(editor, "save");
+                var bounds = save.localToScene(save.getBoundsInLocal());
+                TestSupport.check(bounds.getMinY() >= 0 && bounds.getMaxY() <= window.getScene().getHeight(), "save footer stays inside compact window");
+                MediaGalleryPane gallery = (MediaGalleryPane) field(editor, "preview");
+                Label status = (Label) field(gallery, "status");
+                TestSupport.check(gallery.imagePane().localToScene(gallery.imagePane().getBoundsInLocal()).getMinY()
+                        >= status.localToScene(status.getBoundsInLocal()).getMaxY(), "compact image preview never overlaps toolbar/status");
+                return null;
+            });
+            snapshot((Stage) field(editor, "stage"), "editor-compact-validation.png");
             TestSupport.check(ticks.get()-before>=4,"FX heartbeat continues during large image upload/conversion");
             fx(() -> { invoke(editor,"addFiles",new Class<?>[]{List.class,String.class,boolean.class},List.of(directory.resolve("fixture.mp4").toFile()),"VIDEO",false); return null; });
             waitFor(() -> ready(editor,3),"video preview uploaded before product save");

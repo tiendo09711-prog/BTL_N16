@@ -109,6 +109,7 @@ public final class JdbcProductRestorationSelfTest {
 
     static void verify(JdbcConnectionFactory factory) throws Exception {
         requireIsolated(factory);
+        TestMedia.fundWallets(new vn.ptit.btl16.server.wallet.WalletRepository(factory));
         JdbcAuctionRepository repository = new JdbcAuctionRepository(factory);
         ProductRestorationSelfTest.verify(repository, productId -> {
             try (Connection connection = factory.openDatabase(); PreparedStatement statement = connection.prepareStatement(

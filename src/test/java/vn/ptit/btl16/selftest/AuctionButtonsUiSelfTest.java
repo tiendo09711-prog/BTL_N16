@@ -75,6 +75,7 @@ public final class AuctionButtonsUiSelfTest {
             UserUi buyer = open(endpoint); users.add(buyer);
             AccountApi buyerAccount = new AccountApi(buyer.transport());
             ok(buyerAccount.register("buttons_buyer", "Password123!", "Buttons Buyer", "", "")); login(buyer, "buttons_buyer");
+            TestMedia.fundWallets(server.wallets());
             pressText(buyer, "L\u00e0m m\u1edbi"); waitFor(() -> buyer.model().auctionSnapshot().size() == 1, "refresh button loads rooms"); select(buyer, room);
             fx(() -> { ((TextField) field(buyer.controller(), "searchField")).setText("Button camera"); return null; });
             pressText(buyer, "T\u00ecm ki\u1ebfm"); waitFor(() -> table(buyer).getItems().size() == 1, "search button");
@@ -91,6 +92,7 @@ public final class AuctionButtonsUiSelfTest {
             try (var rival = new WebSocketClientTransport(endpoint, 2097152, 5000, 10000)) {
                 rival.connect().get(10, TimeUnit.SECONDS); AccountApi account = new AccountApi(rival);
                 ok(account.register("buttons_rival", "Password123!", "Rival", "", "")); ok(account.login("buttons_rival", "Password123!"));
+                TestMedia.fundWallets(server.wallets());
                 AuctionApi api = new AuctionApi(rival); ok(api.join(room)); ok(api.bid(room, new BigDecimal("120")));
                 waitFor(() -> !button(buyer, "bidButton").isDisabled(), "outbid buyer can compete again");
             }
@@ -110,6 +112,7 @@ public final class AuctionButtonsUiSelfTest {
             fx(() -> { ((TextField) field(buyer.controller(), "usernameField")).setText("buttons_buyer");
                 ((TextInputControl) field(buyer.controller(), "passwordField")).setText("NewPassword456!"); button(buyer, "loginButton").fire(); return null; });
             waitFor(() -> buyer.model().hasSessionToken(), "new password authenticates through login button");
+            press(host, "leaveButton"); waitFor(() -> host.model().getJoinedAuctionId() == null, "host leaves focused room to browse marketplace");
             for (boolean cancel : new boolean[]{true, false}) {
                 long anotherProduct = Long.parseLong(ok(TestMedia.create(hostApi, cancel ? "BUTTON_CANCEL" : "BUTTON_END", "Empty room", TestMedia.DESCRIPTION)).get("productId"));
                 long anotherRoom = Long.parseLong(ok(hostApi.createAuction(anotherProduct, new BigDecimal("100"), new BigDecimal("10"), 1)).get("auctionId"));

@@ -34,6 +34,7 @@ public final class MediaService implements AutoCloseable {
     private final SessionManager sessions;
     private final AuctionManagementService management;
     private final MediaProcessor processor;
+    private final JdbcMediaStorage databaseStorage;
     private final Path root;
     private final Semaphore workers;
     private final Object storageMutation = new Object();
@@ -51,7 +52,14 @@ public final class MediaService implements AutoCloseable {
 
     public MediaService(MediaConfig config, AuctionRepository repository, SessionManager sessions,
                         AuctionManagementService management) {
+        this(config, repository, sessions, management,
+                repository instanceof vn.ptit.btl16.server.auction.repository.JdbcAuctionRepository jdbc ? jdbc.mediaStorage() : null);
+    }
+
+    public MediaService(MediaConfig config, AuctionRepository repository, SessionManager sessions,
+                        AuctionManagementService management, JdbcMediaStorage databaseStorage) {
         this.config = config; this.repository = repository; this.sessions = sessions; this.management = management;
+        this.databaseStorage = databaseStorage;
         this.processor = new MediaProcessor(config); this.workers = new Semaphore(config.workers());
         try {
             Files.createDirectories(config.root()); root = config.root().toRealPath();
@@ -195,7 +203,11 @@ public final class MediaService implements AutoCloseable {
                     }
                     verifyFiles(media);
                 }
-                Product product = management.saveMediaProduct(session, draft.productId, code, name, description, selected);
+                Map<String, Path> folders = new LinkedHashMap<>();
+                if (databaseStorage != null) {
+                    for (ProductMedia media : selected) { folders.put(media.id(), mediaFolder(media.id(), false)); }
+                }
+                Product product = management.saveMediaProduct(session, draft.productId, code, name, description, selected, folders);
                 draft.cancelled.set(true); drafts.remove(draft.id);
                 discard(draft);
                 return product;
@@ -292,6 +304,7 @@ public final class MediaService implements AutoCloseable {
 
     public List<String> migrateLegacy() {
         List<String> failures = new ArrayList<>();
+        if (databaseStorage != null) { return failures; }
         for (long productId : repository.findLegacyImageProductIds()) {
             Path folder = null; boolean reservation = false;
             try {
@@ -334,7 +347,8 @@ public final class MediaService implements AutoCloseable {
 
     private synchronized void reserve() throws IOException {
         long used;
-        try (var files = Files.walk(root)) { used = files.filter(path -> Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)).mapToLong(path -> { try { return Files.size(path); } catch (IOException exception) { throw new java.io.UncheckedIOException(exception); } }).sum(); }
+        try (var files = Files.walk(databaseStorage == null ? root : directory("staging"))) { used = files.filter(path -> Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)).mapToLong(path -> { try { return Files.size(path); } catch (IOException exception) { throw new java.io.UncheckedIOException(exception); } }).sum(); }
+        if (databaseStorage != null) { used += databaseStorage.usedBytes(); }
         if (used + reserved + config.productBytes() > config.storageBytes() || Files.getFileStore(root).getUsableSpace() < reserved + config.productBytes() + (64L << 20)) {
             fail(ErrorCode.MEDIA_STORAGE_FULL, "Kho media/odia khong du cho tep va bien the; can sao luu va don kho an toan");
         }
@@ -362,6 +376,9 @@ public final class MediaService implements AutoCloseable {
         if (!id.matches("[a-f0-9-]{36}")) { throw new IOException("Invalid media id"); }
         Path path = directory(staged ? "staging" : "products").resolve(id);
         if (Files.isSymbolicLink(path)) { throw new IOException("Unsafe media folder"); }
+        if (!staged && databaseStorage != null) {
+            synchronized (storageMutation) { databaseStorage.materialize(id, path); }
+        }
         return path;
     }
     private void deleteTree(Path folder) throws IOException {
@@ -427,9 +444,18 @@ public final class MediaService implements AutoCloseable {
         }
         tickets.clear();
         try {
-            if (workers.tryAcquire(config.workers(), 5, TimeUnit.SECONDS)) { releaseFileLock(); workers.release(config.workers()); }
+            if (workers.tryAcquire(config.workers(), 5, TimeUnit.SECONDS)) {
+                releaseFileLock(); workers.release(config.workers());
+                if (databaseStorage != null && root.getFileName().toString().startsWith("btl16-mysql-media-")
+                        && root.getParent().equals(Path.of(System.getProperty("java.io.tmpdir")).toRealPath())) {
+                    try (var paths = Files.walk(root)) {
+                        for (Path path : paths.sorted(java.util.Comparator.reverseOrder()).toList()) { Files.deleteIfExists(path); }
+                    }
+                }
+            }
             cleanup.awaitTermination(5, TimeUnit.SECONDS);
         } catch (InterruptedException exception) { Thread.currentThread().interrupt(); }
+        catch (IOException exception) { System.err.println("[MEDIA] Temporary cache cleanup: " + exception.getMessage()); }
     }
     private static void fail(ErrorCode code, String message) { throw new AuctionException(code, message); }
     private record Ticket(String token, String mediaId, long productId, String draftId, long auctionId, Instant expires) { }

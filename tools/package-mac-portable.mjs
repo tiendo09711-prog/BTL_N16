@@ -22,7 +22,7 @@ for (const architecture of architectures) {
     const destination = path.join(projectRoot, 'dist', folderName);
     const configPath = path.join(destination, 'config', 'server.properties');
     const serverConfig = role === 'server'
-      ? (existsSync(configPath) ? readFileSync(configPath, 'utf8')
+      ? (existsSync(configPath) && /^db\.driver\s*=\s*com\.mysql\.cj\.jdbc\.Driver\s*$/m.test(readFileSync(configPath, 'utf8')) ? readFileSync(configPath, 'utf8')
         : readFileSync(path.join(projectRoot, 'config', 'server.properties'), 'utf8'))
       : null;
     removeBuildDirectory(destination);
@@ -53,6 +53,7 @@ for (const architecture of architectures) {
       + 'For a native .app with Java included, build the source ON macOS with npm run dist.\n', 'utf8');
     cpSync(path.join(projectRoot, 'docs', '23_ANH_VIDEO_SAN_PHAM.md'), path.join(destination, '23_ANH_VIDEO_SAN_PHAM.md'));
     cpSync(path.join(projectRoot, 'docs', '24_KIEM_THU_TOAN_BO.md'), path.join(destination, '24_KIEM_THU_TOAN_BO.md'));
+    cpSync(path.join(projectRoot, 'docs', '25_MYSQL_XAMPP_ONLY.md'), path.join(destination, '25_MYSQL_XAMPP_ONLY.md'));
     const archive = path.join(projectRoot, 'dist', `${folderName}.tar.gz`);
     await runCommand('tar', ['-czf', archive, '-C', path.join(projectRoot, 'dist'), folderName],
       `Archive ${folderName}`);

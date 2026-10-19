@@ -14,7 +14,7 @@ public final class MediaImagePane extends StackPane {
     private double anchorX, anchorY, dragX, dragY;
 
     public MediaImagePane() {
-        setMinSize(200, 170); setPrefSize(720, 420);
+        setMinSize(0, 0); setPrefSize(720, 420);
         setStyle("-fx-background-color: linear-gradient(to bottom right, #102b39, #1d4751); -fx-background-radius: 14;");
         image.setPreserveRatio(true); image.setSmooth(true); image.fitWidthProperty().bind(widthProperty().subtract(12)); image.fitHeightProperty().bind(heightProperty().subtract(12));
         selection.setManaged(false); selection.setFill(Color.color(0.13, 0.81, 0.7, 0.18)); selection.setStroke(Color.web("#58efd0")); selection.setStrokeWidth(2); selection.setVisible(false);

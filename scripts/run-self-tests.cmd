@@ -7,12 +7,12 @@ if errorlevel 1 (
   popd
   exit /b 1
 )
-call mvn -q test-compile dependency:copy-dependencies -DincludeScope=runtime
+call mvn -q test-compile dependency:copy-dependencies -DincludeScope=test
 if errorlevel 1 (
   popd
   exit /b 1
 )
-java -cp "target\classes;target\test-classes;target\dependency\*" vn.ptit.btl16.selftest.AllSelfTests
+java -Dbtl16.test.allowEmbedded=true -cp "target\classes;target\test-classes;target\dependency\*" vn.ptit.btl16.selftest.AllSelfTests
 set code=%errorlevel%
 popd
 exit /b %code%

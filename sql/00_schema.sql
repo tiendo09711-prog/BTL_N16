@@ -145,3 +145,12 @@ CREATE TABLE IF NOT EXISTS auction_blocked_users (
     CONSTRAINT fk_blocked_by
         FOREIGN KEY(blocked_by) REFERENCES users(user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS media_content (
+    media_id VARCHAR(36) NOT NULL,
+    variant VARCHAR(32) NOT NULL,
+    chunk_no INT NOT NULL,
+    payload LONGBLOB NOT NULL,
+    PRIMARY KEY(media_id, variant, chunk_no),
+    FOREIGN KEY(media_id) REFERENCES product_media(media_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -49,6 +49,7 @@ public final class MediaSystemSelfTest {
                 statement.executeUpdate("INSERT INTO users(user_id, username, display_name, password_hash, password_salt, password_iterations, active) VALUES "
                         + "(1, 'host', 'Host', 'test', 'test', 30000, TRUE), (2, 'buyer', 'Buyer', 'test', 'test', 30000, TRUE), (3, 'viewer', 'Viewer', 'test', 'test', 30000, TRUE)");
             }
+            TestMedia.fundWallets(new vn.ptit.btl16.server.wallet.WalletRepository(factory));
             fixtures = directory.resolve("fixtures"); Files.createDirectory(fixtures);
             MediaConfig mediaConfig = MediaConfig.load(false);
             TestSupport.check(mediaConfig.root().startsWith(directory), "refuse a media root outside isolated test data");

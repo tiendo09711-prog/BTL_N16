@@ -59,6 +59,13 @@ foreach ($role in @('Server', 'Client')) {
         if (!(Entry $payload 'app/javafx-media-21.0.4-win.jar')) { throw "Missing JavaFX Media natives: $name" }
         $databases = @($payload.Entries | Where-Object { $_.FullName -match '(\.mv\.db|\.h2\.db|\.trace\.db|\.lock\.db)$|media[\\/]products[\\/]|media[\\/]staging[\\/]' })
         if ($databases.Count -gt 0) { throw "Bundled user data: $name" }
+        if (@($payload.Entries | Where-Object { $_.FullName -match '(^|[\\/])h2-[^\\/]+\.jar$' }).Count -gt 0) { throw "H2 test driver must not ship in production: $name" }
+        if ($role -eq 'Server') {
+            $configuration = (Entry $payload 'app/config/server.properties').Open()
+            $reader = [IO.StreamReader]::new($configuration)
+            try { $text = $reader.ReadToEnd() } finally { $reader.Dispose() }
+            if ($text -notmatch '(?m)^db\.driver=com\.mysql\.cj\.jdbc\.Driver\s*$') { throw 'Server must require MySQL/XAMPP, never H2' }
+        }
         foreach ($binary in @('ffmpeg.exe', 'ffprobe.exe')) {
             $native = Entry $payload "app/tools/media/$binary"
             if ($role -eq 'Server') {

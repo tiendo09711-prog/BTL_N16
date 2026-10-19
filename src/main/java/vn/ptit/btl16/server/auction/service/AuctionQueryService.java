@@ -22,7 +22,7 @@ public final class AuctionQueryService {
     }
 
     public List<AuctionSnapshot> listAuctions() {
-        return auctions.snapshots();
+        return auctions.snapshots().stream().filter(value -> value.getStatus() == vn.ptit.btl16.server.auction.model.AuctionStatus.OPEN).toList();
     }
 
     public List<AuctionSnapshot> searchAuctions(String rawMode, String rawQuery) {
@@ -33,7 +33,7 @@ public final class AuctionQueryService {
                     vn.ptit.btl16.common.protocol.ErrorCode.INVALID_SEARCH_QUERY,
                     "Tu khoa tim kiem phai co 1-100 ky tu");
         }
-        List<AuctionSnapshot> values = auctions.snapshots();
+        List<AuctionSnapshot> values = listAuctions();
         return switch (mode) {
             case "PRODUCT_NAME" -> {
                 String normalized = query.toLowerCase(Locale.ROOT);

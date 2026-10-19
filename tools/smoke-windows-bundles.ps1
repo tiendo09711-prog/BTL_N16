@@ -1,5 +1,15 @@
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
+$serverConfig = Join-Path $root 'dist\BTL16-Auction-Server\app\config\server.properties'
+if ((Test-Path -LiteralPath $serverConfig) -and (Get-Content -LiteralPath $serverConfig -Raw) -match '(?m)^db\.driver=com\.mysql\.cj\.jdbc\.Driver\s*$') {
+    Write-Output '[INFO] MySQL-only build: the legacy H2 EXE smoke cannot isolate data with btl16.dataDir. Running packaged-runtime tests with disposable MySQL databases instead; production EXEs/database are not launched by this helper.'
+    Push-Location -LiteralPath $root
+    try {
+        & node tools/run-tests.mjs --ui --mysql --packaged
+        $result = $LASTEXITCODE
+    } finally { Pop-Location }
+    exit $result
+}
 $java = (Get-Command java -ErrorAction Stop).Source
 $cacheRoot = Join-Path $env:LOCALAPPDATA 'BTL16\DesktopApps'
 $data = Join-Path $root ('target\bundle-smoke-' + [Guid]::NewGuid().ToString('N'))

@@ -17,6 +17,8 @@ public final class DatabaseSchema {
         createDatabase(factory);
         createTables(factory);
         upgradeAuctionManagementSchema(factory);
+        vn.ptit.btl16.server.media.JdbcMediaStorage.initialize(factory);
+        vn.ptit.btl16.server.wallet.WalletSchema.initialize(factory);
     }
 
     public static void dropDatabase(JdbcConnectionFactory factory) {

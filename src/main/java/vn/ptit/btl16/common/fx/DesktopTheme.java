@@ -4,6 +4,7 @@ import javafx.animation.FadeTransition;
 import javafx.animation.ParallelTransition;
 import javafx.animation.TranslateTransition;
 import javafx.geometry.Pos;
+import javafx.geometry.Rectangle2D;
 import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.Dialog;
@@ -16,6 +17,8 @@ import javafx.scene.paint.Color;
 import javafx.scene.shape.SVGPath;
 import javafx.scene.text.Font;
 import javafx.stage.Window;
+import javafx.stage.Screen;
+import javafx.stage.Stage;
 import javafx.util.Duration;
 
 public final class DesktopTheme {
@@ -47,6 +50,21 @@ public final class DesktopTheme {
         }
         dialog.getDialogPane().getStylesheets().add(CSS);
         dialog.getDialogPane().setMinWidth(440);
+    }
+
+    public static void fitOnScreen(Stage stage, double width, double height) {
+        Window owner = stage.getOwner();
+        var screens = owner == null ? java.util.List.of(Screen.getPrimary())
+                : Screen.getScreensForRectangle(owner.getX(), owner.getY(), owner.getWidth(), owner.getHeight());
+        Rectangle2D bounds = (screens.isEmpty() ? Screen.getPrimary() : screens.get(0)).getVisualBounds();
+        double availableWidth = Math.max(1, bounds.getWidth() - 24);
+        double availableHeight = Math.max(1, bounds.getHeight() - 24);
+        stage.setMinWidth(Math.min(stage.getMinWidth(), availableWidth));
+        stage.setMinHeight(Math.min(stage.getMinHeight(), availableHeight));
+        stage.setWidth(Math.min(Math.max(stage.getMinWidth(), width), availableWidth));
+        stage.setHeight(Math.min(Math.max(stage.getMinHeight(), height), availableHeight));
+        stage.setX(bounds.getMinX() + (bounds.getWidth() - stage.getWidth()) / 2);
+        stage.setY(bounds.getMinY() + (bounds.getHeight() - stage.getHeight()) / 2);
     }
 
     public static Label label(String text, String styleClass) {

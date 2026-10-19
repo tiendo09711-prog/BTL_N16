@@ -14,6 +14,7 @@ import vn.ptit.btl16.server.auction.service.AuctionRules;
 import vn.ptit.btl16.server.media.ProductMedia;
 import vn.ptit.btl16.server.media.MediaProductCommit;
 import vn.ptit.btl16.server.media.ProductRequirements;
+import vn.ptit.btl16.server.wallet.WalletTransactions;
 
 import java.math.BigDecimal;
 import java.sql.Connection;
@@ -66,6 +67,11 @@ public final class JdbcAuctionRepository implements AuctionRepository {
 
     public JdbcAuctionRepository(JdbcConnectionFactory connectionFactory) {
         this.connectionFactory = connectionFactory;
+    }
+
+    public vn.ptit.btl16.server.media.JdbcMediaStorage mediaStorage() {
+        return connectionFactory.getConfig().isEmbeddedDatabase() ? null
+                : new vn.ptit.btl16.server.media.JdbcMediaStorage(connectionFactory);
     }
 
     @Override
@@ -138,7 +144,12 @@ public final class JdbcAuctionRepository implements AuctionRepository {
             delete.executeUpdate();
         }
         int order = 0;
-        for (ProductMedia media : commit.media()) { insertMedia(connection, media.attached(productId, order++)); }
+        for (ProductMedia media : commit.media()) {
+            insertMedia(connection, media.attached(productId, order++));
+            if (!connectionFactory.getConfig().isEmbeddedDatabase()) {
+                vn.ptit.btl16.server.media.JdbcMediaStorage.write(connection, media.id(), commit.folders().get(media.id()));
+            }
+        }
         return productId;
     }
 
@@ -449,8 +460,8 @@ public final class JdbcAuctionRepository implements AuctionRepository {
                     host_user_id, product_id, start_price, min_bid_increment,
                     current_price, current_winner_id, start_time, end_time,
                     status, ended_at, version, visibility, room_password_hash,
-                    room_password_salt, room_password_iterations, hard_end_time)
-                VALUES(?, ?, ?, ?, ?, NULL, ?, ?, 'OPEN', NULL, 0, ?, ?, ?, ?, ?)
+                    room_password_salt, room_password_iterations, hard_end_time, wallet_required)
+                VALUES(?, ?, ?, ?, ?, NULL, ?, ?, 'OPEN', NULL, 0, ?, ?, ?, ?, ?, TRUE)
                 """;
         long createdId = productTransaction(commit.getProductId(), commit.getHostUserId(), (connection, active) -> {
             if (!active) {
@@ -602,7 +613,7 @@ public final class JdbcAuctionRepository implements AuctionRepository {
         String updateAuction = """
                 UPDATE auctions
                 SET current_price = ?, current_winner_id = ?, end_time = ?,
-                    version = version + 1, updated_at = CURRENT_TIMESTAMP(3)
+                    version = version + 1, updated_at = CURRENT_TIMESTAMP(3), wallet_required = TRUE
                 WHERE auction_id = ?
                 """;
         try (Connection connection = connectionFactory.openDatabase()) {
@@ -639,6 +650,8 @@ public final class JdbcAuctionRepository implements AuctionRepository {
                         }
                     }
                 }
+                WalletTransactions.reserve(connection, commit.getAuctionId(), commit.getBidderId(),
+                        commit.getAmount(), commit.getServerSequence(), commit.getCreatedAt());
                 long bidId;
                 try (PreparedStatement insert = connection.prepareStatement(
                         insertBid, Statement.RETURN_GENERATED_KEYS)) {
@@ -715,7 +728,7 @@ public final class JdbcAuctionRepository implements AuctionRepository {
     @Override
     public Optional<AuctionResult> closeAuction(CloseAuctionCommit commit) {
         String lockSql = """
-                SELECT end_time, status, current_price, current_winner_id FROM auctions
+                SELECT end_time, status, current_price, current_winner_id, host_user_id, wallet_required FROM auctions
                 WHERE auction_id = ? FOR UPDATE
                 """;
         String updateSql = """
@@ -755,6 +768,11 @@ public final class JdbcAuctionRepository implements AuctionRepository {
                         if (commit.isRequireExpired() && commit.getEndedAt().isBefore(databaseEnd)) {
                             connection.rollback();
                             return Optional.empty();
+                        }
+                        if (winnerId != null) {
+                            WalletTransactions.settle(connection, commit.getAuctionId(), winnerId,
+                                    resultSet.getLong("host_user_id"), commit.getFinalPrice(), commit.getEndedAt(),
+                                    resultSet.getBoolean("wallet_required"));
                         }
                     }
                 }

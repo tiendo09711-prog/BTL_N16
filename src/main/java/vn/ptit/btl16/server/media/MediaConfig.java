@@ -23,6 +23,10 @@ public record MediaConfig(Path root, Path ffmpeg, Path ffprobe, int port, long i
         if (!data.isAbsolute()) { data = Path.of(System.getProperty("user.home")).resolve(data); }
         data = data.toAbsolutePath().normalize();
         Path root = isolated ? data.resolve("media") : Path.of(System.getProperty("btl16.media.root", properties.get("media.root", data.resolve("media").toString())));
+        if (!isolated && "com.mysql.cj.jdbc.Driver".equals(properties.get("db.driver", "com.mysql.cj.jdbc.Driver"))) {
+            try { root = Files.createTempDirectory("btl16-mysql-media-"); }
+            catch (IOException exception) { throw new IllegalStateException("Cannot prepare temporary media workspace", exception); }
+        }
         if (!root.isAbsolute()) {
             root = data.resolve(root);
         }

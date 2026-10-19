@@ -2,6 +2,18 @@
 
 ## Sử dụng JavaFX
 
+- Nếu nút **Lưu sản phẩm** bị mờ, đọc thông báo ngay cạnh nút: ví dụ mô tả `Oke nhé` mới có **7/50 ký tự**, còn thiếu 43 ký tự. Đây là điều kiện dữ liệu, không phải lỗi XAMPP. Bộ đếm bỏ khoảng trắng đầu/cuối và đếm ký tự Unicode; mã, tên, số lượng ảnh và trạng thái tải cũng phải hợp lệ.
+- **Sẵn sàng** ở từng ảnh chỉ có nghĩa ảnh đã tải lên **bản nháp trên server**, chưa có nghĩa sản phẩm đã lưu. Phải bấm **Lưu sản phẩm** để ghi metadata vào DB và giữ tệp chính thức. Hủy/đóng cửa sổ trước khi lưu sẽ hủy bản nháp. Thanh thông báo và nút lưu luôn nằm ngoài vùng cuộn; cửa sổ tự giới hạn theo vùng màn hình khả dụng.
+- Khi **Vào phòng**, giao diện chuyển sang không gian riêng: ảnh lớn và mô tả bên trái; giá hiện tại, thời gian, ô đặt giá, bước giá gợi ý và lịch sử mới nhất bên phải. Các nút gợi ý chỉ điền giá, không tự gửi lệnh. **Rời** đưa bạn về danh sách phòng; quyền đặt giá/quản lý vẫn do server kiểm tra.
+
+## Server, database và XAMPP
+
+- Máy chạy **Server EXE** là nơi lưu dữ liệu chung, duy nhất trong **MySQL của XAMPP**, mặc định `127.0.0.1:3306/btl_16`. Phải bật MySQL trước khi chạy Server; Apache không bắt buộc. Client không cần cài hoặc kết nối DB. Không còn H2 hay kho ảnh/video lâu dài trong AppData.
+- Ảnh/video được lưu thành tệp trên server; DB lưu thông tin sản phẩm và tham chiếu đến tệp, không nhét toàn bộ video vào DB. Muốn sao lưu/chuyển máy, dừng server rồi sao lưu **cả database và media**. Không tự xóa DB hay đổi sang MySQL để chữa nút lưu bị mờ: hai backend là hai kho dữ liệu riêng, không tự đồng bộ.
+- Chế độ chạy bằng `03_CHAY_SERVER_MYSQL.cmd` dùng `config/server.properties` và cần MySQL hoạt động. Nếu XAMPP báo `Bind on TCP/IP port`, `10048` hoặc `another mysqld server running on port: 3306`, kiểm tra Laragon/MySQL khác đang chiếm cổng; chỉ dùng một dịch vụ trên cổng đó, hoặc cấu hình cổng riêng rồi sửa `db.port` tương ứng. Không xóa thư mục dữ liệu MySQL để xử lý lỗi trùng cổng.
+
+## Thao tác media
+
 - Trong **Sản phẩm của tôi**, chọn **Thêm sản phẩm** hoặc **Sửa**. Mô tả bắt buộc 50-2000 ký tự sau khi bỏ khoảng trắng ở đầu/cuối; tự ghi đặc điểm, tình trạng và khiếm khuyết nếu có.
 - **Chọn nhiều ảnh** nhận 1-5 ảnh; **Video** nhận tối đa một video. Video không thay thế ảnh. Tệp được tải và chuẩn hóa từng tệp, không đọc toàn bộ danh sách vào RAM. Thanh tiến độ chuyển sang trạng thái xử lý khi tải xong; lỗi nằm ngay ở tệp tương ứng. Có thể xóa tệp lỗi hoặc dùng **Thay tệp** để thử lại.
 - Chọn ảnh trong danh sách, dùng **Làm đại diện**, các nút lên/xuống, **Thay tệp**, **Xóa**. Ảnh đầu tiên là đại diện. Xem trước ảnh/video trước khi lưu; chỉ lưu khi toàn bộ tệp đã sẵn sàng và đủ thông tin.
@@ -47,11 +59,11 @@ Trước xử lý, server dự trữ ngân sách bằng `media.productMaxBytes` 
 
 ## Lưu trữ và sao lưu
 
-- Mặc định: `%LOCALAPPDATA%/BTL16/AuctionServer/media/`, độc lập terminal, mã nguồn và thư mục giải nén EXE. `btl16.dataDir` đổi thư mục dữ liệu; `btl16.media.root` hoặc `media.root` đổi riêng kho. Đường dẫn tương đối của kho được tính dưới thư mục dữ liệu; đường dẫn dữ liệu tương đối được neo vào thư mục home, không theo terminal.
+- Lưu lâu dài duy nhất trong MySQL/XAMPP. `media_content` lưu nguồn, thumbnail, ảnh chi tiết và video đã xử lý dưới dạng BLOB chia đoạn tối đa 256 KiB, phù hợp cả XAMPP mặc định có `max_allowed_packet=1 MiB`.
 - Mỗi media có UUID do server tạo: `products/<UUID>/source`, `thumbnail.jpg`, `detail.jpg` hoặc `video.mp4`. `staging` chỉ chứa tải dở. Không dùng tên/đường dẫn client làm đường dẫn đĩa và không trả đường dẫn tuyệt đối server trong manifest.
-- Bảng `product_media` lưu ID, chủ thể mặt hàng, loại, tên gốc đã làm sạch, loại nội dung nhận diện, kích thước, chiều rộng/cao, thời lượng, thứ tự. Ảnh/video mới không được ghi BLOB. File được hoàn thành và kiểm tra trước giao dịch metadata; lỗi giao dịch không xóa file có thể đã được tham chiếu.
+- Bảng `product_media` lưu ID, chủ thể mặt hàng, loại, tên, thông số và thứ tự; `media_content` lưu nhị phân. Lưu metadata và toàn bộ BLOB trong cùng giao dịch; lỗi sẽ rollback. Xóa/thay metadata xóa các đoạn cũ bằng khóa ngoại, những media giữ lại được ghi lại trong giao dịch đó.
 - File `.media.lock` ngăn hai server cùng quản lý một kho. Khi khởi động lại, tải dở được dọn. Hủy/lỗi tải được dọn có thử lại khi Windows còn giữ handle. Tệp `products` không có tham chiếu, cũ hơn 24 giờ, được xét dọn sau 60 giây đầu và mỗi giờ; kiểm tra lại DB ngay trước xóa, đồng bộ với bước đưa tệp vào kho và lưu metadata. Tệp có tham chiếu không bị dọn dù cũ. Nếu DB lỗi, bỏ lượt dọn, không đoán rằng tệp đã mồ côi.
-- Đóng server rồi sao lưu **database và toàn bộ kho media cùng lúc**. Với H2 mặc định, sao lưu nguyên `%LOCALAPPDATA%/BTL16/AuctionServer`. Với MySQL, sao lưu database theo quy trình riêng và kho media tại cùng thời điểm server dừng; không chỉ mang file database sang máy khác. Khi chuyển máy hoặc đổi kho, giữ nguyên cây UUID và cấu hình đúng vị trí mới.
+- Sao lưu **toàn bộ database MySQL**, bao gồm `media_content`. Các file `products/staging` hiện chỉ nằm trong `%TEMP%/btl16-mysql-media-*`; không phải dữ liệu lâu dài, không cần chuyển sang máy mới. Server khởi động lại có thể khôi phục ảnh/video chỉ từ DB. `btl16.dataDir`/`media.root` không thay thế nơi lưu lâu dài của bản MySQL.
 - Không xóa thư mục `products`, đổi UUID hoặc chỉ dọn theo tên tệp để lấy dung lượng; dùng cơ chế đối chiếu metadata. Không đưa kho lên thư mục public của web server.
 
 ## Quyền và dữ liệu cũ
@@ -59,7 +71,7 @@ Trước xử lý, server dự trữ ngân sách bằng `media.productMaxBytes` 
 - Bắt đầu/chỉnh/lưu bản nháp kiểm tra đăng nhập và chủ sở hữu; lưu kiểm tra lại trong giao dịch khóa hàng sản phẩm, dùng chung với tạo phiên, ngừng và khôi phục. Đã từng có phiên thì khóa cả nội dung, media, đại diện, thứ tự, dù phiên đã hủy/không có người thắng. Khôi phục không gỡ khóa và không sửa lịch sử.
 - Mỗi GET/HEAD/range ảnh gốc, thumbnail, chi tiết và video dùng vé ngẫu nhiên gắn với phiên đăng nhập, media và ngữ cảnh phiên đấu giá. Vé 30 phút không thay thế quyền; server kiểm tra lại đăng nhập, mật khẩu/quyền phòng riêng và lệnh cấm trên từng yêu cầu, đồng thời kiểm tra lại trong lúc stream. Đăng xuất, bị kick hoặc đóng bản nháp làm vé không còn sử dụng được. Thư viện có thể lấy vé mới qua **Thử lại**.
 - Đầu vào/đầu ra HTTP dùng buffer 64 KiB, có Range 206/416 và HEAD, không Base64 toàn video. Legacy `GET_PRODUCT_IMAGE` chỉ trả thumbnail JPEG nhỏ để giữ tương thích; legacy tạo/sửa một ảnh cũng đi qua bộ xử lý tệp và điều kiện mới, không có đường tắt ghi BLOB.
-- Khi server khởi động, ảnh BLOB cũ chưa có metadata được chuyển lần lượt. So sánh SHA-256 nguồn, kiểm tra bản đã giải mã/chuẩn hóa và file hoàn tất trước thêm metadata. **Giữ nguyên BLOB gốc, mô tả, mã, thời điểm, trạng thái và lịch sử**; không tự viết mô tả, thêm ảnh mẫu hay sửa mặt hàng đóng băng. Nếu chuyển thất bại, giữ nguyên nguồn và báo mã mặt hàng ở log server để xử lý/sao lưu; không tự xóa ảnh cũ.
+- Đợt chuyển sang MySQL-only đã xóa dữ liệu cũ theo yêu cầu, không nhập lại H2 hoặc kho file cũ. Bộ chuyển ảnh BLOB đời cũ chỉ còn phục vụ fixture/test cách ly, không phải đường lưu trữ production.
 - Mặt hàng cũ chưa từng có phiên có thể bổ sung cho đủ điều kiện. Mặt hàng đóng băng mà thiếu mô tả/ảnh hợp lệ không được mở phiên mới. Phiên đã tồn tại vẫn giữ kết quả và các quy định cũ, không bị đóng lại hay reset vì nâng cấp media.
 
 ## Build và kiểm thử cách ly

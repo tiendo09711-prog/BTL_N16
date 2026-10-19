@@ -11,6 +11,10 @@ public final class JdbcConnectionFactory {
 
     public JdbcConnectionFactory(ServerConfig config) {
         this.config = config;
+        if (!"com.mysql.cj.jdbc.Driver".equals(config.getDbDriver())
+                && !(config.isEmbeddedDatabase() && Boolean.getBoolean("btl16.test.allowEmbedded"))) {
+            throw new IllegalStateException("Server chi luu du lieu trong MySQL/XAMPP. Hay bat MySQL va kiem tra config/server.properties; khong ho tro database local.");
+        }
         try {
             Class.forName(config.getDbDriver());
         } catch (ClassNotFoundException exception) {

@@ -207,9 +207,16 @@ public final class AuctionRulesSelfTest {
         model.applySnapshot(clientAuction(3L, "ENDED", "120"), List.of(), now.plusSeconds(1), false);
         model.applyTick(1L, old.getEndTime(), "OPEN", 1, 1L, now.minusSeconds(1));
         TestSupport.equals("ENDED", model.joinedAuction().getStatus(), "old tick cannot reopen an ended auction");
+        model.replaceAuctions(List.of(), now.plusSeconds(2));
+        TestSupport.check(model.joinedAuction() != null, "open-only marketplace refresh preserves the joined result countdown");
+        TestSupport.equals("ENDED", model.joinedAuction().getStatus(), "refresh cannot reopen the joined result");
         model.markKicked(1L);
         model.applySnapshot(newest, List.of(), now, true);
         TestSupport.check(model.getJoinedAuctionId() == null, "late join response cannot undo a kick");
+        model.removeAuction(1L, now.plusSeconds(61));
+        model.applySnapshot(newest, List.of(), now.plusSeconds(62), true);
+        TestSupport.check(model.auctionSnapshot().isEmpty() && model.getJoinedAuctionId() == null,
+                "archived result cannot return through a late snapshot");
     }
 
     private static ClientAuction clientAuction(long version, String status, String price) {

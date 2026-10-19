@@ -31,6 +31,7 @@ public final class JdbcAuctionRulesSelfTest {
             statement.executeUpdate("INSERT INTO users(user_id, username, display_name, password_hash, password_salt, password_iterations, active) "
                     + "VALUES(2, 'buyer', 'Buyer', 'test', 'test', 30000, TRUE), (3, 'viewer', 'Viewer', 'test', 'test', 30000, TRUE)");
         }
+        TestMedia.fundWallets(new vn.ptit.btl16.server.wallet.WalletRepository(factory));
         JdbcAuctionRepository repository = new JdbcAuctionRepository(factory);
         AuctionRulesSelfTest.basicRules(repository);
         Product product = TestMedia.create(repository, new CreateProductCommit(1L, "host", "DB_RACE", "Database race", "", Instant.now()));

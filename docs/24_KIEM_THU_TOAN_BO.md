@@ -17,7 +17,7 @@ npm run test:dist
 ```
 
 - `npm test`: compile, test Node dong goi va AllSelfTests, gom WebSocket/HTTP that.
-- `test:full`: them nut bam JavaFX, dashboard/login, editor/gallery/video va khoi phuc san pham.
+- `test:full`: them nut bam JavaFX, dashboard/login, editor/gallery/video, khoi phuc san pham, vi/QR/duyet nap va dong man hinh ket qua.
 - `test:mysql`: them JDBC MySQL/MariaDB, chi tao/xoa database ten btl16_verify_*; can MySQL local dang chay.
 - `test:bundles`: kiem JAR/SHA-256, JavaFX/native/dong goi sach cua 4 archive Mac va 2 EXE Windows; doi chieu TOAN BO file trong cac thu muc giai nen voi archive/payload EXE, khong chi rieng JAR.
 - `test:dist`: Windows, lap lai core va UI voi JAR, thu vien va runtime TU GOI SERVER, khong dung classes production trong target.
@@ -31,6 +31,10 @@ Test dung thu muc tam, DB rieng va cong ngau nhien, khong dung DB/media producti
 
 | Nhom | Tinh huong |
 | --- | --- |
+| MysqlStorageSelfTest | XAMPP that voi DB btl16_verify_* rieng; anh >1 MiB chia doan, video, vi/nap/giu cho/thanh toan dung mot lan; xoa cache khi stop; restart doc lai tu MySQL; video Range |
+| WalletSelfTest | So du dau 0; auth/rieng tu; cho duyet/tu choi/chap nhan/khong trung; giu cho, vuot gia, roi phong; thieu tien; race nhieu phong; rollback; thanh toan dung mot lan va restart |
+| WalletUiSelfTest | QR doc duoc bang bo giai ma; Da nhap chi gui cho duyet; nut xac nhan hien ngay; nut duyet/tu choi server; client tu dong cap nhat so du; chi tiet ho so/so giao dich |
+| DesktopUiSelfTest | Phong rieng sau khi vao; anh lon/lich su/buoc gia; quay lai san; refresh khong lam mat ket qua; khoa bid khi dong; dem nguoc 60 giay va tu dong an phong |
 | ImageCompatibilitySelfTest | HEIC that, HEIC 48 o ghep du 4032x3024, AVIF/JP2/ICO/PPM, PNG 48 MP, ten viet hoa/sai duoi, JPEG preview, video gia anh va SVG bi tu choi |
 | MediaConfigurationSelfTest | Uu tien cong cu dong goi, config, JVM property, duong dan co dau cach, bo loc duoi viet hoa cho Mac |
 | MediaSystemSelfTest | JPEG/PNG/BMP/GIF/TIFF/WebP; EXIF/alpha/crop/rotate; upload/HTTP/Range/HEAD; quota/huy/tai do; quyen rieng/chan/session; JDBC/migration/race/restart |
@@ -63,4 +67,6 @@ ke ca nguoi do khong con dan dau.
 - Nut native FileChooser duoc kiem danh sach bo loc; test UI truyen danh sach file vao
   handler chung, khong tu dong thao tac hop thoai chon file cua he dieu hanh.
 - LAN/firewall giua nhieu may vat ly, TLS/Internet, mat dien, dung luong dia thuc te,
-  va thanh toan/giao hang khong nam trong bang chung tu test loopback nay.
+  va thanh toan that/giao hang khong nam trong bang chung tu test loopback nay.
+- Vi va QR chi la demo. H2 chi la dependency test, khong duoc dong goi trong EXE; MySQL/XAMPP la noi luu duy nhat cua ban chay that. Test MySQL dung DB btl16_verify_* va tu xoa sau test, khong ghi du lieu mau vao btl_16.
+  UI countdown tua dong ho model de kiem moc 60 giay; AuctionJourneySelfTest van cho het han dau gia that.

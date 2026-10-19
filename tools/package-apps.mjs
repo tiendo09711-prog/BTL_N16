@@ -1,5 +1,5 @@
 import { spawn, spawnSync } from 'node:child_process';
-import { cpSync, existsSync, lstatSync, mkdirSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { buildProject, projectRoot } from './dev-utils.mjs';
 import { desktopLayout, mainJar, verifyJavafxLibraries } from './package-layout.mjs';
@@ -47,12 +47,11 @@ export async function packageApplications(roles) {
   if (process.platform === 'win32') {
     cpSync(path.join(projectRoot, 'docs', '22_HAI_UNG_DUNG_JAVAFX.md'),
       path.join(projectRoot, 'dist', 'HUONG_DAN.md'));
-    for (const guide of ['23_ANH_VIDEO_SAN_PHAM.md', '24_KIEM_THU_TOAN_BO.md', 'LUAT_DAU_GIA_BTL16.docx']) {
+    for (const guide of ['23_ANH_VIDEO_SAN_PHAM.md', '24_KIEM_THU_TOAN_BO.md', '25_MYSQL_XAMPP_ONLY.md', 'LUAT_DAU_GIA_BTL16.docx']) {
       cpSync(path.join(projectRoot, 'docs', guide), path.join(projectRoot, 'dist', guide));
     }
     const bundles = readdirSync(path.join(projectRoot, 'dist')).filter(file => /^BTL16-Auction-(Server|Client)\.exe$/.test(file));
     const { createHash } = await import('node:crypto');
-    const { readFileSync } = await import('node:fs');
     writeFileSync(path.join(projectRoot, 'dist', 'SHA256SUMS.txt'), bundles.map(file =>
       `${createHash('sha256').update(readFileSync(path.join(projectRoot, 'dist', file))).digest('hex')}  ${file}`).join('\n') + '\n');
   }
@@ -76,7 +75,7 @@ async function packageApplication(role) {
     verifyJavafxLibraries(readdirSync(dependencies), process.arch === 'arm64' ? 'mac-aarch64' : 'mac');
   }
   for (const file of readdirSync(dependencies)) {
-    if (file.endsWith('.jar')) {
+    if (file.endsWith('.jar') && !file.startsWith('h2-')) {
       cpSync(path.join(dependencies, file), path.join(staging, file));
     }
   }
@@ -91,8 +90,10 @@ async function packageApplication(role) {
       cpSync(mediaTools, path.join(staging, 'tools', 'media'), { recursive: true });
     }
     const previousConfig = path.join(appImage, layout.contentDirectory, 'config', 'server.properties');
+    const preserveMysqlConfig = existsSync(previousConfig)
+      && /^db\.driver\s*=\s*com\.mysql\.cj\.jdbc\.Driver\s*$/m.test(readFileSync(previousConfig, 'utf8'));
     mkdirSync(path.join(staging, 'config'), { recursive: true });
-    cpSync(existsSync(previousConfig) ? previousConfig : path.join(projectRoot, 'config', 'server-desktop.properties'),
+    cpSync(preserveMysqlConfig ? previousConfig : path.join(projectRoot, 'config', 'server-desktop.properties'),
       path.join(staging, 'config', 'server.properties'));
   }
   removeBuildDirectory(appImage);
@@ -125,14 +126,14 @@ async function packageApplication(role) {
     writeFileSync(path.join(dist, `${appName}-START_HERE.txt`),
       `BTL16 macOS ${process.arch}\nOpen ${layout.imageName}. Java is included.\n`
       + (server
-        ? `Local database is included. Optional MySQL settings: ${layout.imageName}/Contents/app/config/server.properties.\nImage/video uploads require FFmpeg 8+ and ffprobe (brew install ffmpeg); media tools are not bundled in the Mac app.\nAllow incoming connections on ports 8890 and 8891 in macOS Firewall.\nCopy the current LAN address from the dashboard to clients.\n`
+        ? `Start MySQL in XAMPP on the server machine first. All persistent data, including images/videos, is stored in MySQL only. Settings: ${layout.imageName}/Contents/app/config/server.properties.\nImage/video uploads require FFmpeg 8+ and ffprobe (brew install ffmpeg); media tools are not bundled in the Mac app.\nAllow incoming connections on ports 8890 and 8891 in macOS Firewall.\nCopy the current LAN address from the dashboard to clients.\n`
         : 'Paste the current WebSocket address copied from the server. No separate Java or database installation is required.\n')
       + 'This is an unsigned local build. Only open builds whose source you trust.\n', 'utf8');
     console.log(`[DIST] Ready: ${appImage}`);
     return;
   }
   writeFileSync(path.join(appImage, 'START_HERE.txt'), server
-    ? 'AUCTION SERVER\r\nOpen BTL16-Auction-Server.exe. Java, media processing and a persistent local database are included.\r\nShare the connection code or LAN address with clients on the same trusted network.\r\nAllow inbound TCP 8890 and 8891 on Private networks in Windows Firewall.\r\nData: %LOCALAPPDATA%/BTL16/AuctionServer. Back up the database and the media folder together while the server is stopped.\r\nKeep this entire app-image folder together. The single-file EXE in the parent dist folder can be copied alone.\r\n'
+    ? 'AUCTION SERVER - MYSQL / XAMPP ONLY\r\n1. Start MySQL in XAMPP on this server machine (default 127.0.0.1:3306). Apache is optional.\r\n2. Open BTL16-Auction-Server.exe. Java and media processing tools are included; MySQL is required.\r\n3. Share the connection code or LAN address with clients on the same trusted network.\r\nAll accounts, wallets, bids, product images/videos and results are stored in MySQL database btl_16. No H2/local database fallback. Back up the complete MySQL database. Media files outside MySQL are temporary processing/cache files only.\r\nAllow inbound TCP 8890 and 8891 on Private networks in Windows Firewall. Do not expose MySQL to clients.\r\nKeep this entire app-image folder together. The single-file EXE in the parent dist folder can be copied alone.\r\n'
     : 'BTL16 CLIENT\r\n1. Open BTL16-Auction-Client.exe.\r\n2. Paste the connection code or address from the server, then click Ket noi.\r\n3. Register or log in to join auctions.\r\nKeep this entire app-image folder together. The single-file EXE in the parent dist folder can be copied alone. No separate Java or MySQL installation is needed.\r\n', 'utf8');
   console.log(`[DIST] Ready: ${path.join(appImage, `${appName}.exe`)}`);
   console.log('[DIST] Copy the WHOLE application directory, not the EXE alone.');

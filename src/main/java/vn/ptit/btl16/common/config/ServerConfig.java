@@ -64,7 +64,7 @@ public final class ServerConfig {
                 p.getInt("auction.timerCheckMillis", 200, 20, 60_000),
                 p.getInt("auction.tickBroadcastMillis", 1000, 100, 60_000),
                 p.getInt("auction.bidHistoryLimit", 50, 1, 1000),
-                p.getInt("auction.closedVisibilitySeconds", 120, 0, 86400),
+                p.getInt("auction.closedVisibilitySeconds", 60, 0, 86400),
                 p.getInt("demo.shortAuctionSeconds", 90, 15, 86400),
                 p.getInt("demo.mediumAuctionSeconds", 300, 15, 86400),
                 p.getInt("demo.longAuctionSeconds", 480, 15, 86400));
@@ -298,7 +298,7 @@ public final class ServerConfig {
     public int getTimerCheckMillis() { return timerCheckMillis; }
     public int getTickBroadcastMillis() { return tickBroadcastMillis; }
     public int getBidHistoryLimit() { return bidHistoryLimit; }
-    public int getClosedVisibilitySeconds() { return closedVisibilitySeconds; }
+    public int getClosedVisibilitySeconds() { return Math.min(60, closedVisibilitySeconds); }
     public int getDemoShortAuctionSeconds() { return demoShortAuctionSeconds; }
     public int getDemoMediumAuctionSeconds() { return demoMediumAuctionSeconds; }
     public int getDemoLongAuctionSeconds() { return demoLongAuctionSeconds; }

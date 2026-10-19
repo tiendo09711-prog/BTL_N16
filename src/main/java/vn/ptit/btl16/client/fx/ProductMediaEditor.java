@@ -5,6 +5,7 @@ import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
+import javafx.geometry.Pos;
 import javafx.geometry.Rectangle2D;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
@@ -38,6 +39,7 @@ public final class ProductMediaEditor {
     private final Label message = new Label();
     private final Label counts = new Label();
     private final Label characters = new Label();
+    private final Label validation = new Label();
     private final Label limits = new Label();
     private final Button save = new Button("L\u01b0u s\u1ea3n ph\u1ea9m");
     private final Button addImages = new Button("+ Ch\u1ecdn nhi\u1ec1u \u1ea3nh");
@@ -57,6 +59,8 @@ public final class ProductMediaEditor {
         description.setPromptText("M\u00f4 t\u1ea3 \u0111\u1eb7c \u0111i\u1ec3m, t\u00ecnh tr\u1ea1ng v\u00e0 khi\u1ebfm khuy\u1ebft n\u1ebfu c\u00f3 (50-2000 k\u00fd t\u1ef1)"); description.setWrapText(true); description.setPrefRowCount(4);
         if (product != null) { code.setText(product.getCode()); name.setText(product.getName()); description.setText(product.getDescription()); }
         description.textProperty().addListener((observable, before, now) -> refresh());
+        code.textProperty().addListener((observable, before, now) -> refresh());
+        name.textProperty().addListener((observable, before, now) -> refresh());
         list.setPrefWidth(310); list.setMinHeight(180); list.setCellFactory(view -> new ListCell<>() {
             @Override protected void updateItem(Entry entry, boolean empty) {
                 super.updateItem(entry, empty); setText(null);
@@ -77,22 +81,40 @@ public final class ProductMediaEditor {
         Button cover = button("L\u00e0m \u0111\u1ea1i di\u1ec7n", () -> move(true, -1)); Button left = button("\u2191", () -> move(false, -1)); Button right = button("\u2193", () -> move(false, 1));
         crop.setOnAction(event -> preview.imagePane().setCropping(crop.isSelected()));
         Button applyCrop = button("X\u00e1c nh\u1eadn c\u1eaft", this::crop);
-        editTools = new HBox(8, button("Xoay 90\u00b0", this::rotate), crop, applyCrop, button("\u0110\u1eb7t l\u1ea1i \u1ea3nh g\u1ed1c", this::reset));
-        VBox information = new VBox(9, new Label("TH\u00d4NG TIN S\u1ea2N PH\u1ea8M"), code, name, description, characters,
-                new HBox(8, addImages, addVideo), counts, limits, list, new HBox(6, remove, replace), new HBox(6, cover, left, right));
-        information.setPadding(new Insets(16)); information.setPrefWidth(340); VBox.setVgrow(list, Priority.ALWAYS); limits.setWrapText(true); limits.setMaxWidth(300); limits.setMinHeight(Region.USE_PREF_SIZE);
+        FlowPane transformTools = new FlowPane(8, 8, button("Xoay 90\u00b0", this::rotate), crop, applyCrop, button("\u0110\u1eb7t l\u1ea1i \u1ea3nh g\u1ed1c", this::reset));
+        HBox.setHgrow(transformTools, Priority.ALWAYS); editTools = new HBox(transformTools);
+        list.setPrefHeight(180); list.getStyleClass().add("media-file-list");
+        VBox information = new VBox(9, DesktopTheme.label("TH\u00d4NG TIN S\u1ea2N PH\u1ea8M", "eyebrow"),
+                new Label("M\u00e3 s\u1ea3n ph\u1ea9m *"), code, new Label("T\u00ean s\u1ea3n ph\u1ea9m *"), name,
+                new Label("M\u00f4 t\u1ea3 *"), description, characters, new Separator(),
+                new HBox(8, addImages, addVideo), counts, limits, list,
+                new FlowPane(6, 6, remove, replace, cover, left, right));
+        information.setPadding(new Insets(18)); information.setPrefWidth(340);
+        limits.setWrapText(true); limits.setMaxWidth(300); limits.setMinHeight(Region.USE_PREF_SIZE);
+        ScrollPane form = new ScrollPane(information); form.setFitToWidth(true); form.setMinWidth(300);
+        form.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
         VBox gallery = new VBox(10, preview, editTools); VBox.setVgrow(preview, Priority.ALWAYS); gallery.setPadding(new Insets(8));
-        SplitPane split = new SplitPane(information, gallery); split.setDividerPositions(0.31);
-        Button cancel = button("H\u1ee7y", stage::close); HBox actions = new HBox(12, message, cancel, save); actions.setPadding(new Insets(14)); HBox.setHgrow(message, Priority.ALWAYS); message.setMaxWidth(Double.MAX_VALUE); message.setWrapText(true);
-        BorderPane root = new BorderPane(split); root.setBottom(actions); root.setStyle("-fx-background-color: #eef5f4;");
-        Scene scene = new Scene(root, 1200, 760); DesktopTheme.apply(scene);
-        stage.setScene(scene); stage.setMinWidth(950); stage.setMinHeight(650);
+        SplitPane split = new SplitPane(form, gallery); split.setDividerPositions(0.32);
+        validation.setWrapText(true); validation.setMaxWidth(Double.MAX_VALUE); validation.getStyleClass().add("validation-hint");
+        message.setWrapText(true); message.setMaxWidth(Double.MAX_VALUE); message.getStyleClass().add("error-text");
+        message.managedProperty().bind(message.textProperty().isNotEmpty()); message.visibleProperty().bind(message.managedProperty());
+        VBox feedback = new VBox(4, validation, message); HBox.setHgrow(feedback, Priority.ALWAYS);
+        Button cancel = button("H\u1ee7y", stage::close);
+        HBox actions = new HBox(12, feedback, cancel, save); actions.setAlignment(Pos.CENTER_LEFT);
+        actions.getStyleClass().add("editor-footer"); cancel.setMinWidth(65); save.setMinWidth(145);
+        VBox heading = new VBox(5, DesktopTheme.label(product == null ? "\u0110\u0103ng s\u1ea3n ph\u1ea9m" : "Ch\u1ec9nh s\u1eeda s\u1ea3n ph\u1ea9m", "section-title"),
+                DesktopTheme.label("\u1ea2nh \u0111\u01b0\u1ee3c t\u1ea3i l\u00ean m\u00e1y ch\u1ee7. Ch\u1ec9 ho\u00e0n t\u1ea5t khi b\u1ea1n b\u1ea5m L\u01b0u s\u1ea3n ph\u1ea9m.", "muted"));
+        heading.setPadding(new Insets(16, 20, 12, 20));
+        BorderPane root = new BorderPane(split); root.setTop(heading); root.setBottom(actions); root.getStyleClass().add("product-editor");
+        Scene scene = new Scene(root, 1180, 720); DesktopTheme.apply(scene);
+        stage.setScene(scene); stage.setMinWidth(900); stage.setMinHeight(520);
         addImages.setOnAction(event -> choose("IMAGE", false)); addVideo.setOnAction(event -> choose("VIDEO", false)); save.setOnAction(event -> save());
         stage.setOnHidden(event -> { closed = true; preview.close(); if (!committed && operation != null) { operation.cancel(true); } if (!committed && draft != null) { api.cancel(draft); } });
         refresh();
     }
 
     public void show() {
+        DesktopTheme.fitOnScreen(stage, 1200, 760);
         stage.show(); DesktopTheme.reveal(stage.getScene().getRoot()); message.setText("\u0110ang chu\u1ea9n b\u1ecb kho media...");
         api.begin(product == null ? 0 : product.getProductId()).whenComplete((id, error) -> Platform.runLater(() -> {
             if (error != null) { message.setText(ProductMediaApi.message(error)); return; }
@@ -180,7 +202,7 @@ public final class ProductMediaEditor {
         }));
     }
     private void save() {
-        if (busy || draft == null) { return; } busy = true; refresh(); message.setText("\u0110ang l\u01b0u...");
+        if (busy || draft == null || !validationMessage().isEmpty()) { refresh(); return; } busy = true; refresh(); message.setText("\u0110ang l\u01b0u...");
         operation = api.commit(draft, code.getText(), name.getText(), description.getText(), ready().stream().map(Entry::id).toList());
         operation.whenComplete((body, error) -> Platform.runLater(() -> {
             busy = false; if (closed) { return; }
@@ -194,10 +216,29 @@ public final class ProductMediaEditor {
         int length = description.getText().strip().codePointCount(0, description.getText().strip().length()); characters.setText(length + "/2000 k\u00fd t\u1ef1 \u00b7 t\u1ed1i thi\u1ec3u 50");
         long images = entries.stream().filter(entry -> entry.kind.equals("IMAGE")).count(); long videos = entries.size() - images;
         counts.setText(images + "/5 \u1ea3nh \u00b7 " + videos + "/1 video \u00b7 \u1ea3nh \u0111\u1ea7u l\u00e0 \u0111\u1ea1i di\u1ec7n");
-        save.setDisable(busy || draft == null || images < 1 || images > 5 || videos > 1 || ready().size() != entries.size() || length < 50 || length > 2000);
+        String reason = validationMessage();
+        validation.setText(busy ? "\u0110ang t\u1ea3i / x\u1eed l\u00fd. Vui l\u00f2ng ch\u1edd ho\u00e0n t\u1ea5t."
+                : draft == null ? "Ch\u01b0a k\u1ebft n\u1ed1i kho \u1ea3nh tr\u00ean server."
+                : reason.isEmpty() ? "\u0110\u1ee7 \u0111i\u1ec1u ki\u1ec7n. B\u1ea5m L\u01b0u s\u1ea3n ph\u1ea9m \u0111\u1ec3 ho\u00e0n t\u1ea5t." : reason);
+        characters.getStyleClass().removeAll("error-text", "muted");
+        characters.getStyleClass().add(length < 50 || length > 2000 ? "error-text" : "muted");
+        save.setDisable(busy || draft == null || !reason.isEmpty()); save.setTooltip(new Tooltip(validation.getText()));
         addImages.setDisable(busy || draft == null); addVideo.setDisable(busy || draft == null); editTools.setDisable(busy || draft == null); list.refresh();
     }
     private static Button button(String title, Runnable action) { Button button = new Button(title); button.setOnAction(event -> action.run()); return button; }
+    private String validationMessage() {
+        String cleanCode = code.getText().trim().toUpperCase(java.util.Locale.ROOT);
+        if (!cleanCode.matches("[A-Z0-9_-]{2,30}")) { return "M\u00e3 s\u1ea3n ph\u1ea9m c\u1ea7n 2-30 k\u00fd t\u1ef1: ch\u1eef kh\u00f4ng d\u1ea5u, s\u1ed1, _ ho\u1eb7c -."; }
+        String cleanName = name.getText().trim();
+        if (cleanName.isBlank() || cleanName.length() > 150) { return "T\u00ean s\u1ea3n ph\u1ea9m c\u1ea7n 1-150 k\u00fd t\u1ef1."; }
+        String text = description.getText().strip(); int length = text.codePointCount(0, text.length());
+        if (length < 50) { return "Ch\u01b0a th\u1ec3 l\u01b0u: m\u00f4 t\u1ea3 c\u00f3 " + length + "/50 k\u00fd t\u1ef1. C\u1ea7n th\u00eam \u00edt nh\u1ea5t " + (50 - length) + " k\u00fd t\u1ef1."; }
+        if (length > 2000) { return "M\u00f4 t\u1ea3 v\u01b0\u1ee3t qu\u00e1 2000 k\u00fd t\u1ef1. H\u00e3y r\u00fat ng\u1eafn tr\u01b0\u1edbc khi l\u01b0u."; }
+        long images = entries.stream().filter(entry -> entry.kind.equals("IMAGE")).count();
+        if (images < 1 || images > 5 || entries.size() - images > 1) { return "C\u1ea7n 1-5 \u1ea3nh v\u00e0 t\u1ed1i \u0111a 1 video. Video kh\u00f4ng thay th\u1ebf \u1ea3nh."; }
+        if (ready().size() != entries.size()) { return "C\u00f2n t\u1ec7p ch\u01b0a t\u1ea3i th\u00e0nh c\u00f4ng. H\u00e3y ch\u1edd, thay ho\u1eb7c x\u00f3a t\u1ec7p b\u1ecb l\u1ed7i."; }
+        return "";
+    }
     private final class Entry {
         final String name; final String kind; final File file; JsonNode media; Image thumbnail; String state = "\u0110ang ch\u1edd"; double progress, lastReported; int turns;
         Rectangle2D crop = new Rectangle2D(0, 0, 1, 1);

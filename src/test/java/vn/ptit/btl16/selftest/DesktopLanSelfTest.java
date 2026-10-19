@@ -73,6 +73,7 @@ public final class DesktopLanSelfTest {
                     registerAndLogin(host, "host");
                     registerAndLogin(first, "buyer1");
                     registerAndLogin(second, "buyer2");
+                    TestMedia.fundWallets(server.wallets());
                     AuctionApi hostApi = new AuctionApi(host);
                     AuctionApi firstApi = new AuctionApi(first);
                     AuctionApi secondApi = new AuctionApi(second);

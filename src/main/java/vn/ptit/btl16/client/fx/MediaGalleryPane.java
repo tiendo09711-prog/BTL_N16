@@ -46,7 +46,7 @@ public final class MediaGalleryPane extends BorderPane implements AutoCloseable 
         Button previous = button("\u2039 Tr\u01b0\u1edbc", () -> select(selected - 1));
         Button next = button("Sau \u203a", () -> select(selected + 1));
         Button full = button("To\u00e0n m\u00e0n h\u00ecnh", () -> { if (getScene() != null && getScene().getWindow() instanceof Stage stage) { stage.setFullScreenExitHint(""); stage.setFullScreen(!stage.isFullScreen()); } });
-        HBox tools = new HBox(8, previous, next, button("-", () -> imagePane.zoom(1 / 1.25)), button("+", () -> imagePane.zoom(1.25)),
+        FlowPane tools = new FlowPane(8, 8, previous, next, button("-", () -> imagePane.zoom(1 / 1.25)), button("+", () -> imagePane.zoom(1.25)),
                 button("V\u1eeba khung", imagePane::fit), full, button("Th\u1eed l\u1ea1i", () -> retry.run()));
         VBox top = new VBox(8, tools, status); top.setPadding(new Insets(0, 0, 10, 0)); setTop(top);
         setCenter(canvas); video.setVisible(false); video.setPreserveRatio(true); video.fitWidthProperty().bind(canvas.widthProperty()); video.fitHeightProperty().bind(canvas.heightProperty());
@@ -113,6 +113,6 @@ public final class MediaGalleryPane extends BorderPane implements AutoCloseable 
                 else { List<JsonNode> items = new ArrayList<>(); body.path("media").forEach(items::add); pane.setItems(items); }
             }));
         };
-        pane.onRetry(load); stage.show(); DesktopTheme.reveal(pane); load.run();
+        pane.onRetry(load); DesktopTheme.fitOnScreen(stage, 1040, 770); stage.show(); DesktopTheme.reveal(pane); load.run();
     }
 }

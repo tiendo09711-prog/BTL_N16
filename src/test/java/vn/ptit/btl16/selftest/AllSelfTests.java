@@ -12,6 +12,7 @@ public final class AllSelfTests {
         ServerAddressesSelfTest.run();
         DatabaseConfigSelfTest.run();
         MediaConfigurationSelfTest.run();
+        WalletSelfTest.run();
         AuctionRulesSelfTest.run();
         ProductRestorationSelfTest.run();
         JdbcProductRestorationSelfTest.run();

@@ -109,6 +109,13 @@ public final class AuctionManagementService {
                 clean, cleanName(name), cleanDescription(description), selected);
     }
 
+    public Product saveMediaProduct(UserSession session, long productId, String code, String name,
+                                    String description, List<ProductMedia> selected, java.util.Map<String, java.nio.file.Path> folders) {
+        MediaProductCommit prepared = prepareMediaProduct(session, productId, code, name, description, selected);
+        return repository.saveMediaProduct(new MediaProductCommit(prepared.productId(), prepared.ownerId(), prepared.ownerUsername(),
+                prepared.code(), prepared.name(), prepared.description(), prepared.media(), folders));
+    }
+
     public void requireMediaEdit(UserSession session, long productId) {
         requireLoggedIn(session);
         if (productId == 0) { return; }

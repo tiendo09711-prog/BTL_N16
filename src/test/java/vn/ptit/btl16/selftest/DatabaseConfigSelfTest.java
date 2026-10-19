@@ -21,13 +21,21 @@ public final class DatabaseConfigSelfTest {
                     "jdbc:mysql://127.0.0.2:3307/custom_auction?"), "database URL uses configured endpoint");
             TestSupport.check(config.mysqlServerJdbcUrl().startsWith(
                     "jdbc:mysql://127.0.0.2:3307/?"), "setup/check uses the same configured endpoint");
+            TestSupport.equals(60, config.getClosedVisibilitySeconds(), "closed room defaults to a one-minute countdown");
+            Files.writeString(configFile, "auction.closedVisibilitySeconds=3600\n");
+            TestSupport.equals(60, ServerConfig.loadDefault().getClosedVisibilitySeconds(), "old settings cannot retain closed rooms beyond one minute");
+            Files.writeString(configFile, "auction.closedVisibilitySeconds=2\n");
+            TestSupport.equals(2, ServerConfig.loadDefault().getClosedVisibilitySeconds(), "short retention remains available for isolated tests");
             String previousRoot = System.getProperty("btl16.media.root");
             Path sentinel = configFile.getParent().resolve("media-production-sentinel").toAbsolutePath();
             try {
                 System.setProperty("btl16.media.root", sentinel.toString());
                 var isolated = vn.ptit.btl16.server.media.MediaConfig.load(true);
                 TestSupport.check(!isolated.root().startsWith(sentinel), "isolated media ignores a production root override");
-                TestSupport.equals(sentinel, vn.ptit.btl16.server.media.MediaConfig.load(false).root(), "production respects explicit root");
+                var production = vn.ptit.btl16.server.media.MediaConfig.load(false);
+                TestSupport.check(!production.root().startsWith(sentinel) && production.root().getFileName().toString().startsWith("btl16-mysql-media-"),
+                        "MySQL production uses only a disposable media workspace, never legacy persistent folders");
+                Files.delete(production.root());
             } finally {
                 if (previousRoot == null) { System.clearProperty("btl16.media.root"); } else { System.setProperty("btl16.media.root", previousRoot); }
             }

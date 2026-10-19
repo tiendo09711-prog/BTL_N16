@@ -43,6 +43,7 @@ public final class AuctionJourneySelfTest {
                 try (var seller = client(endpoint); var first = client(endpoint); var second = client(endpoint); var viewer = client(endpoint)) {
                     ApiResponse identity = register(seller, "journey_host");
                     register(first, "journey_first"); ApiResponse secondIdentity = register(second, "journey_second"); register(viewer, "journey_viewer");
+                    TestMedia.fundWallets(server.wallets());
                     AuctionApi host = new AuctionApi(seller), buyer = new AuctionApi(first), rival = new AuctionApi(second), observer = new AuctionApi(viewer);
                     long mediaPort = Long.parseLong(ok(host.mediaEndpoint()).get("mediaPort"));
                     ProductMediaApi media = new ProductMediaApi(URI.create("http://127.0.0.1:" + mediaPort + "/"), () -> identity.get("sessionToken"));
@@ -96,7 +97,7 @@ public final class AuctionJourneySelfTest {
                         ok(new AccountApi(reconnected).resumeSession(secondToken));
                         ok(new AuctionApi(reconnected).resync(room));
                         ok(new AuctionApi(reconnected).join(room, "room1234"));
-                        register(contender, "journey_racer"); AuctionApi racer = new AuctionApi(contender); ok(racer.join(room, "room1234"));
+                        register(contender, "journey_racer"); TestMedia.fundWallets(server.wallets()); AuctionApi racer = new AuctionApi(contender); ok(racer.join(room, "room1234"));
                         CompletableFuture<ApiResponse> samePriceOne = buyer.bid(room, money("150"));
                         CompletableFuture<ApiResponse> samePriceTwo = racer.bid(room, money("150"));
                         ApiResponse responseOne = samePriceOne.get(10, TimeUnit.SECONDS), responseTwo = samePriceTwo.get(10, TimeUnit.SECONDS);

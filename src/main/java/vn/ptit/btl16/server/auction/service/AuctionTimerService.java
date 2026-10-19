@@ -104,8 +104,7 @@ public final class AuctionTimerService implements AutoCloseable {
         }
 
         if (result != null && endedSnapshot != null) {
-            broadcasts.broadcastToRoom(
-                    endedSnapshot.getAuctionId(),
+            broadcasts.broadcastAll(
                     MessageType.AUCTION_ENDED,
                     AuctionWireData.ended(endedSnapshot, result, now));
             System.out.println("[TIMER] Auction ended: " + endedSnapshot.getAuctionId());

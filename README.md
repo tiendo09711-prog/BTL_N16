@@ -10,12 +10,13 @@ Cho phép đăng ký tài khoản, quản lý sản phẩm có ảnh, tạo phò
 
 ## 3. Server và client hoạt động thế nào? (EXE)
 
-    Client EXE (JavaFX) → WebSocket → Server EXE (JavaFX) → JDBC → H2 / MySQL
+    Client EXE (JavaFX) → WebSocket/HTTP → Server EXE (JavaFX) → JDBC → MySQL trong XAMPP
 
 - **Server** xử lý tài khoản, quyền vào phòng, giá bid, thời gian và người thắng; lưu dữ liệu trong DB.
 - **Client** chỉ gửi yêu cầu và nhận cập nhật; không kết nối DB trực tiếp.
 - Bản Windows mới: mở `dist/BTL16-Auction-Server.exe` trên máy chủ và `dist/BTL16-Auction-Client.exe` trên máy khách. Hai EXE ở **gốc dist** tự chứa ứng dụng và runtime, có thể chép riêng từng file.
-- Không cần cài Java/Maven/Node/XAMPP để dùng bản Windows mặc định. Server dùng database H2 lưu trên máy; cấu hình MySQL cũ vẫn giữ riêng để học JDBC/XAMPP.
+- EXE đã kèm Java và công cụ xử lý media; không cần Maven/Node trên máy sử dụng. **Máy Server bắt buộc bật MySQL trong XAMPP**, mặc định `127.0.0.1:3306`, database `btl_16`. Không cần Apache. Client không cần XAMPP và không kết nối DB trực tiếp.
+- Toàn bộ tài khoản, ví, yêu cầu nạp, sản phẩm, ảnh/video, lượt giá và kết quả được lưu trong MySQL trên máy Server. Không có H2 hoặc cơ chế tự chuyển sang database local khi MySQL ngừng chạy. Ảnh/video ngoài DB chỉ là tệp tạm để xử lý/phục vụ HTTP.
 - Chia sẻ mã kết nối từ Server cho các máy cùng LAN/Wi-Fi. Chi tiết: [Hai ứng dụng JavaFX](docs/22_HAI_UNG_DUNG_JAVAFX.md). Các bản app-image trong thư mục con vẫn cần giữ nguyên cả thư mục.
 
 ### Bản macOS (client và server)
@@ -60,7 +61,7 @@ Kiểm thử cả nút JavaFX, tải HEIC/AVIF và hành trình đấu giá đ�
 ## 5. Hướng dẫn sử dụng server, client
 
 **Máy server**
-1. Bật MySQL trong XAMPP. Kiểm tra `dist/BTL16-Auction-Server/app/config/server.properties`, nhất là `db.port` và mật khẩu; cấu hình này độc lập với file trong source và được giữ khi đóng gói lại.
+1. Bật **MySQL** trong XAMPP trên máy server trước khi mở EXE. Cấu hình mặc định: `127.0.0.1:3306`, database `btl_16`, tài khoản `root`, mật khẩu trống; sửa `dist/BTL16-Auction-Server/app/config/server.properties` nếu máy dùng thông số khác. Không có database local dự phòng.
 2. Mở `BTL16-Auction-Server.exe`, chọn IP LAN cùng mạng với client, bấm **Sao chep dia chi** và gửi địa chỉ cho các bạn.
 3. Cho phép inbound TCP **8890 và 8891** (WebSocket và ảnh/video; đổi theo cấu hình nếu cần) trên mạng Private của Windows Firewall. Nếu chỉ mở 8890, client có thể đăng nhập nhưng không đăng sản phẩm có ảnh được. Không mở cổng MySQL cho client. Giữ cửa sổ server mở khi sử dụng.
 
@@ -68,6 +69,8 @@ Kiểm thử cả nút JavaFX, tải HEIC/AVIF và hành trình đấu giá đ�
 1. Mở `BTL16-Auction-Client.exe`, dán địa chỉ `ws://IP_SERVER:8890/ws`, bấm **Kết nối**. Nếu chạy cùng máy server, dùng `ws://127.0.0.1:8890/ws`.
 2. **Đăng ký tài khoản mới**, rồi đăng nhập. Hệ thống ban đầu trống, không có tài khoản demo.
 3. Người bán thêm sản phẩm với mô tả 50-2000 ký tự, 1-5 ảnh và tối đa một video, rồi tạo phòng, đặt giá khởi điểm/bước giá/thời gian và mật khẩu nếu là phòng riêng tư. Xem [Ảnh và video sản phẩm](docs/23_ANH_VIDEO_SAN_PHAM.md) để biết định dạng, giới hạn, biên tập và sao lưu.
-4. Người mua dùng tài khoản khác, tìm phòng → vào phòng → đặt giá; theo dõi giá hiện tại, thời gian và người thắng. Chủ phòng không được tự bid; người đang dẫn đầu không được tự nâng giá. Bid đầu tối thiểu bằng giá khởi điểm + bước giá. Sản phẩm đã có phiên bị khóa nội dung/ảnh; sản phẩm đã có người thắng không được đấu giá lại.
+4. Người mua mở **Ví & nạp tiền**, nhập số tiền, bấm **Hiện QR demo** rồi **Đã nhập**. Người vận hành Server mở **Tài khoản & ví → Duyệt nạp demo**, chọn yêu cầu và chấp nhận. Số dư ban đầu bằng 0; chỉ tăng khi server duyệt. QR không chuyển tiền thật.
+5. Người mua tìm phòng → vào phòng → đặt giá với số dư khả dụng đủ trả toàn bộ giá. Tiền của người dẫn đầu được giữ chỗ; khi bị vượt giá sẽ được giải phóng. Hết phiên, server trừ tiền người thắng và cộng đúng số đó cho người bán, không tính phí demo. Phòng đóng biến mất khỏi danh sách; người đang ở phòng xem kết quả và đếm ngược 60 giây rồi tự trở về sàn. Lịch sử không bị xóa.
+6. Chủ phòng không được tự bid; người đang dẫn đầu không được tự nâng giá. Bid đầu tối thiểu bằng giá khởi điểm + bước giá. Sản phẩm đã có phiên bị khóa nội dung/ảnh; sản phẩm đã có người thắng không được đấu giá lại. Chi tiết ví và dữ liệu cũ: [Hai ứng dụng JavaFX](docs/22_HAI_UNG_DUNG_JAVAFX.md).
 
 Chi tiết phân phối EXE và kết nối LAN: [docs/19_MULTI_MACHINE_AND_PACKAGING.md](docs/19_MULTI_MACHINE_AND_PACKAGING.md).

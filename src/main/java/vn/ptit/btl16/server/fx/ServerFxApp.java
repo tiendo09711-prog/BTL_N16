@@ -94,6 +94,7 @@ public final class ServerFxApp extends Application {
                 event.consume();
             }
         });
+        DesktopTheme.fitOnScreen(stage, 1300, 860);
         stage.show();
         DesktopTheme.reveal(scene.getRoot());
         timer.setCycleCount(Timeline.INDEFINITE);
@@ -111,6 +112,9 @@ public final class ServerFxApp extends Application {
         overview.getStyleClass().add("nav-active");
         overview.setMaxWidth(Double.MAX_VALUE);
         Button network = new Button("↗   Sao chép địa chỉ");
+        Button wallets = new Button("◈   Tài khoản & ví");
+        wallets.setMaxWidth(Double.MAX_VALUE);
+        wallets.setOnAction(event -> { if (application != null) { new ServerWalletWindow(stage, () -> application, worker).show(); } });
         network.setMaxWidth(Double.MAX_VALUE);
         network.setOnAction(event -> copy(addresses.getValue(), network));
         Region filler = new Region();
@@ -125,7 +129,7 @@ public final class ServerFxApp extends Application {
             }
         });
         sidebar.getChildren().addAll(breathing, DesktopTheme.label("ĐIỀU HÀNH", "eyebrow"),
-                overview, network, filler, DesktopTheme.label("THỜI GIAN HOẠT ĐỘNG", "eyebrow"),
+                overview, wallets, network, filler, DesktopTheme.label("THỜI GIAN HOẠT ĐỘNG", "eyebrow"),
                 uptime, new Separator(), toggle, DesktopTheme.label("AUCTION / LOCAL NETWORK", "eyebrow"));
 
         HBox header = new HBox(16, new VBox(5, DesktopTheme.label("TRUNG TÂM ĐIỀU HÀNH", "eyebrow"),
@@ -293,7 +297,7 @@ public final class ServerFxApp extends Application {
         users.setText(Integer.toString(stats.getActiveSessions()));
         rooms.setText(Integer.toString(stats.getOpenAuctions()));
         ended.setText(Integer.toString(stats.getEndedAuctions()));
-        storage.setText(running.getConfig().isEmbeddedDatabase() ? "Trên máy chủ" : "MySQL");
+        storage.setText(running.getConfig().isEmbeddedDatabase() ? "Database test cách ly" : "MySQL / XAMPP · Máy server");
         long seconds = java.time.Duration.between(startedAt, Instant.now()).getSeconds();
         uptime.setText(String.format("%02d:%02d:%02d", seconds / 3600, seconds / 60 % 60, seconds % 60));
         var selected = table.getSelectionModel().getSelectedItem();

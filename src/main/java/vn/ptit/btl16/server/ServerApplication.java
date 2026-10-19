@@ -34,6 +34,8 @@ import vn.ptit.btl16.server.network.WebSocketServerTransport;
 import vn.ptit.btl16.server.routing.MessageRouter;
 import vn.ptit.btl16.server.session.SessionCleanupService;
 import vn.ptit.btl16.server.session.SessionManager;
+import vn.ptit.btl16.server.wallet.WalletRepository;
+import vn.ptit.btl16.server.wallet.WalletController;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -54,6 +56,7 @@ public final class ServerApplication implements AutoCloseable {
     private final AuctionTimerService auctionTimer;
     private final MediaHttpServer mediaServer;
     private final MediaService media;
+    private final WalletRepository wallets;
     private final AtomicBoolean started = new AtomicBoolean(false);
     private final AtomicBoolean disposed = new AtomicBoolean(false);
 
@@ -69,7 +72,8 @@ public final class ServerApplication implements AutoCloseable {
             SessionCleanupService sessionCleanup,
             AuctionTimerService auctionTimer,
             MediaHttpServer mediaServer,
-            MediaService media) {
+            MediaService media,
+            WalletRepository wallets) {
         this.config = config;
         this.sessions = sessions;
         this.connections = connections;
@@ -82,6 +86,7 @@ public final class ServerApplication implements AutoCloseable {
         this.auctionTimer = auctionTimer;
         this.mediaServer = mediaServer;
         this.media = media;
+        this.wallets = wallets;
     }
 
     public static ServerApplication create(ServerConfig config) {
@@ -93,7 +98,7 @@ public final class ServerApplication implements AutoCloseable {
         UserRepository users = new JdbcUserRepository(factory);
         AuctionRepository auctionRepository = new JdbcAuctionRepository(factory);
         System.out.println("[REPOSITORY] JDBC " + config.databaseJdbcUrl());
-        return compose(config, users, auctionRepository, hasher, false);
+        return compose(config, users, auctionRepository, hasher, false, new WalletRepository(factory));
     }
 
     public static ServerApplication createForTests(
@@ -101,7 +106,7 @@ public final class ServerApplication implements AutoCloseable {
             UserRepository users,
             AuctionRepository auctionRepository,
             PasswordHasher hasher) {
-        return compose(config, users, auctionRepository, hasher, true);
+        return compose(config, users, auctionRepository, hasher, true, null);
     }
 
     private static ServerApplication compose(
@@ -109,7 +114,8 @@ public final class ServerApplication implements AutoCloseable {
             UserRepository users,
             AuctionRepository auctionRepository,
             PasswordHasher hasher,
-            boolean isolated) {
+            boolean isolated,
+            WalletRepository wallets) {
         ServerSequence sequence = new ServerSequence(auctionRepository.findMaxServerSequence());
         SessionManager sessions = new SessionManager(
                 Duration.ofSeconds(config.getResumeGraceSeconds()));
@@ -145,7 +151,9 @@ public final class ServerApplication implements AutoCloseable {
                 broadcasts,
                 hasher,
                 sessions);
-        MediaService media = new MediaService(MediaConfig.load(isolated), auctionRepository, sessions, managementService);
+        vn.ptit.btl16.server.media.JdbcMediaStorage mediaStorage = isolated || config.isEmbeddedDatabase() ? null
+                : new vn.ptit.btl16.server.media.JdbcMediaStorage(new JdbcConnectionFactory(config));
+        MediaService media = new MediaService(MediaConfig.load(isolated), auctionRepository, sessions, managementService, mediaStorage);
         managementService.setMediaService(media);
         MediaHttpServer mediaServer = new MediaHttpServer(media, config.getBindAddress());
         AuctionController auctionController = new AuctionController(
@@ -162,6 +170,7 @@ public final class ServerApplication implements AutoCloseable {
                 auctions,
                 sequence).register(router);
         new AuctionModule(auctionController).register(router);
+        if (wallets != null) { new WalletController(wallets).register(router); }
 
         SessionCleanupService cleanup = new SessionCleanupService(
                 sessions,
@@ -207,7 +216,8 @@ public final class ServerApplication implements AutoCloseable {
                 cleanup,
                 timer,
                 mediaServer,
-                media);
+                media,
+                wallets);
     }
 
     public void start() throws IOException {
@@ -253,6 +263,11 @@ public final class ServerApplication implements AutoCloseable {
 
     public ServerConfig getConfig() {
         return config;
+    }
+
+    public WalletRepository wallets() {
+        if (wallets == null) { throw new IllegalStateException("Wallet requires a persistent JDBC server"); }
+        return wallets;
     }
 
     public List<AuctionSnapshot> auctionSnapshots() {

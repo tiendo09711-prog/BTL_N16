@@ -1,11 +1,13 @@
 package vn.ptit.btl16.selftest;
 
 import javafx.application.Platform;
+import javafx.scene.image.ImageView;
 import javafx.scene.Scene;
 import javafx.scene.control.TableView;
 import javafx.stage.Stage;
 import vn.ptit.btl16.client.fx.FxClientController;
 import vn.ptit.btl16.client.model.ClientAppModel;
+import vn.ptit.btl16.client.model.ClientAuction;
 import vn.ptit.btl16.client.network.WebSocketClientTransport;
 import vn.ptit.btl16.client.service.AccountApi;
 import vn.ptit.btl16.client.service.ApiResponse;
@@ -60,6 +62,7 @@ public final class DesktopUiSelfTest {
                 ok(hostAccount.login("studio", "Password123!"));
                 ok(buyerAccount.register("linh", "Password123!", "Linh", "", ""));
                 ApiResponse identity = ok(buyerAccount.login("linh", "Password123!"));
+                TestMedia.fundWallets(server.wallets());
                 AuctionApi hostApi = new AuctionApi(host);
                 long firstRoom = 0;
                 String[] names = {"Tai nghe Studio", "Máy ảnh Compact", "Bàn phím cơ"};
@@ -89,6 +92,7 @@ public final class DesktopUiSelfTest {
                     return null;
                 });
                 TestSupport.waitUntil(() -> model.auctionSnapshot().size() == 3, 10000, "client room list");
+                snapshot(clientStage, output.resolve("client-marketplace.png"));
                 ApiResponse joined = ok(new AuctionApi(buyer).join(firstRoom));
                 fx(() -> {
                     invoke(current, "applySnapshot", new Class<?>[]{ApiResponse.class, boolean.class}, joined, true);
@@ -98,7 +102,27 @@ public final class DesktopUiSelfTest {
                     return null;
                 });
                 ok(new AuctionApi(buyer).bid(firstRoom, new BigDecimal("110000")));
+                TestSupport.waitUntil(() -> {
+                    ImageView view = read(current, "productImage");
+                    if (view.getImage() != null && view.getImage().isError()) {
+                        throw new AssertionError("Room cover cannot load", view.getImage().getException());
+                    }
+                    return view.getImage() != null && view.getImage().getProgress() == 1;
+                }, 10000, "room loads full-size cover image");
                 Thread.sleep(1500);
+                fx(() -> {
+                    TestSupport.check((boolean) read(current, "roomMode"), "joining switches to dedicated room layout");
+                    javafx.scene.control.SplitPane split = read(current, "listingSplit");
+                    TestSupport.equals(1, split.getItems().size(), "room hides marketplace table");
+                    javafx.scene.layout.VBox history = read(current, "roomHistory");
+                    TestSupport.check(history.getChildren().size() > 1, "room displays live bid history");
+                    javafx.scene.layout.FlowPane suggestions = read(current, "bidSuggestions");
+                    TestSupport.equals(3, suggestions.getChildren().size(), "room offers three bid increment shortcuts");
+                    ImageView image = read(current, "productImage");
+                    TestSupport.check(image.getBoundsInParent().getWidth() > 10 && image.getBoundsInParent().getHeight() > 10,
+                            "loaded room cover has visible layout bounds");
+                    return null;
+                });
                 snapshot(clientStage, output.resolve("client-auctions.png"));
                 snapshot(serverStage, output.resolve("server-dashboard.png"));
                 fx(() -> {
@@ -108,7 +132,49 @@ public final class DesktopUiSelfTest {
                 });
                 Thread.sleep(500);
                 snapshot(clientStage, output.resolve("client-compact.png"));
-                System.out.println("[PASS] JavaFX login, populated auction view, compact window and server dashboard: " + output);
+                fx(() -> { invoke(current, "leaveJoined", new Class<?>[0]); return null; });
+                TestSupport.waitUntil(() -> model.getJoinedAuctionId() == null, 10000, "leave room response");
+                fx(() -> {
+                    TestSupport.check(!(boolean) read(current, "roomMode"), "leaving restores marketplace layout");
+                    javafx.scene.control.SplitPane split = read(current, "listingSplit");
+                    TestSupport.equals(2, split.getItems().size(), "marketplace table returns after leaving");
+                    return null;
+                });
+                long closingRoom = model.auctionSnapshot().stream().filter(value -> value.getCurrentWinnerId() == null)
+                        .findFirst().orElseThrow().getAuctionId();
+                ApiResponse closingJoin = ok(new AuctionApi(buyer).join(closingRoom));
+                fx(() -> {
+                    invoke(current, "applySnapshot", new Class<?>[]{ApiResponse.class, boolean.class}, closingJoin, true);
+                    invoke(current, "renderAuctions", new Class<?>[0]);
+                    TableView<ClientAuction> table = read(current, "auctionTable");
+                    table.getSelectionModel().select(model.joinedAuction());
+                    return null;
+                });
+                ok(hostApi.endAuction(closingRoom));
+                TestSupport.waitUntil(() -> model.joinedAuction() != null && !model.joinedAuction().isOpen(),
+                        10000, "room receives the ended event");
+                ApiResponse openRooms = ok(new AuctionApi(buyer).listAuctions());
+                fx(() -> {
+                    invoke(current, "applyAuctionList", new Class<?>[]{ApiResponse.class}, openRooms);
+                    invoke(current, "renderAuctions", new Class<?>[0]);
+                    TestSupport.check(model.joinedAuction() != null, "marketplace refresh keeps joined closed-room result");
+                    var endedAt = model.joinedAuction().getEndedAt();
+                    model.updateServerClock(endedAt.plusSeconds(30));
+                    invoke(current, "refreshClock", new Class<?>[0]);
+                    javafx.scene.control.Label countdown = read(current, "detailTime");
+                    TestSupport.check(countdown.getText().matches(".*00:[23][0-9]"), "closed room displays the remaining one-minute countdown");
+                    javafx.scene.control.Button bid = read(current, "bidButton");
+                    TestSupport.check(bid.isDisabled(), "closed result never accepts more bids");
+                    model.updateServerClock(endedAt.plusSeconds(61));
+                    invoke(current, "refreshClock", new Class<?>[0]);
+                    TestSupport.check(model.getJoinedAuctionId() == null && !(boolean) read(current, "roomMode"),
+                            "countdown returns to marketplace without waiting a real minute in this UI test");
+                    TestSupport.check(model.auctionSnapshot().stream().noneMatch(value -> value.getAuctionId() == closingRoom),
+                            "closed room disappears after the countdown");
+                    return null;
+                });
+                ok(new AuctionApi(buyer).leave(closingRoom));
+                System.out.println("[PASS] JavaFX login, populated auction view, compact window, server dashboard and 60-second result countdown: " + output);
             }
         } finally {
             FxClientController current = controller;
