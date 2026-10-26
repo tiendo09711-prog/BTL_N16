@@ -10,6 +10,7 @@ export const distributionGuides = [
   '26_LIVE_AUCTION_ROOM.md', '27_CHAT_VA_KHACH_AN_DANH.md', '28_DIEN_BIEN_PHIEN.md',
   '29_TUONG_TAC_CHAT.md', '30_KET_QUA_PHIEN.md', '31_HOAN_THIEN_CHUNG.md',
   '32_DEMO_VA_NGHIEM_THU.md', '33_KET_QUA_NGHIEM_THU.md', '34_CAP_NHAT_BAN_PHAN_PHOI.md',
+  '35_AM_THANH_CLIENT.md',
   'LUAT_DAU_GIA_BTL16.docx'
 ];
 export const distributionMigrations = [

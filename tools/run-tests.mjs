@@ -64,10 +64,10 @@ const javafxModules = readdirSync(libraries).filter(file => file.startsWith('jav
   && /-(?:win|mac(?:-aarch64)?|linux(?:-aarch64)?)\.jar$/.test(file)).map(file => path.join(libraries, file)).join(path.delimiter);
 if (packaged && !existsSync(java)) throw new Error('Build the Windows distribution first: npm run dist');
 await check('packaging-unit', 'node', ['--test', 'tools/package-layout.test.mjs', 'tools/package-windows-bundle.test.mjs']);
-await check('AllSelfTests', java, ['-Dbtl16.test.allowEmbedded=true', '-cp', classpath, 'vn.ptit.btl16.selftest.AllSelfTests'], 600_000);
+await check('AllSelfTests', java, ['-Dbtl16.test.allowEmbedded=true', '-Dbtl16.client.sound.disabled=true', '-cp', classpath, 'vn.ptit.btl16.selftest.AllSelfTests'], 600_000);
 if (flags.has('--ui')) {
-  for (const test of ['CompletionUiSelfTest', 'AuctionReceiptUiSelfTest', 'RoomInteractionUiSelfTest', 'RoomProgressUiSelfTest', 'BidExperienceUiSelfTest', 'RoomSocialUiSelfTest', 'LiveAuctionRoomUiSelfTest', 'AuctionButtonsUiSelfTest', 'ServerButtonsUiSelfTest', 'DesktopUiSelfTest', 'MediaUiSelfTest', 'ProductRestorationUiSelfTest', 'WalletUiSelfTest']) {
-    await check(test, java, ['-Dbtl16.test.allowEmbedded=true', '--module-path', javafxModules, '--add-modules', 'javafx.controls,javafx.media',
+  for (const test of ['ClientSoundsUiSelfTest', 'CompletionUiSelfTest', 'AuctionReceiptUiSelfTest', 'RoomInteractionUiSelfTest', 'RoomProgressUiSelfTest', 'BidExperienceUiSelfTest', 'RoomSocialUiSelfTest', 'LiveAuctionRoomUiSelfTest', 'AuctionButtonsUiSelfTest', 'ServerButtonsUiSelfTest', 'DesktopUiSelfTest', 'MediaUiSelfTest', 'ProductRestorationUiSelfTest', 'WalletUiSelfTest']) {
+    await check(test, java, ['-Dbtl16.test.allowEmbedded=true', '-Dbtl16.client.sound.disabled=true', '--module-path', javafxModules, '--add-modules', 'javafx.controls,javafx.media',
       '-cp', classpath, `vn.ptit.btl16.selftest.${test}`]);
   }
 }

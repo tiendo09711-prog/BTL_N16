@@ -98,6 +98,11 @@ LAN/mat mang that: `32_DEMO_VA_NGHIEM_THU.md`. Ket qua test/build thuc te:
 gom hai EXE Windows va bon goi macOS portable arm64/x64 trong dist, cung source/JAR.
 Ket qua build va kiem tra goi: `dist/VERIFICATION.md`, `dist/BUILD_INFO.json`.
 
+Client co hieu ung am thanh nhe cho nut bam, chat, bid duoc chap nhan, vuot gia
+va dong phien. Menu Am thanh o man dang nhap/sidebar cho tat/bat, am luong va
+nghe thu; tuy chon duoc luu tren may. Chi phat xac nhan khi Server da tra loi,
+khong beep theo tung giay va khong them am thanh cho Server. Xem `35_AM_THANH_CLIENT.md`.
+
 ```powershell
 scripts/run-self-tests.cmd
 npm run test:packaging

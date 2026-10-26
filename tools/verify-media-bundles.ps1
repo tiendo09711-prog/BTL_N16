@@ -81,10 +81,14 @@ foreach ($role in @('Server', 'Client')) {
     try {
         foreach ($class in @('server/media/MediaProcessor', 'server/media/MediaHttpServer', 'client/fx/ProductMediaEditor', 'client/fx/MediaGalleryPane',
                 'client/fx/RoomSocialPane', 'server/social/RoomInteractionStore', 'server/social/RoomSocialService',
-                'client/fx/RoomProgressPane', 'client/fx/AuctionReceiptsPane', 'client/fx/PersonalNotificationsPane')) {
+                'client/fx/RoomProgressPane', 'client/fx/AuctionReceiptsPane', 'client/fx/PersonalNotificationsPane',
+                'client/fx/ClientSounds', 'client/fx/ClientSoundUi')) {
             if (!(Entry $jar "vn/ptit/btl16/$class.class")) { throw "Missing compiled feature: $class" }
         }
         if (Entry $jar 'vn/ptit/btl16/server/auction/service/ProductImageValidator.class') { throw 'Obsolete header-only image validator remains packaged' }
+        foreach ($sound in @('tap', 'navigate', 'success', 'bid-accepted', 'outbid', 'chat-sent', 'chat-received', 'warning', 'error', 'auction-end')) {
+            if (!(Entry $jar "audio/client/$sound.wav")) { throw "Missing bundled Client sound: $sound" }
+        }
     } finally { $jar.Dispose() }
     $modules = Get-Content -LiteralPath (Join-Path $image 'runtime\release') -Raw
     if (!(Test-Path -LiteralPath (Join-Path $image 'runtime\bin\java.exe'))) { throw "Missing runtime diagnostic/test launcher: $name" }

@@ -1099,7 +1099,9 @@ public final class FxClientController implements AutoCloseable {
     }
 
     private void bidConfirmedSound(long room, BigDecimal amount) {
-        sounds.playOnce(ClientSounds.Cue.BID_ACCEPTED, "bid:" + room + ":" + amount.stripTrailingZeros().toPlainString());
+        if (transport.isConnected() && model.hasSessionToken() && java.util.Objects.equals(model.getJoinedAuctionId(), room)) {
+            sounds.playOnce(ClientSounds.Cue.BID_ACCEPTED, "bid:" + room + ":" + amount.stripTrailingZeros().toPlainString());
+        }
     }
 
     private void showHistory() {
@@ -1740,7 +1742,7 @@ public final class FxClientController implements AutoCloseable {
                 model.applySnapshot(auction, model.currentBidSnapshot(),
                         ClientWireParser.serverNow(data), false);
                 if (java.util.Objects.equals(model.getJoinedAuctionId(), auction.getAuctionId())) {
-                    sounds.playOnce(ClientSounds.Cue.AUCTION_END, "ended:" + auction.getAuctionId());
+                    if (transport.isConnected()) { sounds.playOnce(ClientSounds.Cue.AUCTION_END, "ended:" + auction.getAuctionId()); }
                     lastRoomSignal = System.nanoTime(); roomWalletChanged();
                     showConfirmedReceipt(auction.getAuctionId());
                 }
@@ -1908,7 +1910,9 @@ public final class FxClientController implements AutoCloseable {
     private void refreshClock() {
         socialRoom.tick();
         ClientAuction joined = model.joinedAuction();
-        if (transport.isConnected() && roomSnapshotReady && joined != null && joined.isOpen() && joined.getEndTime() != null) {
+        if (transport.isConnected() && roomSnapshotReady && !roomSyncing
+                && System.nanoTime() - lastRoomSignal < ROOM_FRESH_NANOS
+                && joined != null && joined.isOpen() && joined.getEndTime() != null) {
             long remaining = java.time.Duration.between(model.serverNow(), joined.getEndTime()).toMillis();
             if (remaining > 0 && remaining <= 10_000) {
                 sounds.playOnce(ClientSounds.Cue.WARNING, "ending:" + joined.getAuctionId());
