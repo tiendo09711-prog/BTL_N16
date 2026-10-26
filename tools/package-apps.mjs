@@ -4,6 +4,7 @@ import path from 'node:path';
 import { buildProject, projectRoot } from './dev-utils.mjs';
 import { desktopLayout, mainJar, verifyJavafxLibraries } from './package-layout.mjs';
 import { packageWindowsBundle } from './package-windows-bundle.mjs';
+import { copyDistributionGuides, writeBuildInfo } from './distribution-metadata.mjs';
 
 export function removeBuildDirectory(directory) {
   const relative = path.relative(projectRoot, directory);
@@ -45,11 +46,7 @@ export async function packageApplications(roles) {
     await packageApplication(role);
   }
   if (process.platform === 'win32') {
-    cpSync(path.join(projectRoot, 'docs', '22_HAI_UNG_DUNG_JAVAFX.md'),
-      path.join(projectRoot, 'dist', 'HUONG_DAN.md'));
-    for (const guide of ['23_ANH_VIDEO_SAN_PHAM.md', '24_KIEM_THU_TOAN_BO.md', '25_MYSQL_XAMPP_ONLY.md', 'LUAT_DAU_GIA_BTL16.docx']) {
-      cpSync(path.join(projectRoot, 'docs', guide), path.join(projectRoot, 'dist', guide));
-    }
+    copyDistributionGuides(path.join(projectRoot, 'dist'), true);
     const bundles = readdirSync(path.join(projectRoot, 'dist')).filter(file => /^BTL16-Auction-(Server|Client)\.exe$/.test(file));
     const { createHash } = await import('node:crypto');
     writeFileSync(path.join(projectRoot, 'dist', 'SHA256SUMS.txt'), bundles.map(file =>
@@ -129,6 +126,8 @@ async function packageApplication(role) {
         ? `Start MySQL in XAMPP on the server machine first. All persistent data, including images/videos, is stored in MySQL only. Settings: ${layout.imageName}/Contents/app/config/server.properties.\nImage/video uploads require FFmpeg 8+ and ffprobe (brew install ffmpeg); media tools are not bundled in the Mac app.\nAllow incoming connections on ports 8890 and 8891 in macOS Firewall.\nCopy the current LAN address from the dashboard to clients.\n`
         : 'Paste the current WebSocket address copied from the server. No separate Java or database installation is required.\n')
       + 'This is an unsigned local build. Only open builds whose source you trust.\n', 'utf8');
+    copyDistributionGuides(appImage, server);
+    writeBuildInfo(appImage, role, 'darwin', process.arch);
     console.log(`[DIST] Ready: ${appImage}`);
     return;
   }
@@ -137,5 +136,7 @@ async function packageApplication(role) {
     : 'BTL16 CLIENT\r\n1. Open BTL16-Auction-Client.exe.\r\n2. Paste the connection code or address from the server, then click Ket noi.\r\n3. Register or log in to join auctions.\r\nKeep this entire app-image folder together. The single-file EXE in the parent dist folder can be copied alone. No separate Java or MySQL installation is needed.\r\n', 'utf8');
   console.log(`[DIST] Ready: ${path.join(appImage, `${appName}.exe`)}`);
   console.log('[DIST] Copy the WHOLE application directory, not the EXE alone.');
+  copyDistributionGuides(appImage, server);
+  writeBuildInfo(appImage, role, 'win32', process.arch);
   await packageWindowsBundle(appName, appImage);
 }

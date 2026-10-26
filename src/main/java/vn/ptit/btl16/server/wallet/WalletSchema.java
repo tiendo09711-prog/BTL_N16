@@ -22,6 +22,7 @@ public final class WalletSchema {
                         INDEX idx_topups_user(user_id, created_at), INDEX idx_topups_pending(status, created_at)
                     ) ENGINE=InnoDB
                     """);
+            column(connection, statement, "wallet_topups", "rejection_reason", "VARCHAR(300) NOT NULL DEFAULT ''");
             statement.executeUpdate("""
                     CREATE TABLE IF NOT EXISTS wallet_holds (
                         auction_id BIGINT PRIMARY KEY, user_id BIGINT NOT NULL, amount DECIMAL(18,2) NOT NULL,

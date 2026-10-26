@@ -46,13 +46,22 @@ public final class WalletPane extends BorderPane {
     private String requestId;
     private BigDecimal requestedAmount;
     private boolean loading, submitting, pending;
+    private final TextField roomFilter = new TextField();
+    private final ComboBox<String> typeFilter = new ComboBox<>();
+    private final DatePicker fromFilter = new DatePicker(), toFilter = new DatePicker();
+    private final Button nextEntries = new Button("Trang giao dich tiep");
+    private java.util.Map<String, String> ledgerFilters = java.util.Map.of();
+    private long ledgerGeneration, ledgerCursor;
+    private boolean ledgerMode;
 
     public WalletPane(Window owner, WalletApi api, long userId, String username, BooleanSupplier sameSession) {
         this.api = api; this.userId = userId; this.username = username; this.sameSession = sameSession;
         stage.initOwner(owner); stage.initModality(Modality.WINDOW_MODAL); stage.setTitle("V\u00ed demo - " + username);
         Label disclaimer = DesktopTheme.label("M\u00d4 PH\u1eceNG H\u1eccC T\u1eacP - KH\u00d4NG CHUY\u1ec2N TI\u1ec0N TH\u1eacT", "eyebrow");
         HBox stats = new HBox(12, stat("S\u1ed0 d\u01b0", balance), stat("Kh\u1ea3 d\u1ee5ng", available), stat("\u0110ang gi\u1eef ch\u1ed7", reserved));
-        VBox heading = new VBox(8, DesktopTheme.label("V\u00ed c\u1ee7a " + username, "page-title"), disclaimer, stats);
+        Button retry = new Button("Lam moi / Thu lai"); retry.setOnAction(event -> { refresh(); if (ledgerMode) { loadEntries(false); } });
+        VBox heading = new VBox(8, DesktopTheme.label("V\u00ed c\u1ee7a " + username, "page-title"), disclaimer, stats, retry,
+                new Label("Kha dung = so du - dang giu. PURCHASE/SALE la thanh toan mo phong ghi trong ledger, khong phai chuyen tien that."));
         heading.setPadding(new Insets(20)); setTop(heading);
         qr.setFitWidth(210); qr.setFitHeight(210); qr.setSmooth(false);
         StackPane qrFrame = new StackPane(qr); qrFrame.getStyleClass().add("wallet-qr"); qrFrame.setMinSize(230, 230); qrFrame.setMaxHeight(230);
@@ -61,8 +70,15 @@ public final class WalletPane extends BorderPane {
         VBox deposit = new VBox(12, DesktopTheme.label("N\u1ea1p ti\u1ec1n gi\u1ea3 l\u1eadp", "section-title"), amount, new HBox(8, generate, confirm), qrFrame, qrHint,
                 DesktopTheme.label("QR ch\u1ec9 ch\u1ee9a m\u00e3 demo. B\u1ea5m \u0110\u00e3 nh\u1eadp \u0111\u1ec3 g\u1eedi y\u00eau c\u1ea7u; s\u1ed1 d\u01b0 ch\u1ec9 t\u0103ng khi server duy\u1ec7t.", "muted"));
         deposit.getStyleClass().add("card"); deposit.setPrefWidth(290); deposit.setMinWidth(270);
+        roomFilter.setPromptText("Ma phien"); roomFilter.setPrefColumnCount(7);
+        typeFilter.getItems().setAll("", "TOPUP", "RESERVE", "RELEASE", "PURCHASE", "SALE", "LEGACY_REVIEW"); typeFilter.setValue("");
+        fromFilter.setPromptText("Tu ngay"); toFilter.setPromptText("Den ngay (gom ngay nay)");
+        Button filter = new Button("Loc / trang dau"); filter.setOnAction(event -> loadEntries(false));
+        nextEntries.setDisable(true); nextEntries.setOnAction(event -> loadEntries(true));
+        FlowPane filters = new FlowPane(8, 8, roomFilter, typeFilter, fromFilter, toFilter, filter, nextEntries);
+        entries.setPlaceholder(new Label("Chua co giao dich phu hop")); requests.setPlaceholder(new Label("Chua co yeu cau nap"));
         VBox history = new VBox(12, DesktopTheme.label("Y\u00eau c\u1ea7u n\u1ea1p ti\u1ec1n", "section-title"), requests,
-                DesktopTheme.label("S\u1ed5 giao d\u1ecbch", "section-title"), entries,
+                DesktopTheme.label("S\u1ed5 giao d\u1ecbch", "section-title"), filters, entries,
                 DesktopTheme.label("Khi d\u1eabn \u0111\u1ea7u, ti\u1ec1n b\u1ecb gi\u1eef ch\u1ed7. B\u1ecb v\u01b0\u1ee3t gi\u00e1 s\u1ebd \u0111\u01b0\u1ee3c ho\u00e0n gi\u1eef ch\u1ed7; r\u1eddi ph\u00f2ng kh\u00f4ng h\u1ee7y cam k\u1ebft mua.", "muted"));
         history.getStyleClass().add("card"); history.setMinWidth(420);
         HBox content = new HBox(16, deposit, history); content.setPadding(new Insets(0, 20, 20, 20)); HBox.setHgrow(history, Priority.ALWAYS);
@@ -120,7 +136,7 @@ public final class WalletPane extends BorderPane {
         balance.setText(WalletUi.money(new BigDecimal(response.get("balance"))));
         available.setText(WalletUi.money(new BigDecimal(response.get("available")))); reserved.setText(WalletUi.money(new BigDecimal(response.get("reserved"))));
         var data = response.getWireMessage().getData(); var values = WalletWire.requests(data);
-        requests.getItems().setAll(values); entries.getItems().setAll(WalletWire.entries(data));
+        requests.getItems().setAll(values); if (!ledgerMode) { entries.getItems().setAll(WalletWire.entries(data)); }
         TopUpRequest waiting = values.stream().filter(value -> value.status().equals("PENDING")).findFirst().orElse(null);
         boolean wasPending = pending; pending = waiting != null;
         if (pending) {
@@ -133,4 +149,31 @@ public final class WalletPane extends BorderPane {
         controls();
     }
     private void controls() { amount.setDisable(submitting || pending); generate.setDisable(submitting || pending); confirm.setDisable(submitting || pending || requestId == null); }
+
+    private void loadEntries(boolean next) {
+        if (!active()) { return; }
+        java.util.Map<String, String> filters = new java.util.LinkedHashMap<>();
+        try {
+            if (next) { filters.putAll(ledgerFilters); filters.put("beforeId", Long.toString(ledgerCursor)); }
+            else {
+                String room = roomFilter.getText().strip(); if (!room.isEmpty() && Long.parseLong(room) <= 0) { throw new IllegalArgumentException(); }
+                filters.put("auctionId", room); filters.put("type", typeFilter.getValue());
+                var zone = java.time.ZoneId.systemDefault();
+                if (fromFilter.getValue() != null) { filters.put("from", fromFilter.getValue().atStartOfDay(zone).toInstant().toString()); }
+                if (toFilter.getValue() != null) { filters.put("to", toFilter.getValue().plusDays(1).atStartOfDay(zone).toInstant().toString()); }
+                ledgerFilters = java.util.Map.copyOf(filters);
+            }
+        } catch (RuntimeException error) { message.setText("Ma phien/ngay loc khong hop le"); return; }
+        ledgerMode = true; long generation = ++ledgerGeneration; nextEntries.setDisable(true); message.setText("Dang tai giao dich...");
+        api.entries(filters).whenComplete((response, error) -> Platform.runLater(() -> {
+            if (!active() || generation != ledgerGeneration) { return; }
+            if (error != null || response == null || !response.isSuccess()) {
+                message.setText("Khong tai duoc giao dich. Bam Loc / trang dau de thu lai."); return;
+            }
+            if (!Long.toString(userId).equals(response.get("userId"))) { stage.close(); return; }
+            entries.getItems().setAll(WalletWire.entries(response.getWireMessage().getData()));
+            ledgerCursor = Long.parseLong(response.get("nextBeforeId")); nextEntries.setDisable(!Boolean.parseBoolean(response.get("hasMore")));
+            message.setText(entries.getItems().isEmpty() ? "Khong co giao dich phu hop" : "Giao dich cua chinh ban; loc tren server truoc phan trang.");
+        }));
+    }
 }

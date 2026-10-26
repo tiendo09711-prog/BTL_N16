@@ -31,15 +31,24 @@ public final class MediaProcessor {
 
     public MediaProcessor(MediaConfig config) { this.config = config; }
 
-    public ProductMedia process(Path folder, String id, String kind, String name, int turns,
+    public Processed process(byte[] source, String id, String kind, String name, int turns,
                                 double left, double top, double width, double height, BooleanSupplier cancelled) throws IOException {
-        Path source = folder.resolve("source");
+        try (MediaInputServer input = new MediaInputServer()) {
+            return process(input, source, id, kind, name, turns, left, top, width, height, cancelled);
+        }
+    }
+
+    private Processed process(MediaInputServer input, byte[] source, String id, String kind, String name, int turns,
+                              double left, double top, double width, double height, BooleanSupplier cancelled) throws IOException {
+        String sourceUrl = input.add(source);
+        Map<String, byte[]> content = new java.util.LinkedHashMap<>();
+        content.put("source", source);
         if (!List.of("IMAGE", "VIDEO").contains(kind) || turns < 0 || turns > 3
                 || !Double.isFinite(left + top + width + height) || left < 0 || top < 0 || width <= 0 || height <= 0
                 || left + width > 1.000001 || top + height > 1.000001) {
             fail(ErrorCode.MEDIA_INVALID, "Loai tep hoac vung cat khong hop le");
         }
-        JsonNode probe = probe(source, folder, cancelled);
+        JsonNode probe = probe(sourceUrl, cancelled);
         JsonNode stream = null;
         for (JsonNode candidate : probe.path("streams")) {
             if (candidate.path("codec_type").asText().equals("video") && stream == null) { stream = candidate; }
@@ -67,7 +76,8 @@ public final class MediaProcessor {
         double duration = 0;
         List<String> arguments = new ArrayList<>(List.of(config.ffmpeg().toString(), "-nostdin", "-v", "error", "-xerror", "-err_detect", "crccheck+bitstream+buffer", "-y",
                 "-threads", "2", "-filter_threads", "1", "-filter_complex_threads", "1",
-                "-protocol_whitelist", "file,pipe", "-max_pixels", Long.toString(image ? config.imagePixels() : config.videoPixels()), "-i", source.toString()));
+                "-protocol_whitelist", "http,tcp,pipe", "-format_whitelist", INPUT_FORMATS,
+                "-max_pixels", Long.toString(image ? config.imagePixels() : config.videoPixels()), "-i", sourceUrl));
         if (image) {
             String format = probe.path("format").path("format_name").asText();
             sourceType = IMAGES.get(codec);
@@ -84,11 +94,9 @@ public final class MediaProcessor {
             String filters = imageInput(probe, grid) + rotate + crop + "scale="
                     + "'min(" + config.detailEdge() + ",iw)':'min(" + config.detailEdge() + ",ih)':force_original_aspect_ratio=decrease,"
                     + "format=rgba,split[fg][bg];[bg]lutrgb=r=255:g=255:b=255:a=255[white];"
-                    + "[white][fg]overlay=shortest=1,split[detail][small];"
-                    + "[small]scale='min(360,iw)':'min(360,ih)':force_original_aspect_ratio=decrease[thumb]";
+                    + "[white][fg]overlay=shortest=1[detail]";
             arguments.addAll(List.of("-filter_complex", filters, "-map", "[detail]", "-frames:v", "1", "-q:v", "2",
-                    "-map_metadata", "-1", folder.resolve("detail.jpg").toString(), "-map", "[thumb]", "-frames:v", "1", "-q:v", "4",
-                    "-map_metadata", "-1", folder.resolve("thumbnail.jpg").toString()));
+                    "-map_metadata", "-1", "-c:v", "mjpeg", "-f", "image2pipe", "pipe:1"));
         } else {
             String format = probe.path("format").path("format_name").asText();
             if (!format.matches(".*(mov|mp4|matroska|webm|avi).*")) {
@@ -103,38 +111,42 @@ public final class MediaProcessor {
             arguments.addAll(List.of("-map", "0:v:0", "-map", "0:a:0?", "-sn", "-dn", "-vf",
                     "scale=w='min(1920,iw)':h='min(1080,ih)':force_original_aspect_ratio=decrease:force_divisible_by=2",
                     "-r", "30", "-c:v", "libx264", "-preset", "fast", "-crf", "23", "-maxrate", "4M", "-bufsize", "8M",
-                    "-pix_fmt", "yuv420p", "-c:a", "aac", "-ac", "2", "-b:a", "128k", "-movflags", "+faststart",
+                    "-g", "30", "-keyint_min", "30", "-sc_threshold", "0",
+                    "-pix_fmt", "yuv420p", "-c:a", "aac", "-ac", "2", "-b:a", "128k", "-movflags", "+frag_custom",
                     "-t", Integer.toString(config.videoSeconds() + 1),
-                    "-map_metadata", "-1", folder.resolve("video.mp4").toString()));
+                    "-map_metadata", "-1", "-f", "mp4", "pipe:1"));
         }
-        execute(arguments, folder, cancelled);
-        if (!image) {
-            execute(List.of(config.ffmpeg().toString(), "-nostdin", "-v", "error", "-y", "-threads", "2", "-i",
-                    folder.resolve("video.mp4").toString(), "-frames:v", "1", "-vf", "scale=360:360:force_original_aspect_ratio=decrease",
-                    folder.resolve("thumbnail.jpg").toString()), folder, cancelled);
-        }
-        Path detail = folder.resolve(image ? "detail.jpg" : "video.mp4");
-        JsonNode normalized = probe(detail, folder, cancelled);
+        byte[] normalizedBytes = execute(arguments, cancelled, config.productBytes() - source.length);
+        if (!image) { normalizedBytes = SeekableMp4.complete(normalizedBytes); }
+        content.put(image ? "detail.jpg" : "video.mp4", normalizedBytes);
+        String normalizedUrl = input.add(normalizedBytes);
+        byte[] thumbnail = execute(List.of(config.ffmpeg().toString(), "-nostdin", "-v", "error", "-threads", "2",
+                "-protocol_whitelist", "http,tcp,pipe", "-format_whitelist", INPUT_FORMATS, "-i", normalizedUrl,
+                "-frames:v", "1", "-vf", "scale='min(360,iw)':'min(360,ih)':force_original_aspect_ratio=decrease",
+                "-q:v", "4", "-c:v", "mjpeg", "-f", "image2pipe", "pipe:1"), cancelled,
+                config.productBytes() - source.length - normalizedBytes.length);
+        content.put("thumbnail.jpg", thumbnail);
+        JsonNode normalized = probe(normalizedUrl, cancelled);
         JsonNode output = normalized.path("streams").get(0);
         if (!image && normalized.path("format").path("duration").asDouble() > config.videoSeconds() + 0.1) {
             fail(ErrorCode.MEDIA_LIMIT, "Thoi luong video thuc te vuot " + config.videoSeconds() + " giay");
         }
-        long bytes;
-        try (var files = Files.list(folder)) {
-            bytes = files.mapToLong(path -> {
-                try { return Files.size(path); } catch (IOException exception) { throw new IllegalStateException(exception); }
-            }).sum();
-        }
+        long bytes = content.values().stream().mapToLong(value -> value.length).sum();
         if (bytes > config.productBytes()) { fail(ErrorCode.MEDIA_LIMIT, "Tep sau xu ly vuot ngan sach luu tru san pham"); }
-        return new ProductMedia(id, 0L, kind, safeName(name), sourceType, bytes, output.path("width").asInt(),
-                output.path("height").asInt(), duration, 0);
+        return new Processed(new ProductMedia(id, 0L, kind, safeName(name), sourceType, bytes, output.path("width").asInt(),
+                output.path("height").asInt(), duration, 0), Map.copyOf(content));
     }
 
-    private JsonNode probe(Path source, Path folder, BooleanSupplier cancelled) throws IOException {
-        byte[] output = execute(List.of(config.ffprobe().toString(), "-v", "error", "-protocol_whitelist", "file,pipe",
+    public record Processed(ProductMedia media, Map<String, byte[]> content) { }
+
+    private static final String INPUT_FORMATS = "mov,matroska,webm,avi,image2,image2pipe,jpeg_pipe,png_pipe,bmp_pipe,gif,webp_pipe,apng,tiff_pipe,j2k_pipe,pbm_pipe,pgm_pipe,ppm_pipe,pam_pipe,ico,avif";
+
+    private JsonNode probe(String source, BooleanSupplier cancelled) throws IOException {
+        byte[] output = execute(List.of(config.ffprobe().toString(), "-v", "error", "-protocol_whitelist", "http,tcp,pipe",
+                "-format_whitelist", INPUT_FORMATS,
                 "-max_pixels", Long.toString(Math.max(config.imagePixels(), config.videoPixels())), "-show_streams", "-show_stream_groups", "-show_format",
                 "-show_entries", "stream=index,codec_type,codec_name,width,height:stream_disposition=default:stream_group=index,type:stream_group_component:subcomponent:stream_group_stream=index:format=format_name,duration:format_tags=major_brand,compatible_brands",
-                "-of", "json", source.toString()), folder, cancelled);
+                "-of", "json", source), cancelled, 2_097_152);
         return JSON.readTree(output);
     }
 
@@ -177,7 +189,8 @@ public final class MediaProcessor {
         return false;
     }
 
-    private byte[] execute(List<String> arguments, Path folder, BooleanSupplier cancelled) throws IOException {
+    private byte[] execute(List<String> arguments, BooleanSupplier cancelled, long outputLimit) throws IOException {
+        if (outputLimit <= 0) { fail(ErrorCode.MEDIA_LIMIT, "Vuot ngan sach xu ly media san pham"); }
         if (!Files.isRegularFile(Path.of(arguments.get(0)))) {
             fail(ErrorCode.MEDIA_PROCESSING_FAILED, "Chua cai bo xu ly FFmpeg/ffprobe tren may server");
         }
@@ -186,7 +199,7 @@ public final class MediaProcessor {
         var readers = Executors.newFixedThreadPool(2, task -> {
             Thread thread = new Thread(task, "media-process-output"); thread.setDaemon(true); return thread;
         });
-        var output = readers.submit(() -> collect(process.getInputStream(), 2_097_152, overflow));
+        var output = readers.submit(() -> collect(process.getInputStream(), (int) Math.min(Integer.MAX_VALUE - 8L, outputLimit), overflow));
         var errors = readers.submit(() -> collect(process.getErrorStream(), 65536, overflow));
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(config.timeoutSeconds());
         try {
@@ -196,10 +209,6 @@ public final class MediaProcessor {
                 }
                 if (System.nanoTime() > deadline || overflow.get()) {
                     fail(ErrorCode.MEDIA_LIMIT, "Qua thoi gian/nguong xu ly tep (" + config.timeoutSeconds() + " giay)");
-                }
-                try (var files = Files.list(folder)) {
-                    long size = files.mapToLong(path -> { try { return Files.size(path); } catch (IOException exception) { return config.productBytes() + 1; } }).sum();
-                    if (size > config.productBytes()) { fail(ErrorCode.MEDIA_LIMIT, "Vuot ngan sach xu ly media san pham"); }
                 }
             }
             byte[] standardOutput = output.get(5, TimeUnit.SECONDS);

@@ -47,7 +47,9 @@ public final class ClientWireParser {
                 Boolean.parseBoolean(text(data, prefix + "hasImage")),
                 text(data, prefix + "imageMime"),
                 longValue(data, prefix + "imageVersion", 0L),
-                instant(data, prefix + "hardEndTime"));
+                instant(data, prefix + "hardEndTime"),
+                Boolean.parseBoolean(text(data, prefix + "anonymousGuests")),
+                longValue(data, prefix + "selfParticipantId", 0L));
     }
 
     public static List<ClientProduct> products(Map<String, String> data) {

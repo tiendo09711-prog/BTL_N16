@@ -13,6 +13,7 @@ public final class AuctionRuntime {
     private final BigDecimal minBidIncrement;
     private final Instant startTime;
     private final RoomVisibility visibility;
+    private final boolean anonymousGuests;
     private final String roomPasswordHash;
     private final String roomPasswordSalt;
     private final int roomPasswordIterations;
@@ -39,6 +40,7 @@ public final class AuctionRuntime {
         this.currentWinnerUsername = snapshot.getCurrentWinnerUsername();
         this.startTime = snapshot.getStartTime();
         this.visibility = snapshot.getVisibility();
+        this.anonymousGuests = snapshot.hasAnonymousGuests();
         this.roomPasswordHash = snapshot.getRoomPasswordHash();
         this.roomPasswordSalt = snapshot.getRoomPasswordSalt();
         this.roomPasswordIterations = snapshot.getRoomPasswordIterations();
@@ -119,7 +121,7 @@ public final class AuctionRuntime {
                     visibility,
                     roomPasswordHash,
                     roomPasswordSalt,
-                    roomPasswordIterations, hardEndTime);
+                    roomPasswordIterations, hardEndTime, anonymousGuests);
         } finally {
             lock.unlock();
         }

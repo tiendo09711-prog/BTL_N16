@@ -84,9 +84,17 @@ public final class ProductMediaEditor {
         FlowPane transformTools = new FlowPane(8, 8, button("Xoay 90\u00b0", this::rotate), crop, applyCrop, button("\u0110\u1eb7t l\u1ea1i \u1ea3nh g\u1ed1c", this::reset));
         HBox.setHgrow(transformTools, Priority.ALWAYS); editTools = new HBox(transformTools);
         list.setPrefHeight(180); list.getStyleClass().add("media-file-list");
+        Button descriptionTemplate = button("Mau mo ta", () -> {
+            if (!description.getText().isBlank()) {
+                Alert confirm = new Alert(Alert.AlertType.CONFIRMATION, "Thay mo ta hien tai bang mau?", ButtonType.OK, ButtonType.CANCEL);
+                confirm.initOwner(stage); if (confirm.showAndWait().orElse(ButtonType.CANCEL) != ButtonType.OK) { return; }
+            }
+            description.setText("Dac diem: \nTinh trang: \nPhu kien kem theo: \nKhiem khuyet/luu y: ");
+        });
         VBox information = new VBox(9, DesktopTheme.label("TH\u00d4NG TIN S\u1ea2N PH\u1ea8M", "eyebrow"),
                 new Label("M\u00e3 s\u1ea3n ph\u1ea9m *"), code, new Label("T\u00ean s\u1ea3n ph\u1ea9m *"), name,
-                new Label("M\u00f4 t\u1ea3 *"), description, characters, new Separator(),
+                new Label("M\u00f4 t\u1ea3 *"), descriptionTemplate, description, characters,
+                new Label("Dien thong tin that vao mau; van ap dung kiem tra 50-2000 ky tu hien co."), new Separator(),
                 new HBox(8, addImages, addVideo), counts, limits, list,
                 new FlowPane(6, 6, remove, replace, cover, left, right));
         information.setPadding(new Insets(18)); information.setPrefWidth(340);

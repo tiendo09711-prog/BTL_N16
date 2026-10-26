@@ -31,6 +31,7 @@ public final class WalletSelfTest {
                     long sellerId = register(seller, "wallet_seller"), firstId = register(first, "wallet_first"), secondId = register(second, "wallet_second");
                     WalletRepository wallets = server.wallets(); WalletApi firstWallet = new WalletApi(first), secondWallet = new WalletApi(second);
                     error(ErrorCode.AUTH_REQUIRED, new WalletApi(anonymous).get());
+                    error(ErrorCode.AUTH_REQUIRED, new WalletApi(anonymous).get(1));
                     money("0", wallets.account(firstId).balance(), "new account starts at zero");
                     var own = ok(first.sendRequest(MessageType.GET_WALLET, Map.of("userId", Long.toString(secondId))).thenApply(ApiResponse::new));
                     TestSupport.equals(Long.toString(firstId), own.get("userId"), "client cannot read another wallet by changing userId");
@@ -54,9 +55,20 @@ public final class WalletSelfTest {
                     long room = room(host, "WALLET_SALE", "100", "10"); ok(buyer.join(room)); ok(rival.join(room));
                     ok(buyer.bid(room, decimal("110"))); money("110", wallets.account(firstId).reserved(), "accepted bid reserves full price");
                     money("890", wallets.account(firstId).available(), "available balance excludes hold");
+                    var roomWallet = ok(firstWallet.get(room));
+                    money("110", decimal(roomWallet.get("roomHeld")), "room API reports own committed hold");
+                    money("890", decimal(roomWallet.get("available")), "room API reports spendable balance");
+                    TestSupport.check(!roomWallet.getWireMessage().getData().containsKey("userId"), "room summary does not expose account identity");
+                    var forgedRoomWallet = ok(first.sendRequest(MessageType.GET_WALLET,
+                            Map.of("auctionId", Long.toString(room), "userId", Long.toString(secondId))).thenApply(ApiResponse::new));
+                    money("110", decimal(forgedRoomWallet.get("roomHeld")), "room hold owner is always the session");
+                    money("0", decimal(ok(secondWallet.get(room)).get("roomHeld")), "other bidder cannot read leader hold");
                     ok(buyer.leave(room)); money("110", wallets.account(firstId).reserved(), "leaving never cancels a funded bid");
                     ok(rival.bid(room, decimal("120"))); money("0", wallets.account(firstId).reserved(), "outbid bidder is released atomically");
                     long expensive = room(host, "WALLET_EXPENSIVE", "800", "100"); ok(rival.join(expensive));
+                    var expensiveWallet = ok(secondWallet.get(expensive));
+                    money("0", decimal(expensiveWallet.get("roomHeld")), "other-room hold is not displayed as this-room hold");
+                    money("880", decimal(expensiveWallet.get("available")), "availability includes holds from all rooms");
                     error(ErrorCode.INSUFFICIENT_FUNDS, rival.bid(expensive, decimal("900")));
                     money("120", wallets.account(secondId).reserved(), "rejected bid preserves other holds");
                     JdbcAuctionRepository repository = new JdbcAuctionRepository(new JdbcConnectionFactory(config));
@@ -84,6 +96,26 @@ public final class WalletSelfTest {
                     int entriesBefore = wallets.entries(sellerId).size(); close(repository, room);
                     TestSupport.equals(entriesBefore, wallets.entries(sellerId).size(), "repeated close never settles twice");
                     money("2000", wallets.accounts().stream().map(value -> value.balance()).reduce(BigDecimal.ZERO, BigDecimal::add), "settlement conserves all money");
+                    long privateProduct = Long.parseLong(ok(TestMedia.create(host, "PRIVATE_WALLET", "Private room", TestMedia.DESCRIPTION)).get("productId"));
+                    long privateRoom = Long.parseLong(ok(host.createAuction(privateProduct, decimal("1"), decimal("0.01"), 1, "PRIVATE", "secret", true)).get("auctionId"));
+                    error(ErrorCode.ROOM_ACCESS_DENIED, secondWallet.get(privateRoom));
+                    List<WireMessage> events = new CopyOnWriteArrayList<>(); seller.addEventListener(events::add);
+                    ok(host.join(privateRoom)); ok(buyer.join(privateRoom, "secret"));
+                    var joinedRival = ok(rival.join(privateRoom, "secret"));
+                    ok(new RoomSocialApi(seller).kick(privateRoom, Long.parseLong(joinedRival.get("selfParticipantId"))));
+                    error(ErrorCode.USER_BLOCKED_FROM_AUCTION, secondWallet.get(privateRoom));
+                    ok(buyer.bid(privateRoom, decimal("1.01")));
+                    var anonymousWallet = ok(firstWallet.get(privateRoom));
+                    money("1.01", decimal(anonymousWallet.get("roomHeld")), "anonymous owner sees exact cents in own hold");
+                    TestSupport.check(!anonymousWallet.getWireMessage().getData().containsKey("userId")
+                            && !anonymousWallet.getWireMessage().getData().containsKey("username"), "anonymous wallet does not expose real identity");
+                    var forgedHostWallet = ok(seller.sendRequest(MessageType.GET_WALLET,
+                            Map.of("auctionId", Long.toString(privateRoom), "userId", Long.toString(firstId))).thenApply(ApiResponse::new));
+                    money("0", decimal(forgedHostWallet.get("roomHeld")), "host cannot query anonymous leader wallet");
+                    for (WireMessage event : events) {
+                        TestSupport.check(!event.getData().containsKey("available") && !event.getData().containsKey("roomHeld"), "private wallet never enters broadcast payloads");
+                    }
+                    close(repository, privateRoom);
                     new vn.ptit.btl16.server.auction.service.AuctionQueryService(new vn.ptit.btl16.server.auction.service.AuctionManager(repository, 60), repository, 50)
                             .listAuctions().forEach(value -> TestSupport.check(value.getStatus().name().equals("OPEN"), "marketplace excludes closed rooms immediately"));
                 }

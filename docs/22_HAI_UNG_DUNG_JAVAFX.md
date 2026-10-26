@@ -67,7 +67,7 @@ Không đổi mạng công cộng sang Private nếu không tin cậy mạng đ�
 
 - Bản source và EXE đều chỉ dùng **MySQL trong XAMPP trên máy Server**, mặc định `btl_16` ở `127.0.0.1:3306`. Nếu MySQL chưa bật hoặc cấu hình sai, Server báo lỗi, không tạo H2 thay thế.
 - Tài khoản, ví, nạp tiền, sản phẩm, ảnh/video, lịch sử và kết quả đều nằm trong DB. `product_media` lưu metadata; `media_content` lưu dữ liệu nhị phân thành các đoạn tối đa 256 KiB. Metadata và ảnh/video được lưu trong cùng giao dịch, lỗi thì rollback toàn bộ.
-- Thư mục `%TEMP%/btl16-mysql-media-*` chỉ chứa xử lý tải dở/cache phục vụ HTTP, được dọn khi dừng Server bình thường. Server mới dùng thư mục tạm mới và tải media từ MySQL; đây không phải nơi lưu trữ lâu dài. Client không có bản sao DB.
+- Không tạo thư mục media tạm/cache trên đĩa. Upload và xử lý dùng RAM; khi lưu thành công toàn bộ nội dung vào MySQL. Xem ảnh/video stream trực tiếp từ các đoạn BLOB, không khôi phục ra file. Client không có bản sao database.
 - Sao lưu **toàn bộ database MySQL**, bao gồm `media_content` và các bảng ví. Không cần sao lưu cache. Xem [Lưu trữ MySQL/XAMPP](25_MYSQL_XAMPP_ONLY.md).
 - Bản đóng gói lấy cấu hình từ `config/server-desktop.properties`; cấu hình MySQL hợp lệ đã có được giữ khi đóng gói lại, cấu hình H2 cũ được thay thế. Thời gian kết thúc phiên vẫn là thời gian thực; tắt Server không đóng băng đồng hồ đấu giá.
 - Các thư mục `dist/BTL16-Auction-Server` và `dist/BTL16-Auction-Client` là app-image để kiểm tra hoặc chạy trực tiếp. Nếu dùng EXE bên trong các thư mục này, phải giữ nguyên cả thư mục. EXE trực tiếp ở gốc `dist` đã chứa toàn bộ app-image.
@@ -85,6 +85,18 @@ npm run dist
 Lệnh tạo hai giao diện JavaFX, runtime riêng, hai EXE tự bung ở gốc `dist` và bản app-image tương ứng. Nếu build trên máy khác không có bộ JDK trong script, đặt `JAVA_HOME` và `PATH` tới JDK phù hợp trước khi chạy `npm run dist`.
 
 ## Kiểm thử
+
+De cap nhat DONG THOI Windows EXE va macOS portable sau khi sua source, dung
+`npm run dist:all` tren Windows, roi `npm run test:bundles` de kiem tra lai.
+Chi chay source/test-compile khong cap nhat EXE. Xem `34_CAP_NHAT_BAN_PHAN_PHOI.md`
+ve BUILD_INFO.json, kien truc Mac, shortcut/cache cu va cach khoi dong lai an toan.
+
+Huong dan nang cap phong/chat/gia/ket qua/bien nhan/vi va thong bao:
+`26_LIVE_AUCTION_ROOM.md` den `31_HOAN_THIEN_CHUNG.md`. Kich ban demo va checklist
+LAN/mat mang that: `32_DEMO_VA_NGHIEM_THU.md`. Ket qua test/build thuc te:
+`33_KET_QUA_NGHIEM_THU.md` va `DEMO_UPGRADE_STATE.md`. Dot cap nhat 2026-10-26
+gom hai EXE Windows va bon goi macOS portable arm64/x64 trong dist, cung source/JAR.
+Ket qua build va kiem tra goi: `dist/VERIFICATION.md`, `dist/BUILD_INFO.json`.
 
 ```powershell
 scripts/run-self-tests.cmd

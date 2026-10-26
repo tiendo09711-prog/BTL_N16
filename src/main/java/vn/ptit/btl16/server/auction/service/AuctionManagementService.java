@@ -110,10 +110,10 @@ public final class AuctionManagementService {
     }
 
     public Product saveMediaProduct(UserSession session, long productId, String code, String name,
-                                    String description, List<ProductMedia> selected, java.util.Map<String, java.nio.file.Path> folders) {
+                                    String description, List<ProductMedia> selected, java.util.Map<String, java.util.Map<String, byte[]>> content) {
         MediaProductCommit prepared = prepareMediaProduct(session, productId, code, name, description, selected);
         return repository.saveMediaProduct(new MediaProductCommit(prepared.productId(), prepared.ownerId(), prepared.ownerUsername(),
-                prepared.code(), prepared.name(), prepared.description(), prepared.media(), folders));
+                prepared.code(), prepared.name(), prepared.description(), prepared.media(), content));
     }
 
     public void requireMediaEdit(UserSession session, long productId) {
@@ -240,6 +240,13 @@ public final class AuctionManagementService {
             int durationMinutes,
             RoomVisibility visibility,
             String rawRoomPassword) {
+        return createAuction(session, productId, rawStartPrice, rawMinIncrement, durationMinutes,
+                visibility, rawRoomPassword, false);
+    }
+
+    public AuctionSnapshot createAuction(UserSession session, long productId, BigDecimal rawStartPrice,
+            BigDecimal rawMinIncrement, int durationMinutes, RoomVisibility visibility,
+            String rawRoomPassword, boolean anonymousGuests) {
         Product product = requireOwnedProduct(session, productId);
         if (!product.isActive()) {
             throw new AuctionException(ErrorCode.PRODUCT_INACTIVE, "San pham da bi vo hieu hoa");
@@ -278,7 +285,7 @@ public final class AuctionManagementService {
                 startTime, startTime.plusSeconds(durationMinutes * 60L), safeVisibility,
                 passwordHash == null ? "" : passwordHash.getHashBase64(),
                 passwordHash == null ? "" : passwordHash.getSaltBase64(),
-                passwordHash == null ? null : passwordHash.getIterations()));
+                passwordHash == null ? null : passwordHash.getIterations(), anonymousGuests));
         auctions.addRuntime(snapshot);
         broadcasts.broadcastAll(MessageType.AUCTION_CREATED,
                 AuctionWireData.snapshot(snapshot, List.of(), 0, Instant.now()));
@@ -356,7 +363,16 @@ public final class AuctionManagementService {
     }
 
     public void requireReadAccess(UserSession session, long auctionId) {
-        AuctionRuntime runtime = auctions.requireRuntime(auctionId);
+        requireReadAccess(session, auctionId, false);
+    }
+
+    public void requireHistoryReadAccess(UserSession session, long auctionId) {
+        requireReadAccess(session, auctionId, true);
+    }
+
+    private void requireReadAccess(UserSession session, long auctionId, boolean includeArchived) {
+        AuctionRuntime runtime = includeArchived ? auctions.findRuntimeIncludingArchived(auctionId).orElseThrow(() ->
+                new AuctionException(ErrorCode.AUCTION_NOT_FOUND, "Auction was not found")) : auctions.requireRuntime(auctionId);
         runtime.getLock().lock();
         try {
             requireNotBlocked(session, auctionId);

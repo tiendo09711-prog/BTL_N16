@@ -25,6 +25,35 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 public final class TestAuctionRepository implements AuctionRepository {
+    private final List<vn.ptit.btl16.server.auction.model.RoomProgress.Event> events = new ArrayList<>();
+    private long eventId;
+    private synchronized void event(long room, String type, Long user, String name, BigDecimal amount, String detail, Instant time) {
+        events.add(new vn.ptit.btl16.server.auction.model.RoomProgress.Event(++eventId, room, type, user, name, amount, detail, time));
+    }
+    @Override public synchronized void appendPresence(long room, String type, long user, Instant time) {
+        event(room, type, user, "", null, "", time);
+    }
+    @Override public synchronized List<vn.ptit.btl16.server.auction.model.RoomProgress.Event> findRoomEvents(long room, long before, long after, int limit) {
+        var order = Comparator.comparingLong(vn.ptit.btl16.server.auction.model.RoomProgress.Event::id);
+        return events.stream().filter(value -> value.auctionId() == room && value.id() < before && value.id() > after)
+                .sorted(after > 0 ? order : order.reversed()).limit(limit).toList();
+    }
+    @Override public synchronized vn.ptit.btl16.server.auction.model.RoomProgress.Stats roomStats(long room) {
+        var bids = findRecentBids(room, Integer.MAX_VALUE);
+        var roomEvents = events.stream().filter(value -> value.auctionId() == room).toList();
+        var auction = auctions.get(room);
+        return new vn.ptit.btl16.server.auction.model.RoomProgress.Stats(bids.size(), bids.stream().map(BidRecord::getUserId).distinct().count(),
+                roomEvents.stream().filter(value -> value.type().startsWith("EXTENDED_")).count(),
+                roomEvents.stream().anyMatch(value -> value.type().equals("CREATED")),
+                auction.getCurrentPrice().subtract(auction.getStartPrice()), bids.isEmpty() ? 0 : bids.get(0).getServerSequence());
+    }
+    @Override public synchronized List<vn.ptit.btl16.server.auction.model.RoomProgress.HistoryBid> bidPage(long room, long before, long through, Long user, int limit) {
+        var bids = findRecentBids(room, Integer.MAX_VALUE);
+        return bids.stream().filter(bid -> bid.getServerSequence() < before && bid.getServerSequence() <= through && (user == null || bid.getUserId() == user))
+                .limit(limit).map(bid -> new vn.ptit.btl16.server.auction.model.RoomProgress.HistoryBid(bid,
+                        bid.getAmount().subtract(bids.stream().filter(previous -> previous.getServerSequence() < bid.getServerSequence())
+                                .findFirst().map(BidRecord::getAmount).orElse(auctions.get(room).getStartPrice())))).toList();
+    }
     private final ConcurrentHashMap<Long, Product> products = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Long, ProductImage> productImages = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Long, AuctionSnapshot> auctions = new ConcurrentHashMap<>();
@@ -36,6 +65,17 @@ public final class TestAuctionRepository implements AuctionRepository {
     private final AtomicLong bidIds = new AtomicLong();
 
     private final Map<Long, List<ProductMedia>> mediaByProduct = new ConcurrentHashMap<>();
+    private final Map<String, Map<String, byte[]>> mediaPayloads = new ConcurrentHashMap<>();
+
+    @Override public vn.ptit.btl16.server.media.MediaContent mediaContent(String id, String variant) throws java.io.IOException {
+        byte[] bytes = mediaPayloads.getOrDefault(id, Map.of()).get(variant);
+        if (bytes == null) { throw new java.io.IOException("Missing media variant"); }
+        return vn.ptit.btl16.server.media.MediaContent.memory(bytes);
+    }
+
+    @Override public long mediaBytes() {
+        return mediaPayloads.values().stream().flatMap(content -> content.values().stream()).mapToLong(bytes -> bytes.length).sum();
+    }
 
     @Override public synchronized Product saveMediaProduct(MediaProductCommit commit) {
         ProductRequirements.validate(commit.description(), commit.media());
@@ -56,14 +96,23 @@ public final class TestAuctionRepository implements AuctionRepository {
                 (int) cover.bytes(), current == null ? 1 : current.getImageVersion() + 1);
         List<ProductMedia> attached = new ArrayList<>();
         for (ProductMedia media : commit.media()) { attached.add(media.attached(id, attached.size())); }
+        for (ProductMedia media : attached) {
+            Map<String, byte[]> content = commit.content().get(media.id());
+            if (content != null) { mediaPayloads.put(media.id(), content); }
+        }
+        for (ProductMedia media : findProductMedia(id)) {
+            if (attached.stream().noneMatch(item -> item.id().equals(media.id()))) { mediaPayloads.remove(media.id()); }
+        }
         products.put(id, product); mediaByProduct.put(id, List.copyOf(attached)); return product;
     }
     @Override public synchronized List<ProductMedia> findProductMedia(long productId) { return mediaByProduct.getOrDefault(productId, List.of()); }
     @Override public synchronized Optional<ProductMedia> findMedia(String id) { return mediaByProduct.values().stream().flatMap(List::stream).filter(media -> media.id().equals(id)).findFirst(); }
     @Override public synchronized List<Long> findLegacyImageProductIds() { return productImages.keySet().stream().filter(id -> findProductMedia(id).isEmpty()).toList(); }
-    @Override public synchronized void migrateLegacyImage(long id, long version, ProductMedia media) {
+    @Override public synchronized void migrateLegacyImage(long id, long version, ProductMedia media, Map<String, byte[]> content) {
         Product product = products.get(id);
-        if (product != null && product.getImageVersion() == version && findProductMedia(id).isEmpty()) { mediaByProduct.put(id, List.of(media.attached(id, 0))); }
+        if (product != null && product.getImageVersion() == version && findProductMedia(id).isEmpty()) {
+            mediaByProduct.put(id, List.of(media.attached(id, 0))); mediaPayloads.put(media.id(), content);
+        }
     }
 
     public static TestAuctionRepository withDemoAuctions(ServerConfig config) {
@@ -293,8 +342,10 @@ public final class TestAuctionRepository implements AuctionRepository {
                 null, "", commit.getStartTime(), commit.getEndTime(),
                 AuctionStatus.OPEN, null, 0L, commit.getVisibility(),
                 commit.getRoomPasswordHash(), commit.getRoomPasswordSalt(),
-                commit.getRoomPasswordIterations() == null ? 0 : commit.getRoomPasswordIterations());
+                commit.getRoomPasswordIterations() == null ? 0 : commit.getRoomPasswordIterations(),
+                commit.getEndTime().plusSeconds(vn.ptit.btl16.server.auction.service.AuctionRules.MAX_AUTO_EXTENSION_SECONDS), commit.hasAnonymousGuests());
         addAuction(snapshot);
+        event(auctionId, "CREATED", commit.getHostUserId(), commit.getHostUsername(), null, "", Instant.now());
         return snapshot;
     }
 
@@ -367,6 +418,11 @@ public final class TestAuctionRepository implements AuctionRepository {
         auctions.put(current.getAuctionId(), copyAuction(
                 current, commit.getAmount(), commit.getBidderId(), commit.getBidderUsername(),
                 commit.getNewEndTime(), current.getStatus(), current.getEndedAt()));
+        event(commit.getAuctionId(), "BID_ACCEPTED", commit.getBidderId(), commit.getBidderUsername(), commit.getAmount(), "", commit.getCreatedAt());
+        event(commit.getAuctionId(), "LEADER_CHANGED", commit.getBidderId(), commit.getBidderUsername(), commit.getAmount(), "", commit.getCreatedAt());
+        if (commit.getNewEndTime().isAfter(current.getEndTime())) {
+            event(commit.getAuctionId(), "EXTENDED_AUTO", null, "", null, commit.getNewEndTime().toString(), commit.getCreatedAt());
+        }
         return bid;
     }
 
@@ -383,6 +439,7 @@ public final class TestAuctionRepository implements AuctionRepository {
                 current, current.getCurrentPrice(), current.getCurrentWinnerId(),
                 current.getCurrentWinnerUsername(), commit.getNewEndTime(),
                 current.getStatus(), current.getEndedAt()));
+        event(commit.getAuctionId(), "EXTENDED_MANUAL", null, "", null, commit.getNewEndTime().toString(), Instant.now());
         return true;
     }
 
@@ -406,6 +463,7 @@ public final class TestAuctionRepository implements AuctionRepository {
                 current.getAuctionId(), current.getCurrentWinnerId(),
                 current.getCurrentWinnerUsername(), current.getCurrentPrice(), commit.getEndedAt());
         results.put(current.getAuctionId(), result);
+        event(commit.getAuctionId(), "ENDED", commit.getWinnerId(), commit.getWinnerUsername(), commit.getFinalPrice(), "", commit.getEndedAt());
         return Optional.of(result);
     }
 
@@ -419,6 +477,7 @@ public final class TestAuctionRepository implements AuctionRepository {
                 current, current.getCurrentPrice(), current.getCurrentWinnerId(),
                 current.getCurrentWinnerUsername(), current.getEndTime(),
                 AuctionStatus.CANCELLED, commit.getCancelledAt()));
+        event(commit.getAuctionId(), "CANCELLED", null, "", null, "", commit.getCancelledAt());
         return true;
     }
 
@@ -437,7 +496,7 @@ public final class TestAuctionRepository implements AuctionRepository {
                 winnerId, winnerUsername, current.getStartTime(), endTime,
                 status, endedAt, current.getVersion() + 1, current.getVisibility(),
                 current.getRoomPasswordHash(), current.getRoomPasswordSalt(),
-                current.getRoomPasswordIterations(), current.getHardEndTime());
+                current.getRoomPasswordIterations(), current.getHardEndTime(), current.hasAnonymousGuests());
     }
 
     @Override

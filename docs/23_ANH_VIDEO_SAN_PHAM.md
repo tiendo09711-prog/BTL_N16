@@ -3,13 +3,13 @@
 ## Sử dụng JavaFX
 
 - Nếu nút **Lưu sản phẩm** bị mờ, đọc thông báo ngay cạnh nút: ví dụ mô tả `Oke nhé` mới có **7/50 ký tự**, còn thiếu 43 ký tự. Đây là điều kiện dữ liệu, không phải lỗi XAMPP. Bộ đếm bỏ khoảng trắng đầu/cuối và đếm ký tự Unicode; mã, tên, số lượng ảnh và trạng thái tải cũng phải hợp lệ.
-- **Sẵn sàng** ở từng ảnh chỉ có nghĩa ảnh đã tải lên **bản nháp trên server**, chưa có nghĩa sản phẩm đã lưu. Phải bấm **Lưu sản phẩm** để ghi metadata vào DB và giữ tệp chính thức. Hủy/đóng cửa sổ trước khi lưu sẽ hủy bản nháp. Thanh thông báo và nút lưu luôn nằm ngoài vùng cuộn; cửa sổ tự giới hạn theo vùng màn hình khả dụng.
+- **Sẵn sàng** ở từng ảnh chỉ có nghĩa ảnh đã tải lên **bản nháp trên server**, chưa có nghĩa sản phẩm đã lưu. Phải bấm **Lưu sản phẩm** để ghi metadata và toàn bộ nội dung ảnh/video vào MySQL. Hủy/đóng cửa sổ trước khi lưu sẽ hủy bản nháp. Thanh thông báo và nút lưu luôn nằm ngoài vùng cuộn; cửa sổ tự giới hạn theo vùng màn hình khả dụng.
 - Khi **Vào phòng**, giao diện chuyển sang không gian riêng: ảnh lớn và mô tả bên trái; giá hiện tại, thời gian, ô đặt giá, bước giá gợi ý và lịch sử mới nhất bên phải. Các nút gợi ý chỉ điền giá, không tự gửi lệnh. **Rời** đưa bạn về danh sách phòng; quyền đặt giá/quản lý vẫn do server kiểm tra.
 
 ## Server, database và XAMPP
 
 - Máy chạy **Server EXE** là nơi lưu dữ liệu chung, duy nhất trong **MySQL của XAMPP**, mặc định `127.0.0.1:3306/btl_16`. Phải bật MySQL trước khi chạy Server; Apache không bắt buộc. Client không cần cài hoặc kết nối DB. Không còn H2 hay kho ảnh/video lâu dài trong AppData.
-- Ảnh/video được lưu thành tệp trên server; DB lưu thông tin sản phẩm và tham chiếu đến tệp, không nhét toàn bộ video vào DB. Muốn sao lưu/chuyển máy, dừng server rồi sao lưu **cả database và media**. Không tự xóa DB hay đổi sang MySQL để chữa nút lưu bị mờ: hai backend là hai kho dữ liệu riêng, không tự đồng bộ.
+- Ảnh/video đã lưu nằm trong `media_content` của MySQL. Upload và xử lý chỉ dùng RAM, không tạo tệp staging/cache. Khi xem, server stream trực tiếp các đoạn BLOB từ DB. Sao lưu/chuyển máy chỉ cần toàn bộ database, không có kho media riêng.
 - Chế độ chạy bằng `03_CHAY_SERVER_MYSQL.cmd` dùng `config/server.properties` và cần MySQL hoạt động. Nếu XAMPP báo `Bind on TCP/IP port`, `10048` hoặc `another mysqld server running on port: 3306`, kiểm tra Laragon/MySQL khác đang chiếm cổng; chỉ dùng một dịch vụ trên cổng đó, hoặc cấu hình cổng riêng rồi sửa `db.port` tương ứng. Không xóa thư mục dữ liệu MySQL để xử lý lỗi trùng cổng.
 
 ## Thao tác media
@@ -55,16 +55,17 @@ Server Windows kèm FFmpeg/ffprobe trong gói. Server Mac cần cài FFmpeg 8+ v
 
 Kiểm thử đầy đủ và giới hạn kiểm chứng: [24_KIEM_THU_TOAN_BO.md](24_KIEM_THU_TOAN_BO.md).
 
-Trước xử lý, server dự trữ ngân sách bằng `media.productMaxBytes` cho mỗi worker và kiểm tra dung lượng trống ổ đĩa (chừa thêm 64 MiB). Đây là dự trữ bảo thủ: có thể từ chối tệp nhỏ khi phần kho còn lại không đủ cả ngân sách, thay vì làm đầy đĩa giữa chuyển đổi. Nên cấu hình giới hạn toàn kho lớn hơn ngân sách mỗi worker. Giới hạn điểm ảnh được truyền cả vào ffprobe/FFmpeg trước giải mã. Đầu ra native bị giám sát dung lượng và thời gian; stdout/stderr được đọc đồng thời qua pipe có giới hạn, tránh log tăng vô hạn và lỗi Windows giữ khóa tệp log.
+Trước xử lý, server dự trữ `media.productMaxBytes` cho mỗi worker và kiểm tra quota MySQL cùng ngân sách RAM. Tổng payload bản nháp và dự trữ không vượt một phần ba Java heap tối đa để chừa chỗ cho quá trình chuyển đổi. Thiếu quota/RAM sẽ từ chối rõ ràng, không tự ghi ra tệp tạm.
 
 ## Lưu trữ và sao lưu
 
-- Lưu lâu dài duy nhất trong MySQL/XAMPP. `media_content` lưu nguồn, thumbnail, ảnh chi tiết và video đã xử lý dưới dạng BLOB chia đoạn tối đa 256 KiB, phù hợp cả XAMPP mặc định có `max_allowed_packet=1 MiB`.
-- Mỗi media có UUID do server tạo: `products/<UUID>/source`, `thumbnail.jpg`, `detail.jpg` hoặc `video.mp4`. `staging` chỉ chứa tải dở. Không dùng tên/đường dẫn client làm đường dẫn đĩa và không trả đường dẫn tuyệt đối server trong manifest.
-- Bảng `product_media` lưu ID, chủ thể mặt hàng, loại, tên, thông số và thứ tự; `media_content` lưu nhị phân. Lưu metadata và toàn bộ BLOB trong cùng giao dịch; lỗi sẽ rollback. Xóa/thay metadata xóa các đoạn cũ bằng khóa ngoại, những media giữ lại được ghi lại trong giao dịch đó.
-- File `.media.lock` ngăn hai server cùng quản lý một kho. Khi khởi động lại, tải dở được dọn. Hủy/lỗi tải được dọn có thử lại khi Windows còn giữ handle. Tệp `products` không có tham chiếu, cũ hơn 24 giờ, được xét dọn sau 60 giây đầu và mỗi giờ; kiểm tra lại DB ngay trước xóa, đồng bộ với bước đưa tệp vào kho và lưu metadata. Tệp có tham chiếu không bị dọn dù cũ. Nếu DB lỗi, bỏ lượt dọn, không đoán rằng tệp đã mồ côi.
-- Sao lưu **toàn bộ database MySQL**, bao gồm `media_content`. Các file `products/staging` hiện chỉ nằm trong `%TEMP%/btl16-mysql-media-*`; không phải dữ liệu lâu dài, không cần chuyển sang máy mới. Server khởi động lại có thể khôi phục ảnh/video chỉ từ DB. `btl16.dataDir`/`media.root` không thay thế nơi lưu lâu dài của bản MySQL.
-- Không xóa thư mục `products`, đổi UUID hoặc chỉ dọn theo tên tệp để lấy dung lượng; dùng cơ chế đối chiếu metadata. Không đưa kho lên thư mục public của web server.
+- Lưu lâu dài duy nhất trong MySQL/XAMPP. `media_content` lưu nguồn, thumbnail, ảnh chi tiết và video đã xử lý dưới dạng BLOB chia đoạn tối đa 256 KiB.
+- Không có thư mục `products`, `staging`, `.media.lock` hoặc cache media trên đĩa. `media.root`/`btl16.media.root` không còn được dùng. Upload/bản nháp dùng RAM; hủy, hết hạn hoặc dừng server sẽ giải phóng dữ liệu chưa lưu.
+- FFmpeg/ffprobe đọc nguồn trong RAM qua HTTP loopback có URL ngẫu nhiên và hỗ trợ seek. Đầu ra JPEG/MP4 được đưa qua pipe vào RAM, không dùng file trung gian.
+- MP4 được xuất một lượt trong RAM, bỏ khai báo/trailer phân mảnh và cập nhật chỉ mục offset 32/64-bit trước khi lưu. Chỉ mục mẫu đầy đủ và keyframe mỗi giây giữ khả năng tua video HTTP của JavaFX mà không cần file seekable trên đĩa.
+- `product_media` lưu metadata; lưu metadata và BLOB mới trong cùng giao dịch. Media giữ lại không bị xóa/ghi lại; media bỏ đi được xóa cùng các đoạn BLOB bằng khóa ngoại.
+- GET/HEAD/Range stream trực tiếp từng đoạn từ MySQL với buffer giới hạn, không tải cả video ra file cache hoặc RAM cho mỗi người xem.
+- Sao lưu **toàn bộ database MySQL**, bao gồm `media_content` và các bảng ví. Không có thư mục media cần sao lưu riêng. File chương trình/runtime/cấu hình của EXE không phải kho dữ liệu nghiệp vụ; xem [Lưu trữ MySQL/XAMPP](25_MYSQL_XAMPP_ONLY.md).
 
 ## Quyền và dữ liệu cũ
 

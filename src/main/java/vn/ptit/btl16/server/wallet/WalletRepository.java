@@ -5,12 +5,14 @@ import vn.ptit.btl16.common.wallet.*;
 import vn.ptit.btl16.server.account.repository.JdbcConnectionFactory;
 import vn.ptit.btl16.server.account.repository.RepositoryException;
 import vn.ptit.btl16.server.auction.service.AuctionException;
+import vn.ptit.btl16.server.auction.service.AuctionRules;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.sql.*;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 public final class WalletRepository {
@@ -37,6 +39,25 @@ public final class WalletRepository {
         } catch (SQLException exception) { throw failure(exception); }
     }
 
+    public Map<String, String> roomSummary(long userId, long auctionId) {
+        try (Connection connection = factory.openDatabase(); var query = connection.prepareStatement("""
+                SELECT u.wallet_balance, u.wallet_reserved, COALESCE(h.amount, 0) AS room_held
+                FROM users u LEFT JOIN wallet_holds h ON h.user_id = u.user_id AND h.auction_id = ?
+                WHERE u.user_id = ?
+                """)) {
+            query.setLong(1, auctionId); query.setLong(2, userId);
+            try (var rows = query.executeQuery()) {
+                if (!rows.next()) { throw new AuctionException(ErrorCode.PROFILE_NOT_FOUND, "Khong tim thay tai khoan"); }
+                BigDecimal balance = rows.getBigDecimal("wallet_balance");
+                BigDecimal reserved = rows.getBigDecimal("wallet_reserved");
+                return Map.of("auctionId", Long.toString(auctionId),
+                        "available", balance.subtract(reserved).toPlainString(),
+                        "roomHeld", rows.getBigDecimal("room_held").toPlainString(),
+                        "maxBidAmount", AuctionRules.MAX_MONEY.toPlainString());
+            }
+        } catch (SQLException exception) { throw failure(exception); }
+    }
+
     public List<TopUpRequest> requests(long userId, boolean pendingOnly) {
         String condition = pendingOnly ? " WHERE t.status = 'PENDING'" : " WHERE t.user_id = ?";
         try (Connection connection = factory.openDatabase(); var query = connection.prepareStatement(TOPUPS + condition + " ORDER BY t.created_at DESC, t.request_id LIMIT 100")) {
@@ -55,6 +76,42 @@ public final class WalletRepository {
                         rows.getBigDecimal("reserved_delta"), rows.getBigDecimal("balance_after"), rows.getBigDecimal("reserved_after"),
                         rows.getString("reference_key"), rows.getTimestamp("created_at").toInstant())); }
             }
+            return result;
+        } catch (SQLException exception) { throw failure(exception); }
+    }
+
+    public Map<String, String> entryPage(long userId, Long room, String type, Instant from, Instant to, long before, int limit) {
+        if (before <= 0 || limit < 1 || limit > 100 || (room != null && room <= 0)
+                || (!type.isEmpty() && !java.util.Set.of("TOPUP", "RESERVE", "RELEASE", "PURCHASE", "SALE", "LEGACY_REVIEW").contains(type))
+                || (from != null && to != null && !from.isBefore(to))) {
+            throw new AuctionException(ErrorCode.VALIDATION_ERROR, "Bo loc giao dich khong hop le");
+        }
+        StringBuilder sql = new StringBuilder("SELECT e.* FROM wallet_entries e WHERE e.user_id=? AND e.entry_id<?");
+        List<Object> parameters = new ArrayList<>(List.of(userId, before));
+        if (!type.isEmpty()) { sql.append(" AND e.entry_type=?"); parameters.add(type); }
+        if (from != null) { sql.append(" AND e.created_at>=?"); parameters.add(Timestamp.from(from)); }
+        if (to != null) { sql.append(" AND e.created_at<?"); parameters.add(Timestamp.from(to)); }
+        if (room != null) {
+            sql.append("""
+                     AND (e.reference_key IN (?,?,?,?) OR EXISTS (SELECT 1 FROM bids b WHERE b.auction_id=?
+                     AND e.reference_key IN (CONCAT('BID:', b.server_sequence, ':RESERVE'), CONCAT('BID:', b.server_sequence, ':RELEASE'))))
+                    """);
+            parameters.addAll(List.of("BUY:" + room, "SELL:" + room, "LEGACY:BUY:" + room, "LEGACY:SELL:" + room, room));
+        }
+        sql.append(" ORDER BY e.entry_id DESC LIMIT ?"); parameters.add(limit + 1);
+        try (var connection = factory.openDatabase(); var query = connection.prepareStatement(sql.toString())) {
+            for (int index = 0; index < parameters.size(); index++) { query.setObject(index + 1, parameters.get(index)); }
+            List<WalletEntry> values = new ArrayList<>();
+            try (var rows = query.executeQuery()) {
+                while (rows.next()) { values.add(new WalletEntry(rows.getLong("entry_id"), rows.getString("entry_type"), rows.getBigDecimal("amount"),
+                        rows.getBigDecimal("reserved_delta"), rows.getBigDecimal("balance_after"), rows.getBigDecimal("reserved_after"),
+                        rows.getString("reference_key"), rows.getTimestamp("created_at").toInstant())); }
+            }
+            boolean more = values.size() > limit;
+            if (more) { values.remove(values.size() - 1); }
+            Map<String, String> result = WalletWire.encode(account(userId), List.of(), values);
+            result.put("hasMore", Boolean.toString(more));
+            result.put("nextBeforeId", values.isEmpty() ? "0" : Long.toString(values.get(values.size() - 1).id()));
             return result;
         } catch (SQLException exception) { throw failure(exception); }
     }
@@ -92,6 +149,14 @@ public final class WalletRepository {
     }
 
     public TopUpRequest review(String requestId, boolean approve) {
+        return review(requestId, approve, approve ? "" : "Yeu cau nap mo phong chua duoc xac nhan");
+    }
+
+    public TopUpRequest review(String requestId, boolean approve, String reason) {
+        String rejection = approve ? "" : (reason == null ? "" : reason.strip());
+        if (!approve && (rejection.isEmpty() || rejection.length() > 300 || rejection.chars().anyMatch(Character::isISOControl))) {
+            throw new AuctionException(ErrorCode.VALIDATION_ERROR, "Ly do tu choi can tu 1 den 300 ky tu, khong chua ky tu dieu khien");
+        }
         try (Connection connection = factory.openDatabase()) {
             TopUpRequest owner = find(connection, requestId, false);
             if (owner == null) { throw new AuctionException(ErrorCode.TOPUP_NOT_FOUND, "Khong tim thay yeu cau"); }
@@ -102,10 +167,12 @@ public final class WalletRepository {
                 if (!request.status().equals("PENDING")) { connection.commit(); return request; }
                 Instant now = Instant.now();
                 if (approve) { WalletTransactions.change(connection, request.userId(), request.amount(), BigDecimal.ZERO, "TOPUP", "TOPUP:" + requestId, now); }
-                try (var update = connection.prepareStatement("UPDATE wallet_topups SET status = ?, reviewed_at = ? WHERE request_id = ? AND status = 'PENDING'")) {
-                    update.setString(1, approve ? "APPROVED" : "REJECTED"); update.setTimestamp(2, Timestamp.from(now)); update.setString(3, requestId);
+                try (var update = connection.prepareStatement("UPDATE wallet_topups SET status = ?, reviewed_at = ?, rejection_reason = ? WHERE request_id = ? AND status = 'PENDING'")) {
+                    update.setString(1, approve ? "APPROVED" : "REJECTED"); update.setTimestamp(2, Timestamp.from(now)); update.setString(3, rejection); update.setString(4, requestId);
                     if (update.executeUpdate() != 1) { throw new SQLException("Topup state changed"); }
                 }
+                vn.ptit.btl16.server.notification.PersonalNotificationStore.save(connection, request.userId(),
+                        "TOPUP:" + requestId, approve ? "TOPUP_APPROVED" : "TOPUP_REJECTED", null, requestId, now);
                 TopUpRequest result = find(connection, requestId, false); connection.commit(); return result;
             } catch (SQLException | RuntimeException exception) { connection.rollback(); throw exception; }
         } catch (SQLException exception) { throw failure(exception); }
@@ -126,7 +193,7 @@ public final class WalletRepository {
     private TopUpRequest topup(ResultSet rows) throws SQLException {
         Timestamp reviewed = rows.getTimestamp("reviewed_at");
         return new TopUpRequest(rows.getString("request_id"), rows.getLong("user_id"), rows.getString("username"), rows.getBigDecimal("amount"),
-                rows.getString("status"), rows.getTimestamp("created_at").toInstant(), reviewed == null ? null : reviewed.toInstant());
+                rows.getString("status"), rows.getTimestamp("created_at").toInstant(), reviewed == null ? null : reviewed.toInstant(), rows.getString("rejection_reason"));
     }
     private RepositoryException failure(SQLException exception) { return new RepositoryException("Wallet database operation failed", exception); }
 }

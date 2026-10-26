@@ -79,7 +79,9 @@ foreach ($role in @('Server', 'Client')) {
     } finally { $payload.Dispose(); $resource.Dispose() }
     $jar = [IO.Compression.ZipFile]::OpenRead((Join-Path $image "app\$jarName"))
     try {
-        foreach ($class in @('server/media/MediaProcessor', 'server/media/MediaHttpServer', 'client/fx/ProductMediaEditor', 'client/fx/MediaGalleryPane')) {
+        foreach ($class in @('server/media/MediaProcessor', 'server/media/MediaHttpServer', 'client/fx/ProductMediaEditor', 'client/fx/MediaGalleryPane',
+                'client/fx/RoomSocialPane', 'server/social/RoomInteractionStore', 'server/social/RoomSocialService',
+                'client/fx/RoomProgressPane', 'client/fx/AuctionReceiptsPane', 'client/fx/PersonalNotificationsPane')) {
             if (!(Entry $jar "vn/ptit/btl16/$class.class")) { throw "Missing compiled feature: $class" }
         }
         if (Entry $jar 'vn/ptit/btl16/server/auction/service/ProductImageValidator.class') { throw 'Obsolete header-only image validator remains packaged' }

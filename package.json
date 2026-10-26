@@ -18,6 +18,7 @@
     "dist:mac:portable": "node tools/package-mac-portable.mjs",
     "dist:mac:intel": "node tools/package-mac-portable.mjs --arch=x64",
     "test:packaging": "node --test tools/package-layout.test.mjs tools/package-windows-bundle.test.mjs",
-    "dist": "node tools/package-desktop.mjs"
+    "dist": "node tools/package-desktop.mjs",
+    "dist:all": "node tools/package-release.mjs"
   }
 }

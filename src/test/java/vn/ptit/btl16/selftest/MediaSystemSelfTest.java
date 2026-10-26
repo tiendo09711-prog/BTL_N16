@@ -52,7 +52,7 @@ public final class MediaSystemSelfTest {
             TestMedia.fundWallets(new vn.ptit.btl16.server.wallet.WalletRepository(factory));
             fixtures = directory.resolve("fixtures"); Files.createDirectory(fixtures);
             MediaConfig mediaConfig = MediaConfig.load(false);
-            TestSupport.check(mediaConfig.root().startsWith(directory), "refuse a media root outside isolated test data");
+            TestSupport.check(!Files.exists(directory.resolve("media")), "media configuration creates no storage directory");
             generateFixtures(mediaConfig, fixtures);
             JdbcAuctionRepository repository = new JdbcAuctionRepository(factory);
             AuctionRulesSelfTest.Fixture fixture = new AuctionRulesSelfTest.Fixture(repository);
@@ -84,12 +84,8 @@ public final class MediaSystemSelfTest {
                 access(media, fixture, repository, api, persistedId);
                 concurrency(media, fixture, repository);
                 interruptedHttp(media, fixture.host);
-                Path orphan = mediaConfig.root().resolve("products").resolve(UUID.randomUUID().toString()); Files.createDirectory(orphan); Files.writeString(orphan.resolve("source"), "orphan");
-                java.nio.file.attribute.FileTime old = java.nio.file.attribute.FileTime.from(Instant.now().minusSeconds(90000));
-                Files.setLastModifiedTime(orphan, old);
-                for (ProductMedia item : persisted) { Files.setLastModifiedTime(mediaConfig.root().resolve("products").resolve(item.id()), old); }
-                media.cleanupUnused();
-                TestSupport.check(!Files.exists(orphan), "old proven orphan cleaned"); media.requireReady(persistedId);
+                TestSupport.check(!Files.exists(directory.resolve("media")), "upload, processing and HTTP never create a media directory");
+                media.requireReady(persistedId);
             }
             AuctionRulesSelfTest.Fixture restarted = new AuctionRulesSelfTest.Fixture(new JdbcAuctionRepository(new JdbcConnectionFactory(config)));
             try (MediaService media = new MediaService(mediaConfig, repository, restarted.sessions, restarted.management);
@@ -101,7 +97,7 @@ public final class MediaSystemSelfTest {
                 for (JsonNode item : body.path("media")) { TestSupport.equals(200, get(media, item.path("thumbnail").asText(), null).statusCode(), "thumbnail available after restart"); }
                 TestSupport.equals(206, get(media, body.path("media").get(2).path("video").asText(), "bytes=0-1023").statusCode(), "video range after restart");
             }
-            System.out.println("[PASS] MediaSystemSelfTest: real formats/orientation/crop, requirements, quotas, cancel/interrupted HTTP, private/block/tickets/ranges, JDBC BLOB migration, file persistence and races");
+            System.out.println("[PASS] MediaSystemSelfTest: real formats/orientation/crop, requirements, quotas, cancel/interrupted HTTP, private/block/tickets/ranges, JDBC BLOB migration, diskless media and races");
         } finally { property("btl16.server.config", previous); property("btl16.dataDir", previousData); }
     }
 
@@ -155,8 +151,9 @@ public final class MediaSystemSelfTest {
             ProductMedia item = upload(media, owner, draft, fixtures.resolve("fixture." + extension), video ? "VIDEO" : "IMAGE");
             TestSupport.check(item.width() > 0 && !item.name().contains("/"), "content decoded and filename sanitized: " + extension);
             JsonNode view = JSON.valueToTree(media.uploaded(owner, draft, item));
-            Path thumbnail = media.readable(item.id(), "thumbnail", ticket(view.path("thumbnail").asText()));
-            BufferedImage preview = ImageIO.read(thumbnail.toFile()); TestSupport.check(preview.getWidth() <= 360 && preview.getHeight() <= 360, "separate small thumbnail");
+            BufferedImage preview;
+            try (var input = media.readable(item.id(), "thumbnail", ticket(view.path("thumbnail").asText())).open(0)) { preview = ImageIO.read(input); }
+            TestSupport.check(preview.getWidth() <= 360 && preview.getHeight() <= 360, "separate small thumbnail");
             if (!video) { TestSupport.equals(1200, item.width(), "detail remains useful for zoom"); }
             media.cancel(owner, draft);
         }
@@ -165,7 +162,8 @@ public final class MediaSystemSelfTest {
             if (filename.equals("large.png")) { TestSupport.equals(4096, Math.max(item.width(), item.height()), "large image resized without automatic crop"); }
             if (filename.equals("oriented.jpg")) { TestSupport.equals(100, item.width(), "EXIF direction corrected"); TestSupport.equals(160, item.height(), "EXIF height corrected"); }
             if (filename.equals("transparent.png")) {
-                JsonNode view = JSON.valueToTree(media.uploaded(owner, draft, item)); BufferedImage detail = ImageIO.read(media.readable(item.id(), "detail", ticket(view.path("detail").asText())).toFile());
+                JsonNode view = JSON.valueToTree(media.uploaded(owner, draft, item)); BufferedImage detail;
+                try (var input = media.readable(item.id(), "detail", ticket(view.path("detail").asText())).open(0)) { detail = ImageIO.read(input); }
                 TestSupport.check((detail.getRGB(10,10) & 0xffffff) > 0xf0f0f0, "transparent image flattened on white");
             }
             media.cancel(owner, draft);
@@ -182,11 +180,11 @@ public final class MediaSystemSelfTest {
         String draft = media.begin(owner, 0); BlockingInput input = new BlockingInput();
         CompletableFuture<?> upload = CompletableFuture.runAsync(() -> { try { media.upload(owner, draft, "IMAGE", "cancel.png", input, -1,0,0,0,1,1); throw new AssertionError("cancel accepted"); } catch (IOException | AuctionException expected) { } });
         TestSupport.check(input.reading.await(5, TimeUnit.SECONDS), "streaming upload started"); media.cancel(owner, draft); upload.get(5, TimeUnit.SECONDS);
-        try (var files = Files.list(media.config().root().resolve("staging"))) { TestSupport.equals(0L, files.count(), "cancel removes all unfinished files"); }
+        TestSupport.equals(0, stagedCount(media), "cancel releases all upload payloads from RAM");
     }
     private static void limits(MediaConfig config, AuctionRepository repository) throws Exception {
         AuctionRulesSelfTest.Fixture fixture = new AuctionRulesSelfTest.Fixture(repository);
-        MediaConfig limited = new MediaConfig(Files.createTempDirectory("media-limits-"),config.ffmpeg(),config.ffprobe(),0,1024,1024,24000000,8500000,1<<20,1<<16,1,1,4096,1);
+        MediaConfig limited = new MediaConfig(config.ffmpeg(),config.ffprobe(),0,1024,1024,24000000,8500000,1<<20,1<<16,1,1,4096,1);
         try (MediaService media = new MediaService(limited, repository, fixture.sessions, fixture.management)) {
             String draft = media.begin(fixture.host,0);
             expect(ErrorCode.MEDIA_LIMIT, () -> upload(media,fixture.host,draft,fixtures.resolve("fixture.png"),"IMAGE"));
@@ -194,7 +192,7 @@ public final class MediaSystemSelfTest {
             expect(ErrorCode.MEDIA_LIMIT, () -> media.upload(fixture.host,draft,"IMAGE","slow",input,-1,0,0,0,1,1));
             TestSupport.check(TimeUnit.NANOSECONDS.toSeconds(System.nanoTime()-start)<4,"stream upload time bounded"); media.cancel(fixture.host,draft);
         }
-        MediaConfig full = new MediaConfig(Files.createTempDirectory("media-full-"),config.ffmpeg(),config.ffprobe(),0,config.imageBytes(),config.videoBytes(),24000000,8500000,1024,2048,180,180,4096,1);
+        MediaConfig full = new MediaConfig(config.ffmpeg(),config.ffprobe(),0,config.imageBytes(),config.videoBytes(),24000000,8500000,1024,2048,180,180,4096,1);
         try (MediaService media = new MediaService(full,repository,fixture.sessions,fixture.management)) {
             String draft=media.begin(fixture.host,0); expect(ErrorCode.MEDIA_STORAGE_FULL,()->upload(media,fixture.host,draft,fixtures.resolve("transparent.png"),"IMAGE")); media.cancel(fixture.host,draft);
         }
@@ -254,7 +252,11 @@ public final class MediaSystemSelfTest {
             socket.getOutputStream().write(request.getBytes(StandardCharsets.US_ASCII));socket.getOutputStream().write(TestMedia.png());socket.getOutputStream().flush();socket.shutdownOutput();
         }
         Thread.sleep(300); media.cancel(owner,draft);
-        try(var files=Files.list(media.config().root().resolve("staging"))){TestSupport.equals(0L,files.count(),"interrupted HTTP leaves no staged file");}
+        TestSupport.equals(0, stagedCount(media), "interrupted HTTP releases upload RAM");
+    }
+    private static int stagedCount(MediaService media) throws Exception {
+        var field = MediaService.class.getDeclaredField("uploads"); field.setAccessible(true);
+        return ((Map<?, ?>) field.get(media)).size();
     }
     private static HttpResponse<byte[]> get(MediaService media,String relative,String range)throws Exception {
         HttpRequest.Builder request=HttpRequest.newBuilder(URI.create("http://127.0.0.1:"+media.port()+relative)).timeout(java.time.Duration.ofSeconds(10));if(range!=null){request.header("Range",range);}return HTTP.send(request.GET().build(),HttpResponse.BodyHandlers.ofByteArray());

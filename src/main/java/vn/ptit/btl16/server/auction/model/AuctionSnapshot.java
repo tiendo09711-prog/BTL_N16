@@ -22,6 +22,7 @@ public final class AuctionSnapshot {
     private final Instant endedAt;
     private final long version;
     private final RoomVisibility visibility;
+    private final boolean anonymousGuests;
     private final String roomPasswordHash;
     private final String roomPasswordSalt;
     private final int roomPasswordIterations;
@@ -112,6 +113,18 @@ public final class AuctionSnapshot {
             Instant endTime, AuctionStatus status, Instant endedAt, long version,
             RoomVisibility visibility, String roomPasswordHash, String roomPasswordSalt,
             int roomPasswordIterations, Instant hardEndTime) {
+        this(auctionId, product, hostUserId, hostUsername, startPrice, minBidIncrement, currentPrice,
+                currentWinnerId, currentWinnerUsername, startTime, endTime, status, endedAt, version,
+                visibility, roomPasswordHash, roomPasswordSalt, roomPasswordIterations, hardEndTime, false);
+    }
+
+    public AuctionSnapshot(long auctionId, Product product, long hostUserId, String hostUsername,
+            BigDecimal startPrice, BigDecimal minBidIncrement, BigDecimal currentPrice,
+            Long currentWinnerId, String currentWinnerUsername, Instant startTime, Instant endTime,
+            AuctionStatus status, Instant endedAt, long version, RoomVisibility visibility,
+            String roomPasswordHash, String roomPasswordSalt, int roomPasswordIterations,
+            Instant hardEndTime, boolean anonymousGuests) {
+        this.anonymousGuests = anonymousGuests;
         this.auctionId = auctionId;
         this.product = Objects.requireNonNull(product, "product");
         this.hostUserId = hostUserId;
@@ -149,6 +162,7 @@ public final class AuctionSnapshot {
     public Instant getEndedAt() { return endedAt; }
     public long getVersion() { return version; }
     public RoomVisibility getVisibility() { return visibility; }
+    public boolean hasAnonymousGuests() { return anonymousGuests; }
     public boolean requiresPassword() { return visibility == RoomVisibility.PRIVATE; }
     public String getRoomPasswordHash() { return roomPasswordHash; }
     public String getRoomPasswordSalt() { return roomPasswordSalt; }

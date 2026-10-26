@@ -29,6 +29,8 @@ public final class ClientAuction {
     private final boolean hasImage;
     private final String imageMime;
     private final long imageVersion;
+    private final boolean anonymousGuests;
+    private final long selfParticipantId;
 
     public ClientAuction(
             long auctionId,
@@ -91,6 +93,19 @@ public final class ClientAuction {
             String currentWinnerUsername, Instant startTime, Instant endTime, String status,
             Instant endedAt, long version, int watcherCount, String visibility, boolean requiresPassword,
             boolean hasImage, String imageMime, long imageVersion, Instant hardEndTime) {
+        this(auctionId, productId, productCode, productName, description, hostUserId, hostUsername,
+                startPrice, minBidIncrement, currentPrice, currentWinnerId, currentWinnerUsername,
+                startTime, endTime, status, endedAt, version, watcherCount, visibility,
+                requiresPassword, hasImage, imageMime, imageVersion, hardEndTime, false, 0);
+    }
+
+    public ClientAuction(long auctionId, long productId, String productCode, String productName,
+            String description, long hostUserId, String hostUsername, BigDecimal startPrice,
+            BigDecimal minBidIncrement, BigDecimal currentPrice, Long currentWinnerId,
+            String currentWinnerUsername, Instant startTime, Instant endTime, String status,
+            Instant endedAt, long version, int watcherCount, String visibility, boolean requiresPassword,
+            boolean hasImage, String imageMime, long imageVersion, Instant hardEndTime,
+            boolean anonymousGuests, long selfParticipantId) {
         this.auctionId = auctionId;
         this.productId = productId;
         this.productCode = text(productCode);
@@ -115,6 +130,8 @@ public final class ClientAuction {
         this.hasImage = hasImage;
         this.imageMime = text(imageMime);
         this.imageVersion = imageVersion;
+        this.anonymousGuests = anonymousGuests;
+        this.selfParticipantId = selfParticipantId;
     }
 
     public ClientAuction withTiming(Instant newEndTime, String newStatus, int newWatcherCount) {
@@ -141,7 +158,7 @@ public final class ClientAuction {
                 requiresPassword,
                 hasImage,
                 imageMime,
-                imageVersion, hardEndTime);
+                imageVersion, hardEndTime, anonymousGuests, selfParticipantId);
     }
 
     private String text(String value) { return value == null ? "" : value; }
@@ -170,6 +187,8 @@ public final class ClientAuction {
     public boolean hasImage() { return hasImage; }
     public String getImageMime() { return imageMime; }
     public long getImageVersion() { return imageVersion; }
+    public boolean hasAnonymousGuests() { return anonymousGuests; }
+    public long viewerId(long actualUserId) { return anonymousGuests && !isHostedBy(actualUserId) ? selfParticipantId : actualUserId; }
     public boolean isOpen() { return "OPEN".equals(status); }
     public boolean isHostedBy(long userId) { return hostUserId == userId; }
 }

@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import test from 'node:test';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { applicationDetails, desktopLayout, portableArchitectures, portableLauncher, verifyJavafxLibraries } from './package-layout.mjs';
+import { distributionGuides, distributionMigrations, sourceFingerprint, verifyBuildInfo } from './distribution-metadata.mjs';
 
 test('Windows packaging keeps the existing EXE directory and config layout', () => {
   const layout = desktopLayout('server', 'win32', 'x64');
@@ -9,6 +11,46 @@ test('Windows packaging keeps the existing EXE directory and config layout', () 
   assert.equal(layout.imageName, 'BTL16-Auction-Server');
   assert.equal(layout.contentDirectory, 'app');
   assert.equal(layout.jpackageBinary, 'jpackage.exe');
+});
+
+test('all distributions carry chat upgrade guides and non-destructive migration scripts', () => {
+  for (const guide of ['29_TUONG_TAC_CHAT.md', '30_KET_QUA_PHIEN.md', '31_HOAN_THIEN_CHUNG.md', '34_CAP_NHAT_BAN_PHAN_PHOI.md']) assert.ok(distributionGuides.includes(guide));
+  assert.ok(distributionMigrations.includes('03_chat_interactions.sql'));
+  assert.ok(!distributionMigrations.some(file => /reset/i.test(file)));
+});
+
+test('source identity includes Java, resources and Maven configuration, not docs or timestamps', context => {
+  const target = path.resolve('target'); mkdirSync(target, { recursive: true });
+  const root = mkdtempSync(path.join(target, 'distribution-metadata-test-'));
+  context.after(() => {
+    assert.equal(path.dirname(realpathSync(root)), realpathSync(target));
+    rmSync(root, { recursive: true, force: true });
+  });
+  mkdirSync(path.join(root, 'src', 'main', 'java'), { recursive: true });
+  mkdirSync(path.join(root, 'src', 'main', 'resources'), { recursive: true });
+  writeFileSync(path.join(root, 'pom.xml'), '<project/>');
+  const source = path.join(root, 'src', 'main', 'java', 'Chat.java');
+  writeFileSync(source, 'chat-v1');
+  const initial = sourceFingerprint(root);
+  writeFileSync(source, 'chat-v1');
+  writeFileSync(path.join(root, 'README.md'), 'documentation');
+  assert.equal(sourceFingerprint(root), initial);
+  writeFileSync(source, 'chat-v2'); assert.notEqual(sourceFingerprint(root), initial);
+  const withChat = sourceFingerprint(root);
+  writeFileSync(path.join(root, 'src', 'main', 'resources', 'chat.css'), 'new-style');
+  assert.notEqual(sourceFingerprint(root), withChat);
+  const withCss = sourceFingerprint(root);
+  writeFileSync(path.join(root, 'pom.xml'), '<project>updated</project>');
+  assert.notEqual(sourceFingerprint(root), withCss);
+});
+
+test('build identity rejects stale source, mismatched JAR or architecture', () => {
+  const info = { schemaVersion: 1, builtAt: '2026-10-26T00:00:00.000Z', jar: 'btl16-realtime-auction-1.0.0.jar', jarSha256: 'current-jar', sourceSha256: 'current-source', role: 'client', platform: 'darwin', architecture: 'arm64' };
+  const expected = { role: 'client', platform: 'darwin', architecture: 'arm64' };
+  assert.doesNotThrow(() => verifyBuildInfo(info, 'current-jar', 'current-source', expected));
+  assert.throws(() => verifyBuildInfo(info, 'new-jar', 'current-source', expected), /different JAR/);
+  assert.throws(() => verifyBuildInfo(info, 'current-jar', 'new-source', expected), /rebuild all/);
+  assert.throws(() => verifyBuildInfo(info, 'current-jar', 'current-source', { architecture: 'x64' }), /architecture/);
 });
 
 test('macOS packages both roles into architecture-specific app bundles', () => {

@@ -103,7 +103,9 @@ public final class ProductRestorationSelfTest {
             TestSupport.equals(beforeCount, repository.findAllAuctions().size(), "restore does not reopen or create auctions");
             TestSupport.equals(history, archive(repository, old.getAuctionId()), "old times, caps, results, version and room settings survive restore");
             TestSupport.check(repository.isAuctionUserBlocked(old.getAuctionId(), 3L), "old participant ban survives restore");
-            TestSupport.check(Arrays.equals(image, java.nio.file.Files.readAllBytes(fixture.management.media().config().root().resolve("products").resolve(repository.findProductMedia(archivedId).get(0).id()).resolve("source"))), "image bytes survive restore");
+            try (var input = repository.mediaContent(repository.findProductMedia(archivedId).get(0).id(), "source").open(0)) {
+                TestSupport.check(Arrays.equals(image, input.readAllBytes()), "image bytes survive restore");
+            }
             TestSupport.equals(archived.getImageVersion(), repository.findProductById(archivedId).orElseThrow().getImageVersion(), "image version survives restore");
             assertFrozen(fixture, repository, archived, image);
             assertNoOp(fixture, repository, archivedId);

@@ -30,6 +30,54 @@ import java.util.List;
 import java.util.Optional;
 
 public final class JdbcAuctionRepository implements AuctionRepository {
+    @Override public java.util.List<java.util.Map<String,String>> operationEvents(Long room, String type, Instant from, Instant to, long before, int limit) {
+        if (before <= 0 || limit < 1 || limit > 100 || (room != null && room <= 0) || (from != null && to != null && !from.isBefore(to))) {
+            throw new IllegalArgumentException("Invalid operation log filters");
+        }
+        StringBuilder sql = new StringBuilder("SELECT event_id, auction_id, event_type, occurred_at, amount FROM room_events WHERE event_id<?");
+        List<Object> values = new ArrayList<>(List.of(before));
+        if (room != null) { sql.append(" AND auction_id=?"); values.add(room); }
+        if (!type.isBlank()) { sql.append(" AND event_type=?"); values.add(type); }
+        if (from != null) { sql.append(" AND occurred_at>=?"); values.add(Timestamp.from(from)); }
+        if (to != null) { sql.append(" AND occurred_at<?"); values.add(Timestamp.from(to)); }
+        sql.append(" ORDER BY event_id DESC LIMIT ?"); values.add(limit);
+        try (var connection = connectionFactory.openDatabase(); var query = connection.prepareStatement(sql.toString())) {
+            for (int index = 0; index < values.size(); index++) { query.setObject(index + 1, values.get(index)); }
+            List<java.util.Map<String,String>> result = new ArrayList<>();
+            try (var rows = query.executeQuery()) { while (rows.next()) {
+                var amount = rows.getBigDecimal("amount");
+                result.add(java.util.Map.of("id", Long.toString(rows.getLong("event_id")), "auctionId", Long.toString(rows.getLong("auction_id")),
+                        "type", rows.getString("event_type"), "time", rows.getTimestamp("occurred_at").toInstant().toString(),
+                        "amount", amount == null ? "" : amount.toPlainString()));
+            } }
+            return result;
+        } catch (SQLException error) { throw new AuctionRepositoryException("Cannot read operation log", error); }
+    }
+    @Override public java.util.Map<String,String> notifications(long user, long before, boolean unread, int limit) {
+        return new vn.ptit.btl16.server.notification.PersonalNotificationStore(connectionFactory).list(user,before,unread,limit);
+    }
+    @Override public void readNotification(long user, long id, boolean read) {
+        new vn.ptit.btl16.server.notification.PersonalNotificationStore(connectionFactory).read(user,id,read);
+    }
+    @Override public java.util.Map<String, String> personalReceipt(long user, long room) {
+        return new AuctionReceiptStore(connectionFactory).receipt(user, room);
+    }
+    @Override public java.util.Map<String, String> personalReceipts(long user, String scope, String outcome,
+                                                               String search, long before, int limit) {
+        return new AuctionReceiptStore(connectionFactory).list(user, scope, outcome, search, before, limit);
+    }
+    @Override public List<vn.ptit.btl16.server.auction.model.RoomProgress.Event> findRoomEvents(long room, long before, long after, int limit) {
+        return new RoomProgressStore(connectionFactory).events(room, before, after, limit);
+    }
+    @Override public void appendPresence(long room, String type, long user, Instant time) {
+        new RoomProgressStore(connectionFactory).presence(room, type, user, time);
+    }
+    @Override public vn.ptit.btl16.server.auction.model.RoomProgress.Stats roomStats(long room) {
+        return new RoomProgressStore(connectionFactory).stats(room);
+    }
+    @Override public List<vn.ptit.btl16.server.auction.model.RoomProgress.HistoryBid> bidPage(long room, long before, long through, Long user, int limit) {
+        return new RoomProgressStore(connectionFactory).history(room, before, through, user, limit);
+    }
     private static final String PRODUCT_SELECT = """
             SELECT p.product_id, p.created_by AS product_owner_id,
                    owner.username AS product_owner_username,
@@ -55,7 +103,7 @@ public final class JdbcAuctionRepository implements AuctionRepository {
                    a.current_winner_id, winner.username AS current_winner_username,
                    a.start_time, a.end_time, a.hard_end_time, a.status, a.ended_at, a.version,
                    a.visibility, a.room_password_hash, a.room_password_salt,
-                   a.room_password_iterations
+                   a.room_password_iterations, a.anonymous_guests
             FROM auctions a
             JOIN products p ON p.product_id = a.product_id
             JOIN users owner ON owner.user_id = p.created_by
@@ -70,9 +118,14 @@ public final class JdbcAuctionRepository implements AuctionRepository {
     }
 
     public vn.ptit.btl16.server.media.JdbcMediaStorage mediaStorage() {
-        return connectionFactory.getConfig().isEmbeddedDatabase() ? null
-                : new vn.ptit.btl16.server.media.JdbcMediaStorage(connectionFactory);
+        return new vn.ptit.btl16.server.media.JdbcMediaStorage(connectionFactory);
     }
+
+    @Override public vn.ptit.btl16.server.media.MediaContent mediaContent(String mediaId, String variant) throws java.io.IOException {
+        return mediaStorage().content(mediaId, variant);
+    }
+
+    @Override public long mediaBytes() throws java.io.IOException { return mediaStorage().usedBytes(); }
 
     @Override
     public Product saveMediaProduct(MediaProductCommit commit) {
@@ -139,15 +192,27 @@ public final class JdbcAuctionRepository implements AuctionRepository {
                 }
             }
         }
-        try (PreparedStatement delete = connection.prepareStatement("DELETE FROM product_media WHERE product_id = ?")) {
-            delete.setLong(1, productId);
-            delete.executeUpdate();
+        List<String> previous = new ArrayList<>();
+        try (PreparedStatement query = connection.prepareStatement("SELECT media_id FROM product_media WHERE product_id = ?")) {
+            query.setLong(1, productId);
+            try (ResultSet rows = query.executeQuery()) { while (rows.next()) { previous.add(rows.getString(1)); } }
         }
         int order = 0;
         for (ProductMedia media : commit.media()) {
-            insertMedia(connection, media.attached(productId, order++));
-            if (!connectionFactory.getConfig().isEmbeddedDatabase()) {
-                vn.ptit.btl16.server.media.JdbcMediaStorage.write(connection, media.id(), commit.folders().get(media.id()));
+            if (previous.contains(media.id())) {
+                try (PreparedStatement update = connection.prepareStatement("UPDATE product_media SET sort_order = ? WHERE media_id = ? AND product_id = ?")) {
+                    update.setInt(1, order++); update.setString(2, media.id()); update.setLong(3, productId); update.executeUpdate();
+                }
+            } else {
+                insertMedia(connection, media.attached(productId, order++));
+                vn.ptit.btl16.server.media.JdbcMediaStorage.write(connection, media.id(), commit.content().get(media.id()));
+            }
+        }
+        for (String id : previous) {
+            if (commit.media().stream().noneMatch(media -> media.id().equals(id))) {
+                try (PreparedStatement delete = connection.prepareStatement("DELETE FROM product_media WHERE media_id = ? AND product_id = ?")) {
+                    delete.setString(1, id); delete.setLong(2, productId); delete.executeUpdate();
+                }
             }
         }
         return productId;
@@ -208,7 +273,7 @@ public final class JdbcAuctionRepository implements AuctionRepository {
     }
 
     @Override
-    public void migrateLegacyImage(long productId, long expectedVersion, ProductMedia media) {
+    public void migrateLegacyImage(long productId, long expectedVersion, ProductMedia media, java.util.Map<String, byte[]> content) {
         Product product = findProductById(productId).orElseThrow();
         productTransaction(productId, product.getOwnerId(), (connection, active) -> {
             try (PreparedStatement check = connection.prepareStatement("SELECT image_version FROM products WHERE product_id = ?")) {
@@ -221,6 +286,7 @@ public final class JdbcAuctionRepository implements AuctionRepository {
                 }
             }
             insertMedia(connection, media.attached(productId, 0));
+            vn.ptit.btl16.server.media.JdbcMediaStorage.write(connection, media.id(), content);
             return null;
         });
     }
@@ -460,8 +526,8 @@ public final class JdbcAuctionRepository implements AuctionRepository {
                     host_user_id, product_id, start_price, min_bid_increment,
                     current_price, current_winner_id, start_time, end_time,
                     status, ended_at, version, visibility, room_password_hash,
-                    room_password_salt, room_password_iterations, hard_end_time, wallet_required)
-                VALUES(?, ?, ?, ?, ?, NULL, ?, ?, 'OPEN', NULL, 0, ?, ?, ?, ?, ?, TRUE)
+                    room_password_salt, room_password_iterations, hard_end_time, wallet_required, anonymous_guests)
+                VALUES(?, ?, ?, ?, ?, NULL, ?, ?, 'OPEN', NULL, 0, ?, ?, ?, ?, ?, TRUE, ?)
                 """;
         long createdId = productTransaction(commit.getProductId(), commit.getHostUserId(), (connection, active) -> {
             if (!active) {
@@ -510,12 +576,15 @@ public final class JdbcAuctionRepository implements AuctionRepository {
                 }
                 statement.setTimestamp(12, Timestamp.from(commit.getEndTime()
                         .plusSeconds(AuctionRules.MAX_AUTO_EXTENSION_SECONDS)));
+                statement.setBoolean(13, commit.hasAnonymousGuests());
                 statement.executeUpdate();
                 try (ResultSet keys = statement.getGeneratedKeys()) {
                     if (!keys.next()) {
                         throw new SQLException("Database did not return auction_id");
                     }
-                    return keys.getLong(1);
+                    long auctionId = keys.getLong(1);
+                    RoomProgressStore.append(connection, auctionId, "CREATED", commit.getHostUserId(), null, "", Instant.now());
+                    return auctionId;
                 }
             }
         });
@@ -650,6 +719,15 @@ public final class JdbcAuctionRepository implements AuctionRepository {
                         }
                     }
                 }
+                Instant previousEnd;
+                Long previousLeader;
+                try (var query = connection.prepareStatement("SELECT end_time, current_winner_id FROM auctions WHERE auction_id = ?")) {
+                    query.setLong(1, commit.getAuctionId());
+                    try (var result = query.executeQuery()) {
+                        result.next(); previousEnd = result.getTimestamp(1).toInstant();
+                        long leader = result.getLong(2); previousLeader = result.wasNull() ? null : leader;
+                    }
+                }
                 WalletTransactions.reserve(connection, commit.getAuctionId(), commit.getBidderId(),
                         commit.getAmount(), commit.getServerSequence(), commit.getCreatedAt());
                 long bidId;
@@ -676,6 +754,15 @@ public final class JdbcAuctionRepository implements AuctionRepository {
                     if (update.executeUpdate() != 1) {
                         throw new SQLException("Auction update count was not 1");
                     }
+                }
+                RoomProgressStore.append(connection, commit.getAuctionId(), "BID_ACCEPTED", commit.getBidderId(), commit.getAmount(), "", commit.getCreatedAt());
+                RoomProgressStore.append(connection, commit.getAuctionId(), "LEADER_CHANGED", commit.getBidderId(), commit.getAmount(), "", commit.getCreatedAt());
+                if (previousLeader != null) {
+                    vn.ptit.btl16.server.notification.PersonalNotificationStore.save(connection, previousLeader,
+                            "OUTBID:" + commit.getAuctionId() + ":" + commit.getServerSequence() + ":" + previousLeader, "OUTBID", commit.getAuctionId(), "", commit.getCreatedAt());
+                }
+                if (commit.getNewEndTime().isAfter(previousEnd)) {
+                    RoomProgressStore.append(connection, commit.getAuctionId(), "EXTENDED_AUTO", null, null, commit.getNewEndTime().toString(), commit.getCreatedAt());
                 }
                 connection.commit();
                 return new BidRecord(
@@ -710,19 +797,20 @@ public final class JdbcAuctionRepository implements AuctionRepository {
                   AND ? <= hard_end_time
                   AND NOT EXISTS (SELECT 1 FROM bids b WHERE b.auction_id = auctions.auction_id)
                 """;
-        try (Connection connection = connectionFactory.openDatabase();
-             PreparedStatement statement = connection.prepareStatement(sql)) {
-            statement.setTimestamp(1, Timestamp.from(commit.getNewEndTime()));
-            statement.setLong(2, commit.getAuctionId());
-            statement.setTimestamp(3, Timestamp.from(commit.getExpectedEndTime()));
-            Instant now = Instant.now();
-            statement.setTimestamp(4, Timestamp.from(now));
-            statement.setTimestamp(5, Timestamp.from(now));
-            statement.setTimestamp(6, Timestamp.from(commit.getNewEndTime()));
-            return statement.executeUpdate() == 1;
-        } catch (SQLException exception) {
-            throw new AuctionRepositoryException("Cannot extend auction", exception);
-        }
+        return transaction(connection -> {
+            try (PreparedStatement statement = connection.prepareStatement(sql)) {
+                statement.setTimestamp(1, Timestamp.from(commit.getNewEndTime()));
+                statement.setLong(2, commit.getAuctionId());
+                statement.setTimestamp(3, Timestamp.from(commit.getExpectedEndTime()));
+                Instant now = Instant.now();
+                statement.setTimestamp(4, Timestamp.from(now));
+                statement.setTimestamp(5, Timestamp.from(now));
+                statement.setTimestamp(6, Timestamp.from(commit.getNewEndTime()));
+                if (statement.executeUpdate() != 1) { return false; }
+                RoomProgressStore.append(connection, commit.getAuctionId(), "EXTENDED_MANUAL", null, null, commit.getNewEndTime().toString(), now);
+                return true;
+            }
+        });
     }
 
     @Override
@@ -794,6 +882,9 @@ public final class JdbcAuctionRepository implements AuctionRepository {
                     insert.setTimestamp(4, Timestamp.from(commit.getEndedAt()));
                     insert.executeUpdate();
                 }
+                RoomProgressStore.append(connection, commit.getAuctionId(), "ENDED", commit.getWinnerId(), commit.getFinalPrice(), "", commit.getEndedAt());
+                AuctionReceiptStore.capture(connection, commit.getAuctionId());
+                vn.ptit.btl16.server.notification.PersonalNotificationStore.result(connection, commit.getAuctionId(), commit.getEndedAt());
                 connection.commit();
                 return Optional.of(new AuctionResult(
                         commit.getAuctionId(), commit.getWinnerId(), commit.getWinnerUsername(),
@@ -818,14 +909,17 @@ public final class JdbcAuctionRepository implements AuctionRepository {
                 WHERE a.auction_id = ? AND a.status = 'OPEN'
                   AND NOT EXISTS (SELECT 1 FROM bids b WHERE b.auction_id = a.auction_id)
                 """;
-        try (Connection connection = connectionFactory.openDatabase();
-             PreparedStatement statement = connection.prepareStatement(sql)) {
-            statement.setTimestamp(1, Timestamp.from(commit.getCancelledAt()));
-            statement.setLong(2, commit.getAuctionId());
-            return statement.executeUpdate() == 1;
-        } catch (SQLException exception) {
-            throw new AuctionRepositoryException("Cannot cancel auction", exception);
-        }
+        return transaction(connection -> {
+            try (PreparedStatement statement = connection.prepareStatement(sql)) {
+                statement.setTimestamp(1, Timestamp.from(commit.getCancelledAt()));
+                statement.setLong(2, commit.getAuctionId());
+                if (statement.executeUpdate() != 1) { return false; }
+                RoomProgressStore.append(connection, commit.getAuctionId(), "CANCELLED", null, null, "", commit.getCancelledAt());
+                AuctionReceiptStore.capture(connection, commit.getAuctionId());
+                vn.ptit.btl16.server.notification.PersonalNotificationStore.result(connection, commit.getAuctionId(), commit.getCancelledAt());
+                return true;
+            }
+        });
     }
 
     @Override
@@ -865,6 +959,18 @@ public final class JdbcAuctionRepository implements AuctionRepository {
                 return result.next();
             }
         }
+    }
+
+    @FunctionalInterface
+    private interface Transaction<Result> { Result execute(Connection connection) throws SQLException; }
+
+    private <Result> Result transaction(Transaction<Result> operation) {
+        try (Connection connection = connectionFactory.openDatabase()) {
+            connection.setAutoCommit(false);
+            try {
+                Result result = operation.execute(connection); connection.commit(); return result;
+            } catch (SQLException | RuntimeException exception) { connection.rollback(); throw exception; }
+        } catch (SQLException exception) { throw new AuctionRepositoryException("Cannot commit room change", exception); }
     }
 
     @FunctionalInterface
@@ -1031,6 +1137,6 @@ public final class JdbcAuctionRepository implements AuctionRepository {
                 resultSet.getString("room_password_hash"),
                 resultSet.getString("room_password_salt"),
                 resultSet.getInt("room_password_iterations"),
-                resultSet.getTimestamp("hard_end_time").toInstant());
+                resultSet.getTimestamp("hard_end_time").toInstant(), resultSet.getBoolean("anonymous_guests"));
     }
 }

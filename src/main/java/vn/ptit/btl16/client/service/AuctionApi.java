@@ -121,6 +121,12 @@ public final class AuctionApi {
             int durationMinutes,
             String visibility,
             String roomPassword) {
+        return createAuction(productId, startPrice, minBidIncrement, durationMinutes, visibility, roomPassword, false);
+    }
+
+    public CompletableFuture<ApiResponse> createAuction(long productId, BigDecimal startPrice,
+            BigDecimal minBidIncrement, int durationMinutes, String visibility, String roomPassword,
+            boolean anonymousGuests) {
         Map<String, String> data = new LinkedHashMap<>();
         data.put("productId", Long.toString(productId));
         data.put("startPrice", Money.wire(startPrice));
@@ -128,6 +134,7 @@ public final class AuctionApi {
         data.put("durationMinutes", Integer.toString(durationMinutes));
         data.put("visibility", visibility == null ? "PUBLIC" : visibility);
         data.put("roomPassword", roomPassword == null ? "" : roomPassword);
+        data.put("anonymousGuests", Boolean.toString(anonymousGuests));
         return request(MessageType.CREATE_AUCTION, data);
     }
 
@@ -163,6 +170,23 @@ public final class AuctionApi {
 
     public CompletableFuture<ApiResponse> history(long auctionId) {
         return request(MessageType.GET_BID_HISTORY, id(auctionId));
+    }
+
+    public CompletableFuture<ApiResponse> history(long auctionId, long before, Long through, boolean mine) {
+        Map<String, String> data = new java.util.LinkedHashMap<>(id(auctionId));
+        data.put("limit", "50"); data.put("beforeSequence", Long.toString(before));
+        if (through != null) { data.put("throughSequence", Long.toString(through)); }
+        data.put("mine", Boolean.toString(mine));
+        return request(MessageType.GET_BID_HISTORY, data);
+    }
+
+    public CompletableFuture<ApiResponse> events(long auctionId, long before, long after) {
+        return request(MessageType.GET_ROOM_EVENTS, Map.of("auctionId", Long.toString(auctionId),
+                "beforeId", Long.toString(before), "afterId", Long.toString(after), "limit", "50"));
+    }
+
+    public CompletableFuture<ApiResponse> stats(long auctionId) {
+        return request(MessageType.GET_AUCTION_STATS, id(auctionId));
     }
 
     public CompletableFuture<ApiResponse> extendAuction(long auctionId, int extensionSeconds) {

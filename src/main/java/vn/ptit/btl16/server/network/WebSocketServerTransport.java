@@ -96,6 +96,8 @@ public final class WebSocketServerTransport extends WebSocketServer implements A
             sendProtocolError(adapter, exception.getMessage());
         } catch (RuntimeException exception) {
             sendProtocolError(adapter, "Invalid WebSocket message");
+        } finally {
+            if (!running.get()) { Thread.currentThread().interrupt(); }
         }
     }
 
@@ -111,7 +113,8 @@ public final class WebSocketServerTransport extends WebSocketServer implements A
     public void onClose(WebSocket socket, int code, String reason, boolean remote) {
         WebSocketConnectionAdapter adapter = adapters.remove(socket);
         if (adapter != null) {
-            adapter.close();
+            try { adapter.close(); }
+            finally { if (!running.get()) { Thread.currentThread().interrupt(); } }
         }
     }
 

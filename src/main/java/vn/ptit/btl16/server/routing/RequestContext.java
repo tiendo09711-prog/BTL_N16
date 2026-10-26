@@ -17,16 +17,23 @@ public final class RequestContext {
     private final WireMessage request;
     private final UserSession session;
     private final ServerSequence sequence;
+    private final java.util.function.BiFunction<String, WireMessage, WireMessage> outbound;
 
     public RequestContext(
             ServerConnection connection,
             WireMessage request,
             UserSession session,
             ServerSequence sequence) {
+        this(connection, request, session, sequence, (id, message) -> message);
+    }
+
+    public RequestContext(ServerConnection connection, WireMessage request, UserSession session,
+            ServerSequence sequence, java.util.function.BiFunction<String, WireMessage, WireMessage> outbound) {
         this.connection = connection;
         this.request = request;
         this.session = session;
         this.sequence = sequence;
+        this.outbound = outbound;
     }
 
     public ServerConnection getConnection() { return connection; }
@@ -45,7 +52,7 @@ public final class RequestContext {
     }
 
     public void reply(MessageType type, Map<String, String> data) throws IOException {
-        connection.send(WireMessage.response(type, request, sequence.next(), data));
+        connection.send(outbound.apply(connection.getConnectionId(), WireMessage.response(type, request, sequence.next(), data)));
     }
 
     public void replySuccess(MessageType type, Map<String, String> extra) throws IOException {

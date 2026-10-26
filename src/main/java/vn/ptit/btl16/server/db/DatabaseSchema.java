@@ -19,6 +19,10 @@ public final class DatabaseSchema {
         upgradeAuctionManagementSchema(factory);
         vn.ptit.btl16.server.media.JdbcMediaStorage.initialize(factory);
         vn.ptit.btl16.server.wallet.WalletSchema.initialize(factory);
+        vn.ptit.btl16.server.social.RoomSocialSchema.initialize(factory);
+        vn.ptit.btl16.server.auction.repository.RoomProgressStore.initialize(factory);
+        vn.ptit.btl16.server.auction.repository.AuctionReceiptStore.initialize(factory);
+        vn.ptit.btl16.server.notification.PersonalNotificationStore.initialize(factory);
     }
 
     public static void dropDatabase(JdbcConnectionFactory factory) {

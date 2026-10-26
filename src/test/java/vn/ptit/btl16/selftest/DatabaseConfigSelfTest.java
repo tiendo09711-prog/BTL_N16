@@ -26,16 +26,19 @@ public final class DatabaseConfigSelfTest {
             TestSupport.equals(60, ServerConfig.loadDefault().getClosedVisibilitySeconds(), "old settings cannot retain closed rooms beyond one minute");
             Files.writeString(configFile, "auction.closedVisibilitySeconds=2\n");
             TestSupport.equals(2, ServerConfig.loadDefault().getClosedVisibilitySeconds(), "short retention remains available for isolated tests");
+            Files.writeString(configFile, "db.driver=org.h2.Driver\n");
+            TestSupport.check(ServerConfig.loadDefault().databaseJdbcUrl().contains("AUTO_COMPACT_FILL_RATE=0"), "test-only H2 avoids close-time compaction data loss");
+            Files.writeString(configFile, "");
             String previousRoot = System.getProperty("btl16.media.root");
             Path sentinel = configFile.getParent().resolve("media-production-sentinel").toAbsolutePath();
+            boolean existed = Files.exists(sentinel);
             try {
                 System.setProperty("btl16.media.root", sentinel.toString());
                 var isolated = vn.ptit.btl16.server.media.MediaConfig.load(true);
-                TestSupport.check(!isolated.root().startsWith(sentinel), "isolated media ignores a production root override");
+                TestSupport.equals(0, isolated.port(), "isolated media uses a dynamic port without a filesystem root");
                 var production = vn.ptit.btl16.server.media.MediaConfig.load(false);
-                TestSupport.check(!production.root().startsWith(sentinel) && production.root().getFileName().toString().startsWith("btl16-mysql-media-"),
-                        "MySQL production uses only a disposable media workspace, never legacy persistent folders");
-                Files.delete(production.root());
+                TestSupport.equals(8891, production.port(), "production media configuration remains available without disk storage");
+                TestSupport.equals(existed, Files.exists(sentinel), "media configuration ignores legacy disk root overrides");
             } finally {
                 if (previousRoot == null) { System.clearProperty("btl16.media.root"); } else { System.setProperty("btl16.media.root", previousRoot); }
             }

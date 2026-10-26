@@ -9,13 +9,11 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.text.NumberFormat;
-import java.util.Locale;
 import java.util.function.Function;
 
 public final class WalletUi {
     private WalletUi() { }
-    public static String money(BigDecimal amount) { return NumberFormat.getNumberInstance(Locale.forLanguageTag("vi-VN")).format(amount) + " \u20ab"; }
+    public static String money(BigDecimal amount) { return vn.ptit.btl16.common.util.Money.input(amount) + " \u20ab"; }
     public static String time(Instant time) { return time == null ? "-" : DateTimeFormatter.ofPattern("dd/MM HH:mm:ss").withZone(ZoneId.systemDefault()).format(time); }
     public static String status(String status) {
         return switch (status) { case "PENDING" -> "Ch\u1edd duy\u1ec7t"; case "APPROVED" -> "\u0110\u00e3 c\u1ed9ng ti\u1ec1n"; default -> "T\u1eeb ch\u1ed1i"; };
@@ -49,6 +47,7 @@ public final class WalletUi {
         column(table, "TR\u1ea0NG TH\u00c1I", request -> status(request.status()), 160);
         column(table, "T\u1ea0O L\u00daC", request -> time(request.createdAt()), 150);
         column(table, "M\u00c3 Y\u00caU C\u1ea6U", TopUpRequest::id, 290);
+        column(table, "LY DO TU CHOI", TopUpRequest::rejectionReason, 300);
         table.setPrefHeight(180); return table;
     }
 }

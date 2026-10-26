@@ -53,9 +53,13 @@ public final class AuctionButtonsUiSelfTest {
             pressText(host, "T\u1ea1o ph\u00f2ng \u0111\u1ea5u gi\u00e1");
             DialogPane create = dialog("T\u1ea1o ph\u00f2ng \u0111\u1ea5u gi\u00e1");
             fx(() -> { textRow(create, 1).setText("100"); textRow(create, 2).setText("10"); submit(create); return null; });
+            DialogPane review = dialog(null);
+            TestSupport.equals(0, host.model().auctionSnapshot().size(), "review does not create before confirmation");
+            fx(() -> { ((Button) review.lookupButton(ButtonType.YES)).fire(); return null; });
             waitFor(() -> host.model().auctionSnapshot().size() == 1, "create-room button publishes a room");
             long room = fx(() -> host.model().auctionSnapshot().get(0).getAuctionId()); select(host, room);
             press(host, "joinButton"); waitFor(() -> host.model().getJoinedAuctionId() != null, "host joins to receive live room events");
+            waitFor(() -> !button(host, "extendButton").isDisabled(), "host controls wait for room and wallet sync");
             long beforeExtension = fx(() -> host.model().auctionSnapshot().get(0).getVersion());
             press(host, "extendButton"); DialogPane extend = dialog("Gia h\u1ea1n");
             fx(() -> { ((TextInputControl) extend.lookup(".text-field")).setText("10"); submit(extend); return null; });
@@ -82,13 +86,16 @@ public final class AuctionButtonsUiSelfTest {
             pressText(buyer, "X\u00f3a l\u1ecdc");
             TestSupport.check(fx(() -> button(buyer, "bidButton").isDisabled()), "cannot bid before joining");
             press(buyer, "joinButton"); waitFor(() -> buyer.model().getJoinedAuctionId() != null, "join button");
+            waitFor(() -> !button(buyer, "bidButton").isDisabled(), "bid waits for room and private wallet sync");
             fx(() -> { ((TextField) field(buyer.controller(), "bidField")).setText("110"); button(buyer, "bidButton").fire(); return null; });
             waitFor(() -> buyer.model().joinedAuction().getCurrentWinnerId() != null, "bid button sends actual bid");
+            waitFor(() -> ((Label) field(buyer.controller(), "bidFeedback")).getText().contains("ch\u1ea5p nh\u1eadn"), "accepted bid is acknowledged inline");
             waitFor(() -> button(buyer, "bidButton").isDisabled(), "leader cannot self-raise in UI");
             waitFor(() -> button(host, "endButton").isDisabled() && button(host, "cancelButton").isDisabled()
                     && button(host, "extendButton").isDisabled(), "host mutations disabled after accepted bid");
             press(buyer, "historyButton"); DialogPane history = dialog("L\u1ecbch s\u1eed bid ph\u00f2ng #" + room);
-            fx(() -> { TestSupport.check(((TextArea) history.getContent()).getText().contains("buttons_buyer"), "history displays real bid"); submit(history); return null; });
+            waitFor(() -> ((TableView<?>) history.lookup("#bid-history-table")).getItems().toString().contains("buttons_buyer"), "history table loads real server bid");
+            fx(() -> { TestSupport.equals(4, ((TableView<?>) history.lookup("#bid-history-table")).getColumns().size(), "history has time, bidder, amount and increase"); ((Button) history.lookupButton(ButtonType.CLOSE)).fire(); return null; });
             try (var rival = new WebSocketClientTransport(endpoint, 2097152, 5000, 10000)) {
                 rival.connect().get(10, TimeUnit.SECONDS); AccountApi account = new AccountApi(rival);
                 ok(account.register("buttons_rival", "Password123!", "Rival", "", "")); ok(account.login("buttons_rival", "Password123!"));
@@ -117,9 +124,12 @@ public final class AuctionButtonsUiSelfTest {
                 long anotherProduct = Long.parseLong(ok(TestMedia.create(hostApi, cancel ? "BUTTON_CANCEL" : "BUTTON_END", "Empty room", TestMedia.DESCRIPTION)).get("productId"));
                 long anotherRoom = Long.parseLong(ok(hostApi.createAuction(anotherProduct, new BigDecimal("100"), new BigDecimal("10"), 1)).get("auctionId"));
                 pressText(host, "L\u00e0m m\u1edbi"); waitFor(() -> host.model().auctionSnapshot().stream().anyMatch(value -> value.getAuctionId() == anotherRoom), "host sees new empty room");
-                select(host, anotherRoom); press(host, cancel ? "cancelButton" : "endButton"); DialogPane confirmation = dialog(null);
+                select(host, anotherRoom); press(host, "joinButton");
+                waitFor(() -> java.util.Objects.equals(host.model().getJoinedAuctionId(), anotherRoom), "host joins empty room before managing");
+                press(host, cancel ? "cancelButton" : "endButton"); DialogPane confirmation = dialog(null);
                 fx(() -> { ((Button) confirmation.lookupButton(ButtonType.YES)).fire(); return null; });
                 waitFor(() -> host.model().auctionSnapshot().stream().anyMatch(value -> value.getAuctionId() == anotherRoom && !value.isOpen()), "cancel/end button closes only empty room");
+                press(host, "leaveButton"); waitFor(() -> host.model().getJoinedAuctionId() == null, "host leaves closed room to browse next room");
             }
             TestSupport.check(product > 0, "seller product remains in isolated test database");
             waitFor(() -> ((java.util.Set<?>) field(host.controller(), "imageRequests")).isEmpty()

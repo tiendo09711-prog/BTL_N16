@@ -115,6 +115,8 @@ public final class ServerFxApp extends Application {
         Button wallets = new Button("◈   Tài khoản & ví");
         wallets.setMaxWidth(Double.MAX_VALUE);
         wallets.setOnAction(event -> { if (application != null) { new ServerWalletWindow(stage, () -> application, worker).show(); } });
+        Button operations = new Button("Nhat ky van hanh"); operations.setMaxWidth(Double.MAX_VALUE);
+        operations.setOnAction(event -> { if (application != null) { new OperationLogWindow(stage, () -> application, worker).show(); } });
         network.setMaxWidth(Double.MAX_VALUE);
         network.setOnAction(event -> copy(addresses.getValue(), network));
         Region filler = new Region();
@@ -129,7 +131,7 @@ public final class ServerFxApp extends Application {
             }
         });
         sidebar.getChildren().addAll(breathing, DesktopTheme.label("ĐIỀU HÀNH", "eyebrow"),
-                overview, wallets, network, filler, DesktopTheme.label("THỜI GIAN HOẠT ĐỘNG", "eyebrow"),
+                overview, wallets, operations, network, filler, DesktopTheme.label("THỜI GIAN HOẠT ĐỘNG", "eyebrow"),
                 uptime, new Separator(), toggle, DesktopTheme.label("AUCTION / LOCAL NETWORK", "eyebrow"));
 
         HBox header = new HBox(16, new VBox(5, DesktopTheme.label("TRUNG TÂM ĐIỀU HÀNH", "eyebrow"),

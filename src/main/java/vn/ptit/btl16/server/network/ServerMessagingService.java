@@ -12,6 +12,20 @@ public final class ServerMessagingService {
     private final ConnectionRegistry connections;
     private final SessionManager sessions;
     private final ServerSequence sequence;
+    private java.util.function.BiFunction<String, WireMessage, WireMessage> outbound = (id, message) -> message;
+
+    public void setOutboundPolicy(java.util.function.BiFunction<String, WireMessage, WireMessage> policy) {
+        outbound = java.util.Objects.requireNonNull(policy);
+    }
+
+    private boolean send(String connectionId, WireMessage message) {
+        try {
+            return connections.sendTo(connectionId, outbound.apply(connectionId, message));
+        } catch (RuntimeException exception) {
+            System.err.println("[IDENTITY] Event withheld: " + exception.getClass().getSimpleName());
+            return false;
+        }
+    }
 
     public ServerMessagingService(
             ConnectionRegistry connections,
@@ -38,7 +52,7 @@ public final class ServerMessagingService {
             Map<String, String> data) {
         WireMessage event = WireMessage.event(type, eventSequence, data);
         return sessions.activeConnectionIdForUser(userId)
-                .map(connectionId -> connections.sendTo(connectionId, event))
+                .map(connectionId -> send(connectionId, event))
                 .orElse(false);
     }
 
@@ -57,7 +71,7 @@ public final class ServerMessagingService {
         WireMessage event = WireMessage.event(type, eventSequence, data);
         int sent = 0;
         for (String connectionId : connectionIds) {
-            if (connections.sendTo(connectionId, event)) {
+            if (send(connectionId, event)) {
                 sent++;
             }
         }
@@ -68,7 +82,7 @@ public final class ServerMessagingService {
         WireMessage event = WireMessage.event(type, sequence.next(), data);
         int sent = 0;
         for (ServerConnection connection : connections.snapshot()) {
-            if (connections.sendTo(connection.getConnectionId(), event)) {
+            if (send(connection.getConnectionId(), event)) {
                 sent++;
             }
         }

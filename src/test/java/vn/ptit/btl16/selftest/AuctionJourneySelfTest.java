@@ -26,6 +26,10 @@ public final class AuctionJourneySelfTest {
     public static void main(String[] args) throws Exception { run(); }
 
     public static void run() throws Exception {
+        runCase(false); runCase(true);
+    }
+
+    private static void runCase(boolean anonymous) throws Exception {
         String oldConfig = System.getProperty("btl16.server.config"), oldData = System.getProperty("btl16.dataDir");
         Path data = Files.createTempDirectory("btl16-journey-");
         Path settings = data.resolve("server.properties");
@@ -36,7 +40,7 @@ public final class AuctionJourneySelfTest {
         try {
             ServerConfig config = ServerConfig.loadDefault();
             long productId, room;
-            String winningUser;
+            String winningUser, winningDisplay;
             try (ServerApplication server = ServerApplication.create(config)) {
                 server.start();
                 String endpoint = "ws://127.0.0.1:" + server.getWebSocketBoundPort() + "/ws";
@@ -58,32 +62,43 @@ public final class AuctionJourneySelfTest {
                     error(ErrorCode.AUCTION_FORBIDDEN, rival.updateProduct(productId, "STOLEN", "Stolen", TestMedia.DESCRIPTION));
                     error(ErrorCode.PRODUCT_CODE_EXISTS, TestMedia.create(host, "JOURNEY_PHONE", "Duplicate", TestMedia.DESCRIPTION));
                     error(ErrorCode.INVALID_INCREMENT, host.createAuction(productId, money("100"), money("0"), 1));
-                    ApiResponse created = ok(host.createAuction(productId, money("100"), money("10"), 1, "PRIVATE", "room1234"));
+                    ApiResponse created = ok(host.createAuction(productId, money("100"), money("10"), 1, "PRIVATE", "room1234", anonymous));
                     room = Long.parseLong(created.get("auctionId"));
                     error(ErrorCode.AUCTION_ALREADY_EXISTS, host.createAuction(productId, money("100"), money("10"), 1));
                     error(ErrorCode.PRODUCT_FROZEN, host.updateProduct(productId, "MODIFIED", "Changed", TestMedia.DESCRIPTION));
                     error(ErrorCode.ROOM_PASSWORD_REQUIRED, buyer.join(room));
                     error(ErrorCode.ROOM_PASSWORD_INVALID, buyer.join(room, "wrong"));
                     error(ErrorCode.ROOM_ACCESS_DENIED, buyer.history(room));
-                    ok(host.join(room, "room1234")); ok(buyer.join(room, "room1234")); ok(rival.join(room, "room1234")); ok(observer.join(room, "room1234"));
+                    ok(host.join(room, "room1234")); var firstJoin = ok(buyer.join(room, "room1234")); ok(rival.join(room, "room1234")); var viewerJoin = ok(observer.join(room, "room1234"));
+                    long firstCode = Long.parseLong(firstJoin.get("selfParticipantId")), viewerCode = Long.parseLong(viewerJoin.get("selfParticipantId"));
+                    var hostSocial = new vn.ptit.btl16.client.service.RoomSocialApi(seller); var guestSocial = new vn.ptit.btl16.client.service.RoomSocialApi(first);
+                    var chat = ok(guestSocial.send(room, "Mo ta san pham va gia duoc server xac nhan", "journey-chat-01"));
+                    ok(hostSocial.send(room, "Tra loi theo tin that", "journey-reply-01", Long.parseLong(chat.get("chat.id"))));
+                    if (anonymous) { error(ErrorCode.ROOM_ACCESS_DENIED, guestSocial.profile(room, firstCode)); }
+                    else {
+                        var profile = ok(guestSocial.profile(room, firstCode));
+                        for (String key : List.of("email", "phone", "balance", "sessionToken")) { TestSupport.check(!profile.getWireMessage().getData().containsKey(key), "public profile excludes " + key); }
+                    }
+                    Thread.sleep(450); ok(hostSocial.mute(room, firstCode, 60, "Demo mute chat only", "journey-mute-01"));
+                    error(ErrorCode.ROOM_ACCESS_DENIED, guestSocial.send(room, "Muted chat", "journey-muted-01"));
                     TestSupport.equals(1, ClientWireParser.auctions(ok(buyer.searchAuctions("ROOM_ID", "#" + room)).getWireMessage().getData()).size(), "search by room id");
                     error(ErrorCode.AUCTION_FORBIDDEN, host.bid(room, money("110")));
                     error(ErrorCode.AUCTION_FORBIDDEN, buyer.cancelAuction(room));
                     error(ErrorCode.BID_TOO_LOW, buyer.bid(room, money("100")));
                     CountDownLatch ended = new CountDownLatch(1), outbid = new CountDownLatch(1);
-                    seller.addEventListener(event -> { if (event.getType() == MessageType.AUCTION_ENDED) { ended.countDown(); } });
+                    seller.addEventListener(event -> { if (event.getType() == MessageType.AUCTION_ENDED && Long.toString(room).equals(event.getOrDefault("auctionId", ""))) { ended.countDown(); } });
                     first.addEventListener(event -> { if (event.getType() == MessageType.OUTBID_NOTIFICATION) { outbid.countDown(); } });
                     ok(buyer.bid(room, money("110")));
                     error(ErrorCode.BID_ALREADY_LEADING, buyer.bid(room, money("120")));
                     error(ErrorCode.AUCTION_HAS_BIDS, host.endAuction(room));
                     error(ErrorCode.AUCTION_HAS_BIDS, host.cancelAuction(room));
                     error(ErrorCode.AUCTION_HAS_BIDS, host.extendAuction(room, 10));
-                    error(ErrorCode.CANNOT_KICK_BIDDER, host.kickUser(room, "journey_first"));
+                    error(ErrorCode.CANNOT_KICK_BIDDER, hostSocial.kick(room, firstCode));
                     ok(rival.bid(room, money("120")));
                     TestSupport.check(outbid.await(5, TimeUnit.SECONDS), "outbid event arrives on actual WebSocket");
-                    error(ErrorCode.CANNOT_KICK_BIDDER, host.kickUser(room, "journey_first"));
+                    error(ErrorCode.CANNOT_KICK_BIDDER, hostSocial.kick(room, firstCode));
                     ok(buyer.leave(room)); ok(buyer.join(room, "room1234")); ok(buyer.bid(room, money("130")));
-                    ok(host.kickUser(room, "journey_viewer"));
+                    ok(hostSocial.kick(room, viewerCode));
                     error(ErrorCode.USER_BLOCKED_FROM_AUCTION, observer.join(room, "room1234"));
                     error(ErrorCode.USER_BLOCKED_FROM_AUCTION, observer.bid(room, money("140")));
                     ok(buyer.leave(room));
@@ -104,15 +119,30 @@ public final class AuctionJourneySelfTest {
                         TestSupport.equals(1, (responseOne.isSuccess() ? 1 : 0) + (responseTwo.isSuccess() ? 1 : 0), "competing bids at one price commit once");
                         winningUser = responseOne.isSuccess() ? "journey_first" : "journey_racer";
                         lifecycleWithoutBids(host);
+                        checkStored(config, room, "OPEN");
                         System.out.println("[INFO] AuctionJourneySelfTest: waiting for the real one-minute auction deadline");
                         TestSupport.check(ended.await(75, TimeUnit.SECONDS), "real auction timer publishes the result");
                         var result = ClientWireParser.auction(ok(host.resync(room)).getWireMessage().getData(), "");
                         TestSupport.check(!result.isOpen(), "auction closes naturally");
-                        TestSupport.equals(winningUser, result.getCurrentWinnerUsername(), "correct highest bidder wins");
+                        winningDisplay = result.getCurrentWinnerUsername();
+                        if (anonymous) { TestSupport.check(winningDisplay.startsWith("Kh\u00e1ch #"), "anonymous winner stays alias in raw result"); }
+                        else { TestSupport.equals(winningUser, winningDisplay, "correct highest bidder wins"); }
                         TestSupport.check(money("150").compareTo(result.getCurrentPrice()) == 0, "winner pays their accepted bid");
                         error(ErrorCode.AUCTION_NOT_OPEN, buyer.bid(room, money("160")));
                         error(ErrorCode.PRODUCT_ALREADY_SOLD, host.createAuction(productId, money("100"), money("10"), 1));
+                        checkStored(config, room, "ENDED");
                         TestSupport.equals(5, ClientWireParser.bids(ok(host.history(room)).getWireMessage().getData()).size(), "only accepted bids enter history");
+                        var winner = responseOne.isSuccess() ? first : contender;
+                        var receipt = ok(new vn.ptit.btl16.client.service.AuctionReceiptApi(winner).get(room));
+                        TestSupport.equals("WINNER", receipt.get("personalRole"), "personal winner is server confirmed");
+                        TestSupport.equals("PAID", receipt.get("walletStatus"), "receipt reconciles actual simulated purchase");
+                        TestSupport.equals(winningDisplay, receipt.get("winnerDisplay"), "summary matches authoritative result");
+                        var ownLedger = ok(new vn.ptit.btl16.client.service.WalletApi(winner).entries(java.util.Map.of("auctionId", Long.toString(room), "type", "PURCHASE")));
+                        TestSupport.equals("1", ownLedger.get("entryCount"), "winning payment exactly once");
+                        TestSupport.equals("PAID", ok(new vn.ptit.btl16.client.service.AuctionReceiptApi(seller).get(room)).get("walletStatus"), "host reconciles own sale");
+                        if (anonymous) {
+                            for (String value : receipt.getWireMessage().getData().values()) { TestSupport.check(!value.contains("journey_"), "anonymous receipt raw payload hides account"); }
+                        }
                     }
                     ok(new AccountApi(first).logout());
                     error(ErrorCode.AUTH_REQUIRED, buyer.myProducts());
@@ -125,11 +155,12 @@ public final class AuctionJourneySelfTest {
                     AuctionApi host = new AuctionApi(seller);
                     var result = ClientWireParser.auctions(ok(host.myAuctions()).getWireMessage().getData()).stream()
                             .filter(value -> value.getAuctionId() == room).findFirst().orElseThrow();
-                    TestSupport.equals(winningUser, result.getCurrentWinnerUsername(), "winner persists after server restart");
+                    TestSupport.equals(winningDisplay, result.getCurrentWinnerUsername(), "winner persists after server restart");
                     TestSupport.equals(5, ClientWireParser.bids(ok(host.history(room)).getWireMessage().getData()).size(), "bid history persists after restart");
+                    TestSupport.equals(winningDisplay, ok(new vn.ptit.btl16.client.service.AuctionReceiptApi(seller).get(room)).get("winnerDisplay"), "receipt survives full server restart");
                 }
             }
-            System.out.println("[PASS] AuctionJourneySelfTest: register/login, HTTP HEIC product, private room/search, exact rule errors, bids/kick/reconnect/race, real expiry/winner, restart and unsold restoration");
+            System.out.println("[PASS] AuctionJourneySelfTest " + (anonymous ? "ANONYMOUS" : "NAMED") + ": product/private room/chat/profile/muted bid, race/reconnect, real expiry, receipt/payment and restart");
         } finally {
             restore("btl16.server.config", oldConfig); restore("btl16.dataDir", oldData);
         }
@@ -145,6 +176,20 @@ public final class AuctionJourneySelfTest {
         long restored = Long.parseLong(ok(host.createAuction(product, money("100"), money("10"), 1)).get("auctionId"));
         TestSupport.check(restored != next && next != empty, "reauction creates a new room, never reopens historical rooms");
         ok(host.endAuction(restored));
+    }
+
+    private static void checkStored(ServerConfig config, long room, String status) throws Exception {
+        var factory = new vn.ptit.btl16.server.account.repository.JdbcConnectionFactory(config);
+        try (var connection = factory.openDatabase(); var query = connection.prepareStatement("SELECT status, (SELECT COUNT(*) FROM auctions) AS rooms, (SELECT COUNT(*) FROM bids) AS bids FROM auctions WHERE auction_id=?")) {
+            query.setLong(1, room);
+            try (var rows = query.executeQuery()) {
+                TestSupport.check(rows.next(), "auction persists in JDBC");
+                System.out.println("[INFO] Journey JDBC state: " + rows.getString("status") + ", rooms=" + rows.getLong("rooms") + ", bids=" + rows.getLong("bids"));
+                TestSupport.equals(status, rows.getString("status"), "JDBC matches authoritative runtime");
+                TestSupport.equals(4L, rows.getLong("rooms"), "room lifecycle is durable");
+                TestSupport.equals(5L, rows.getLong("bids"), "accepted bids are durable");
+            }
+        }
     }
 
     private static BigDecimal money(String value) { return new BigDecimal(value); }

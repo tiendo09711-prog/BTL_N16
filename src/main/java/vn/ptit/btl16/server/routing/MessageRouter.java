@@ -25,6 +25,11 @@ public final class MessageRouter {
     private final Map<MessageType, Route> routes = new ConcurrentHashMap<>();
     private final SessionManager sessions;
     private final ServerSequence sequence;
+    private java.util.function.BiFunction<String, WireMessage, WireMessage> outbound = (id, message) -> message;
+
+    public void setOutboundPolicy(java.util.function.BiFunction<String, WireMessage, WireMessage> policy) {
+        outbound = java.util.Objects.requireNonNull(policy);
+    }
 
     public MessageRouter(SessionManager sessions, ServerSequence sequence) {
         this.sessions = sessions;
@@ -39,7 +44,7 @@ public final class MessageRouter {
     }
 
     public void route(ServerConnection connection, WireMessage request) {
-        RequestContext context = new RequestContext(connection, request, null, sequence);
+        RequestContext context = new RequestContext(connection, request, null, sequence, outbound);
         try {
             if (request.getVersion() != ProtocolLimits.CURRENT_VERSION) {
                 context.replyError(
@@ -67,7 +72,7 @@ public final class MessageRouter {
             if (session.isPresent()) {
                 sessions.touchByConnection(connection.getConnectionId());
             }
-            context = new RequestContext(connection, request, session.orElse(null), sequence);
+            context = new RequestContext(connection, request, session.orElse(null), sequence, outbound);
             route.handler.handle(context);
         } catch (ValidationException | IllegalArgumentException exception) {
             safeError(context, ErrorCode.VALIDATION_ERROR, exception.getMessage());
@@ -81,7 +86,7 @@ public final class MessageRouter {
             System.err.println("[DB] " + exception.getMessage());
             safeError(context, ErrorCode.DATABASE_ERROR, "Database operation failed");
         } catch (Exception exception) {
-            System.err.println("[ROUTER] " + request.getType() + " error: " + exception.getMessage());
+            System.err.println("[ROUTER] " + request.getType() + " error: " + exception.getClass().getSimpleName());
             safeError(context, ErrorCode.INTERNAL_ERROR, "Internal server error");
         }
     }

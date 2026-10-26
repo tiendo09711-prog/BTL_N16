@@ -19,7 +19,7 @@ public final class ImageCompatibilitySelfTest {
 
     public static void run() throws Exception {
         MediaConfig config = MediaConfig.load(true);
-        Path fixtures = config.root().getParent();
+        Path fixtures = Files.createTempDirectory("btl16-image-compat-");
         MediaProcessor processor = new MediaProcessor(config);
         try (var input = ImageCompatibilitySelfTest.class.getResourceAsStream("/media/rainbow.heic")) {
             if (input == null) { throw new AssertionError("Missing real HEIC test resource"); }
@@ -69,11 +69,10 @@ public final class ImageCompatibilitySelfTest {
     }
 
     private static ProductMedia process(MediaProcessor processor, Path input, Path root, String name) throws Exception {
-        Path folder = Files.createDirectory(root.resolve(UUID.randomUUID().toString()));
-        Files.copy(input, folder.resolve("source"));
-        ProductMedia image = processor.process(folder, UUID.randomUUID().toString(), "IMAGE", name, 0, 0, 0, 1, 1, () -> false);
-        var detail = ImageIO.read(folder.resolve("detail.jpg").toFile());
-        var thumbnail = ImageIO.read(folder.resolve("thumbnail.jpg").toFile());
+        var processed = processor.process(Files.readAllBytes(input), UUID.randomUUID().toString(), "IMAGE", name, 0, 0, 0, 1, 1, () -> false);
+        ProductMedia image = processed.media();
+        var detail = ImageIO.read(new java.io.ByteArrayInputStream(processed.content().get("detail.jpg")));
+        var thumbnail = ImageIO.read(new java.io.ByteArrayInputStream(processed.content().get("thumbnail.jpg")));
         TestSupport.check(detail != null && thumbnail != null && thumbnail.getWidth() <= 360 && thumbnail.getHeight() <= 360,
                 "every accepted format becomes a JavaFX-compatible JPEG detail and thumbnail");
         return image;

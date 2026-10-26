@@ -57,6 +57,7 @@ public final class ServerApplication implements AutoCloseable {
     private final MediaHttpServer mediaServer;
     private final MediaService media;
     private final WalletRepository wallets;
+    private final AuctionRepository auctionRepository;
     private final AtomicBoolean started = new AtomicBoolean(false);
     private final AtomicBoolean disposed = new AtomicBoolean(false);
 
@@ -73,7 +74,7 @@ public final class ServerApplication implements AutoCloseable {
             AuctionTimerService auctionTimer,
             MediaHttpServer mediaServer,
             MediaService media,
-            WalletRepository wallets) {
+            WalletRepository wallets, AuctionRepository auctionRepository) {
         this.config = config;
         this.sessions = sessions;
         this.connections = connections;
@@ -87,6 +88,7 @@ public final class ServerApplication implements AutoCloseable {
         this.mediaServer = mediaServer;
         this.media = media;
         this.wallets = wallets;
+        this.auctionRepository = auctionRepository;
     }
 
     public static ServerApplication create(ServerConfig config) {
@@ -98,7 +100,7 @@ public final class ServerApplication implements AutoCloseable {
         UserRepository users = new JdbcUserRepository(factory);
         AuctionRepository auctionRepository = new JdbcAuctionRepository(factory);
         System.out.println("[REPOSITORY] JDBC " + config.databaseJdbcUrl());
-        return compose(config, users, auctionRepository, hasher, false, new WalletRepository(factory));
+        return compose(config, users, auctionRepository, hasher, false, new WalletRepository(factory), new vn.ptit.btl16.server.social.RoomSocialStore(factory));
     }
 
     public static ServerApplication createForTests(
@@ -106,7 +108,7 @@ public final class ServerApplication implements AutoCloseable {
             UserRepository users,
             AuctionRepository auctionRepository,
             PasswordHasher hasher) {
-        return compose(config, users, auctionRepository, hasher, true, null);
+        return compose(config, users, auctionRepository, hasher, true, null, new vn.ptit.btl16.server.social.RoomSocialStore(null));
     }
 
     private static ServerApplication compose(
@@ -115,12 +117,13 @@ public final class ServerApplication implements AutoCloseable {
             AuctionRepository auctionRepository,
             PasswordHasher hasher,
             boolean isolated,
-            WalletRepository wallets) {
+            WalletRepository wallets, vn.ptit.btl16.server.social.RoomSocialStore socialStore) {
         ServerSequence sequence = new ServerSequence(auctionRepository.findMaxServerSequence());
         SessionManager sessions = new SessionManager(
                 Duration.ofSeconds(config.getResumeGraceSeconds()));
         ConnectionRegistry connections = new ConnectionRegistry();
         RoomManager rooms = new RoomManager();
+        rooms.setPresenceListener(auctionRepository::appendPresence);
         AuctionManager auctions = new AuctionManager(
                 auctionRepository,
                 config.getClosedVisibilitySeconds());
@@ -151,9 +154,7 @@ public final class ServerApplication implements AutoCloseable {
                 broadcasts,
                 hasher,
                 sessions);
-        vn.ptit.btl16.server.media.JdbcMediaStorage mediaStorage = isolated || config.isEmbeddedDatabase() ? null
-                : new vn.ptit.btl16.server.media.JdbcMediaStorage(new JdbcConnectionFactory(config));
-        MediaService media = new MediaService(MediaConfig.load(isolated), auctionRepository, sessions, managementService, mediaStorage);
+        MediaService media = new MediaService(MediaConfig.load(isolated), auctionRepository, sessions, managementService);
         managementService.setMediaService(media);
         MediaHttpServer mediaServer = new MediaHttpServer(media, config.getBindAddress());
         AuctionController auctionController = new AuctionController(
@@ -161,6 +162,13 @@ public final class ServerApplication implements AutoCloseable {
                 bidService,
                 rooms,
                 managementService);
+        var social = new vn.ptit.btl16.server.social.RoomSocialService(
+                auctions, managementService, rooms, users, sessions, socialStore, messaging);
+        auctionController.setSocialService(social);
+        social.setAuctionRepository(auctionRepository);
+        social.register(router);
+        router.setOutboundPolicy(social::project);
+        messaging.setOutboundPolicy(social::project);
 
         new CoreAccountModule(
                 accountController,
@@ -170,7 +178,13 @@ public final class ServerApplication implements AutoCloseable {
                 auctions,
                 sequence).register(router);
         new AuctionModule(auctionController).register(router);
-        if (wallets != null) { new WalletController(wallets).register(router); }
+        var progress = new vn.ptit.btl16.server.auction.service.RoomProgressService(
+                auctions, managementService, auctionRepository, rooms, users);
+        progress.register(router);
+        new vn.ptit.btl16.server.auction.service.AuctionReceiptService(auctionRepository, sessions).register(router);
+        new vn.ptit.btl16.server.notification.PersonalNotificationService(auctionRepository, sessions).register(router);
+        auctionController.setProgressService(progress);
+        if (wallets != null) { new WalletController(wallets, managementService, sessions).register(router); }
 
         SessionCleanupService cleanup = new SessionCleanupService(
                 sessions,
@@ -217,7 +231,7 @@ public final class ServerApplication implements AutoCloseable {
                 timer,
                 mediaServer,
                 media,
-                wallets);
+                wallets, auctionRepository);
     }
 
     public void start() throws IOException {
@@ -272,6 +286,9 @@ public final class ServerApplication implements AutoCloseable {
 
     public List<AuctionSnapshot> auctionSnapshots() {
         return auctions.snapshots();
+    }
+    public List<java.util.Map<String, String>> operationEvents(Long room, String type, java.time.Instant from, java.time.Instant to, long before) {
+        return auctionRepository.operationEvents(room, type, from, to, before, 51);
     }
 
     public ServerStats stats() {

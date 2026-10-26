@@ -7,11 +7,13 @@ public final class AllSelfTests {
     public static void main(String[] args) throws Exception {
         ProtocolCodecSelfTest.run();
         JsonWireMessageCodecSelfTest.run();
+        ClientSoundsSelfTest.run();
         PasswordHasherSelfTest.run();
         SessionManagerSelfTest.run();
         ServerAddressesSelfTest.run();
         DatabaseConfigSelfTest.run();
         MediaConfigurationSelfTest.run();
+        SeekableMp4SelfTest.run();
         WalletSelfTest.run();
         AuctionRulesSelfTest.run();
         ProductRestorationSelfTest.run();
@@ -19,6 +21,13 @@ public final class AllSelfTests {
         ProductRestorationNetworkSelfTest.run();
         FullNetworkAuctionSelfTest.run();
         AuctionManagementSelfTest.run();
+        RoomSocialSelfTest.run();
+        RoomSocialStorageSelfTest.run();
+        RoomInteractionSelfTest.run();
+        RoomProgressSelfTest.run();
+        RoomProgressStorageSelfTest.run();
+        AuctionReceiptSelfTest.run();
+        CompletionSelfTest.run();
         WebSocketUpgradeSelfTest.run();
         DesktopLanSelfTest.run();
         ImageCompatibilitySelfTest.run();

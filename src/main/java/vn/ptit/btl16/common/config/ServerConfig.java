@@ -257,7 +257,7 @@ public final class ServerConfig {
             String file = java.nio.file.Path.of(directory, dbName).toAbsolutePath()
                     .toString().replace('\\', '/');
             return "jdbc:h2:file:" + file
-                    + ";MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_ON_EXIT=FALSE;LOCK_TIMEOUT=10000";
+                    + ";MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_ON_EXIT=FALSE;LOCK_TIMEOUT=10000;AUTO_COMPACT_FILL_RATE=0";
         }
         return "jdbc:mysql://" + dbHost + ':' + dbPort + '/' + dbName
                 + "?useSSL=" + dbUseSsl

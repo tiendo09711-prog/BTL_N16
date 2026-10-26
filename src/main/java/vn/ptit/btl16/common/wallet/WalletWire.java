@@ -16,6 +16,7 @@ public final class WalletWire {
             data.put(prefix + "id", request.id()); data.put(prefix + "amount", request.amount().toPlainString());
             data.put(prefix + "status", request.status()); data.put(prefix + "createdAt", request.createdAt().toString());
             data.put(prefix + "reviewedAt", request.reviewedAt() == null ? "" : request.reviewedAt().toString());
+            data.put(prefix + "rejectionReason", request.rejectionReason());
         }
         for (int index = 0; index < entries.size(); index++) {
             WalletEntry entry = entries.get(index); String prefix = "entry." + index + ".";
@@ -31,7 +32,7 @@ public final class WalletWire {
         for (int index = 0; index < Integer.parseInt(data.get("requestCount")); index++) {
             String prefix = "request." + index + "."; String reviewed = data.get(prefix + "reviewedAt");
             values.add(new TopUpRequest(data.get(prefix + "id"), user, "", new BigDecimal(data.get(prefix + "amount")), data.get(prefix + "status"),
-                    Instant.parse(data.get(prefix + "createdAt")), reviewed.isEmpty() ? null : Instant.parse(reviewed)));
+                    Instant.parse(data.get(prefix + "createdAt")), reviewed.isEmpty() ? null : Instant.parse(reviewed), data.getOrDefault(prefix + "rejectionReason", "")));
         }
         return values;
     }

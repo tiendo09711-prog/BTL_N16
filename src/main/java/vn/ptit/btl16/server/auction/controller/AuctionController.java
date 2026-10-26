@@ -28,6 +28,11 @@ public final class AuctionController {
     private final BidService bids;
     private final RoomManager rooms;
     private final AuctionManagementService management;
+    private vn.ptit.btl16.server.social.RoomSocialService social;
+    private vn.ptit.btl16.server.auction.service.RoomProgressService progress;
+    public void setProgressService(vn.ptit.btl16.server.auction.service.RoomProgressService value) { progress = value; }
+
+    public void setSocialService(vn.ptit.btl16.server.social.RoomSocialService social) { this.social = social; }
 
     public AuctionController(
             AuctionQueryService queries,
@@ -118,6 +123,10 @@ public final class AuctionController {
     }
 
     public void handleCreateAuction(RequestContext context) throws Exception {
+        String anonymous = context.value("anonymousGuests");
+        if (!anonymous.isEmpty() && !anonymous.equals("true") && !anonymous.equals("false")) {
+            throw new IllegalArgumentException("anonymousGuests must be true or false");
+        }
         RoomVisibility visibility;
         try {
             String raw = context.value("visibility");
@@ -134,7 +143,7 @@ public final class AuctionController {
                 WireValues.requireDecimal(context.getRequest().getData(), "minBidIncrement"),
                 WireValues.requireInt(context.getRequest().getData(), "durationMinutes"),
                 visibility,
-                context.value("roomPassword"));
+                context.value("roomPassword"), Boolean.parseBoolean(context.value("anonymousGuests")));
         context.replySuccess(
                 MessageType.CREATE_AUCTION_RESULT,
                 AuctionWireData.snapshot(snapshot, List.of(), 0, Instant.now()));
@@ -195,11 +204,12 @@ public final class AuctionController {
     }
 
     public void handleHistory(RequestContext context) throws Exception {
+        if (progress != null) { progress.history(context); return; }
         long auctionId = auctionId(context);
         management.requireReadAccess(context.requireSession(), auctionId);
-        context.replySuccess(
-                MessageType.BID_HISTORY_RESULT,
-                AuctionWireData.history(queries.getRecentBids(auctionId), Instant.now()));
+        Map<String, String> data = AuctionWireData.history(queries.getRecentBids(auctionId), Instant.now());
+        data.put("auctionId", Long.toString(auctionId));
+        context.replySuccess(MessageType.BID_HISTORY_RESULT, data);
     }
 
     public void handlePlaceBid(RequestContext context) throws Exception {
@@ -267,7 +277,8 @@ public final class AuctionController {
         var outcome = management.kickUser(
                 context.requireSession(),
                 auctionId,
-                context.value("username"));
+                social == null ? context.value("username") : social.kickUsername(context.requireSession(),
+                        auctionId(context), context.value("username"), context.value("participantId")));
         context.replySuccess(
                 MessageType.KICK_AUCTION_USER_RESULT,
                 Map.of(

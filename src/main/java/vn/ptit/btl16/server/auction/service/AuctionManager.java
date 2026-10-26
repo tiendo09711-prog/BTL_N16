@@ -73,6 +73,10 @@ public final class AuctionManager {
         return List.copyOf(runtimes.values());
     }
 
+    public java.util.Optional<AuctionRuntime> findRuntimeIncludingArchived(long auctionId) {
+        return java.util.Optional.ofNullable(runtimes.get(auctionId));
+    }
+
     public List<AuctionSnapshot> archiveClosedAuctions(Instant now) {
         List<AuctionSnapshot> archived = new ArrayList<>();
         for (AuctionRuntime runtime : runtimes.values()) {

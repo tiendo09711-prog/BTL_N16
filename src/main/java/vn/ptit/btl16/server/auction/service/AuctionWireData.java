@@ -218,6 +218,7 @@ public final class AuctionWireData {
         data.put(prefix + "version", Long.toString(value.getVersion()));
         data.put(prefix + "watcherCount", Integer.toString(watcherCount));
         data.put(prefix + "visibility", value.getVisibility().name());
+        data.put(prefix + "anonymousGuests", Boolean.toString(value.hasAnonymousGuests()));
         data.put(prefix + "requiresPassword", Boolean.toString(value.requiresPassword()));
         data.put(prefix + "hasImage", Boolean.toString(value.getProduct().hasImage()));
         data.put(prefix + "imageMime", value.getProduct().getImageMime());

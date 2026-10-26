@@ -88,6 +88,7 @@ CREATE TABLE IF NOT EXISTS auctions (
     ended_at DATETIME(3) NULL,
     version BIGINT NOT NULL DEFAULT 0,
     visibility VARCHAR(16) NOT NULL DEFAULT 'PUBLIC',
+    anonymous_guests BOOLEAN NOT NULL DEFAULT FALSE,
     room_password_hash VARCHAR(255) NULL,
     room_password_salt VARCHAR(255) NULL,
     room_password_iterations INT NULL,
@@ -153,4 +154,113 @@ CREATE TABLE IF NOT EXISTS media_content (
     payload LONGBLOB NOT NULL,
     PRIMARY KEY(media_id, variant, chunk_no),
     FOREIGN KEY(media_id) REFERENCES product_media(media_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS room_participants (
+    auction_id BIGINT NOT NULL,
+    user_id BIGINT NOT NULL,
+    ordinal_no BIGINT NOT NULL,
+    PRIMARY KEY (auction_id, user_id),
+    UNIQUE (auction_id, ordinal_no),
+    FOREIGN KEY (auction_id) REFERENCES auctions(auction_id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS room_chat (
+    chat_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    auction_id BIGINT NOT NULL,
+    sender_id BIGINT NOT NULL,
+    client_nonce VARCHAR(64) NOT NULL,
+    body VARCHAR(2000) NOT NULL,
+    sent_at DATETIME(3) NOT NULL,
+    reply_to_id BIGINT NOT NULL DEFAULT 0,
+    UNIQUE (auction_id, sender_id, client_nonce),
+    INDEX idx_room_chat_history (auction_id, chat_id),
+    FOREIGN KEY (auction_id) REFERENCES auctions(auction_id) ON DELETE CASCADE,
+    FOREIGN KEY (sender_id) REFERENCES users(user_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS user_public_profiles (
+    user_id BIGINT PRIMARY KEY,
+    biography VARCHAR(2000) NOT NULL,
+    avatar_base64 TEXT NOT NULL,
+    profile_version BIGINT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS room_events (
+    event_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    auction_id BIGINT NOT NULL,
+    event_type VARCHAR(32) NOT NULL,
+    actor_id BIGINT NULL,
+    amount DECIMAL(19,2) NULL,
+    detail VARCHAR(100) NOT NULL,
+    occurred_at DATETIME(3) NOT NULL,
+    INDEX idx_room_events_history (auction_id, event_id),
+    FOREIGN KEY (auction_id) REFERENCES auctions(auction_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS room_interaction_state (
+    auction_id BIGINT PRIMARY KEY, revision BIGINT NOT NULL,
+    announcement VARCHAR(2000) NOT NULL, updated_at DATETIME(3) NOT NULL,
+    FOREIGN KEY (auction_id) REFERENCES auctions(auction_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS room_chat_mutes (
+    auction_id BIGINT NOT NULL, user_id BIGINT NOT NULL,
+    reason VARCHAR(1000) NOT NULL, until_at DATETIME(3) NOT NULL,
+    PRIMARY KEY (auction_id,user_id),
+    FOREIGN KEY (auction_id) REFERENCES auctions(auction_id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS room_chat_reactions (
+    chat_id BIGINT NOT NULL, user_id BIGINT NOT NULL, emoji VARCHAR(16) NOT NULL,
+    PRIMARY KEY (chat_id,user_id,emoji),
+    FOREIGN KEY (chat_id) REFERENCES room_chat(chat_id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS room_interaction_requests (
+    auction_id BIGINT NOT NULL, actor_id BIGINT NOT NULL, nonce VARCHAR(64) NOT NULL,
+    signature VARCHAR(64) NOT NULL, created_at DATETIME(3) NOT NULL,
+    PRIMARY KEY (auction_id,actor_id,nonce), INDEX idx_interaction_rate (auction_id,actor_id,created_at),
+    FOREIGN KEY (auction_id) REFERENCES auctions(auction_id) ON DELETE CASCADE,
+    FOREIGN KEY (actor_id) REFERENCES users(user_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS auction_receipt_summaries (
+    auction_id BIGINT PRIMARY KEY,
+    product_code VARCHAR(50) NOT NULL,
+    product_name VARCHAR(255) NOT NULL,
+    ended_at DATETIME(3) NOT NULL,
+    outcome VARCHAR(16) NOT NULL,
+    winner_display VARCHAR(100) NOT NULL,
+    final_price DECIMAL(18,2) NULL,
+    total_bids BIGINT NOT NULL,
+    bidder_count BIGINT NOT NULL,
+    extension_count BIGINT NOT NULL,
+    extensions_complete BOOLEAN NOT NULL,
+    anonymous_guests BOOLEAN NOT NULL,
+    FOREIGN KEY (auction_id) REFERENCES auctions(auction_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS auction_personal_receipts (
+    auction_id BIGINT NOT NULL,
+    user_id BIGINT NOT NULL,
+    personal_role VARCHAR(16) NOT NULL,
+    PRIMARY KEY (auction_id, user_id),
+    INDEX idx_receipt_owner (user_id, auction_id),
+    FOREIGN KEY (auction_id) REFERENCES auction_receipt_summaries(auction_id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS personal_notifications (
+    notification_id BIGINT AUTO_INCREMENT PRIMARY KEY, user_id BIGINT NOT NULL,
+    source_key VARCHAR(160) NOT NULL UNIQUE, kind VARCHAR(32) NOT NULL,
+    auction_id BIGINT NULL, reference_id VARCHAR(64) NOT NULL,
+    created_at DATETIME(3) NOT NULL, read_at DATETIME(3) NULL,
+    INDEX idx_notification_owner (user_id, notification_id),
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    FOREIGN KEY (auction_id) REFERENCES auctions(auction_id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

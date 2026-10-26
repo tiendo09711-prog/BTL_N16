@@ -4,6 +4,7 @@ import path from 'node:path';
 import { buildProject, projectRoot, runCommand } from './dev-utils.mjs';
 import { removeBuildDirectory } from './package-apps.mjs';
 import { applicationDetails, mainJar, portableArchitectures, portableLauncher, verifyJavafxLibraries } from './package-layout.mjs';
+import { copyDistributionGuides, writeBuildInfo } from './distribution-metadata.mjs';
 
 const architectures = portableArchitectures(process.argv.slice(2));
 await buildProject();
@@ -51,9 +52,8 @@ for (const architecture of architectures) {
         : 'No MySQL, Maven or Node.js is required. Paste the address from the running server, then connect.\n')
       + '\nWindows and macOS clients/servers use the same network protocol. No fixed server IP.\n'
       + 'For a native .app with Java included, build the source ON macOS with npm run dist.\n', 'utf8');
-    cpSync(path.join(projectRoot, 'docs', '23_ANH_VIDEO_SAN_PHAM.md'), path.join(destination, '23_ANH_VIDEO_SAN_PHAM.md'));
-    cpSync(path.join(projectRoot, 'docs', '24_KIEM_THU_TOAN_BO.md'), path.join(destination, '24_KIEM_THU_TOAN_BO.md'));
-    cpSync(path.join(projectRoot, 'docs', '25_MYSQL_XAMPP_ONLY.md'), path.join(destination, '25_MYSQL_XAMPP_ONLY.md'));
+    copyDistributionGuides(destination, role === 'server');
+    writeBuildInfo(destination, role, 'darwin', architecture);
     const archive = path.join(projectRoot, 'dist', `${folderName}.tar.gz`);
     await runCommand('tar', ['-czf', archive, '-C', path.join(projectRoot, 'dist'), folderName],
       `Archive ${folderName}`);

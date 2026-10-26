@@ -93,14 +93,16 @@ public final class DesktopUiSelfTest {
                 });
                 TestSupport.waitUntil(() -> model.auctionSnapshot().size() == 3, 10000, "client room list");
                 snapshot(clientStage, output.resolve("client-marketplace.png"));
-                ApiResponse joined = ok(new AuctionApi(buyer).join(firstRoom));
                 fx(() -> {
-                    invoke(current, "applySnapshot", new Class<?>[]{ApiResponse.class, boolean.class}, joined, true);
-                    invoke(current, "renderAuctions", new Class<?>[0]);
                     TableView<?> table = read(current, "auctionTable");
                     table.getSelectionModel().selectFirst();
+                    invoke(current, "joinSelected", new Class<?>[0]);
                     return null;
                 });
+                TestSupport.waitUntil(() -> {
+                    try { return fx(() -> { java.lang.reflect.Method method = current.getClass().getDeclaredMethod("roomReady"); method.setAccessible(true); return (boolean) method.invoke(current); }); }
+                    catch (Exception exception) { throw new IllegalStateException(exception); }
+                }, 10000, "real join/snapshot/wallet gates ready");
                 ok(new AuctionApi(buyer).bid(firstRoom, new BigDecimal("110000")));
                 TestSupport.waitUntil(() -> {
                     ImageView view = read(current, "productImage");
@@ -116,6 +118,16 @@ public final class DesktopUiSelfTest {
                     TestSupport.equals(1, split.getItems().size(), "room hides marketplace table");
                     javafx.scene.layout.VBox history = read(current, "roomHistory");
                     TestSupport.check(history.getChildren().size() > 1, "room displays live bid history");
+                    TestSupport.check(currentStage.getScene().lookup("#room-price-chart") != null,
+                            "joined room includes live price chart");
+                    javafx.scene.Node composer = currentStage.getScene().lookup("#room-chat-input");
+                    var composerBounds = composer.localToScene(composer.getBoundsInLocal());
+                    TestSupport.check(composerBounds.getMinY() >= 0 && composerBounds.getMaxY() < currentStage.getScene().getHeight(),
+                            "chat composer is immediately visible in the live room");
+                    javafx.scene.control.Label presence = (javafx.scene.control.Label) currentStage.getScene().lookup("#room-viewers");
+                    TestSupport.check(!presence.getText().isBlank(), "room displays server presence count");
+                    javafx.scene.control.Label role = (javafx.scene.control.Label) currentStage.getScene().lookup("#room-session-status");
+                    TestSupport.check(role.getText().contains("d\u1eabn \u0111\u1ea7u"), "accepted buyer bid updates personal leading banner");
                     javafx.scene.layout.FlowPane suggestions = read(current, "bidSuggestions");
                     TestSupport.equals(3, suggestions.getChildren().size(), "room offers three bid increment shortcuts");
                     ImageView image = read(current, "productImage");
@@ -131,6 +143,14 @@ public final class DesktopUiSelfTest {
                     return null;
                 });
                 Thread.sleep(500);
+                fx(() -> {
+                    for (javafx.scene.Node node : java.util.List.of(currentStage.getScene().lookup("#room-chat-input"), (javafx.scene.Node) read(current, "bidButton"))) {
+                        var bounds = node.localToScene(node.getBoundsInLocal());
+                        TestSupport.check(bounds.getMinY() >= 0 && bounds.getMaxY() <= currentStage.getScene().getHeight()
+                                && bounds.getMinX() >= 0 && bounds.getMaxX() <= currentStage.getScene().getWidth(), "compact chat input and bid button remain in scene");
+                    }
+                    return null;
+                });
                 snapshot(clientStage, output.resolve("client-compact.png"));
                 fx(() -> { invoke(current, "leaveJoined", new Class<?>[0]); return null; });
                 TestSupport.waitUntil(() -> model.getJoinedAuctionId() == null, 10000, "leave room response");

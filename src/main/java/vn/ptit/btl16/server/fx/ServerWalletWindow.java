@@ -32,6 +32,7 @@ public final class ServerWalletWindow extends BorderPane {
     private final Label pendingCount = DesktopTheme.label("", "pill");
     private final Button approve = new Button("Ch\u1ea5p nh\u1eadn & c\u1ed9ng ti\u1ec1n");
     private final Button reject = new Button("T\u1eeb ch\u1ed1i");
+    private final TextField rejectionReason = new TextField("Yeu cau nap mo phong chua duoc xac nhan");
     private final Timeline poll = new Timeline(new KeyFrame(Duration.seconds(3), event -> refresh()));
     private boolean loading, reviewing, replacing;
 
@@ -55,7 +56,7 @@ public final class ServerWalletWindow extends BorderPane {
         ScrollPane accountScroll = new ScrollPane(accountContent); accountScroll.setFitToWidth(true);
         VBox pendingContent = new VBox(14, DesktopTheme.label("Ch\u1ec9 duy\u1ec7t y\u00eau c\u1ea7u demo \u0111\u00e3 g\u1eedi t\u1eeb client", "section-title"),
                 DesktopTheme.label("S\u1ed1 ti\u1ec1n \u0111\u01b0\u1ee3c c\u1ed9ng \u0111\u00fang theo y\u00eau c\u1ea7u, kh\u00f4ng ch\u1ec9nh s\u1eeda. Duy\u1ec7t l\u1ea1i kh\u00f4ng c\u1ed9ng tr\u00f9ng. T\u1eeb ch\u1ed1i kh\u00f4ng l\u00e0m thay \u0111\u1ed5i s\u1ed1 d\u01b0.", "muted"),
-                pending, new HBox(10, approve, reject));
+                pending, new Label("Ly do tu choi (1-300 ky tu)"), rejectionReason, new HBox(10, approve, reject));
         pendingContent.setPadding(new Insets(18)); VBox.setVgrow(pending, Priority.ALWAYS);
         Tab accountTab = new Tab("T\u00e0i kho\u1ea3n & giao d\u1ecbch", accountScroll);
         Tab pendingTab = new Tab("Duy\u1ec7t n\u1ea1p demo", pendingContent); accountTab.setClosable(false); pendingTab.setClosable(false);
@@ -108,7 +109,8 @@ public final class ServerWalletWindow extends BorderPane {
         confirmation.setHeaderText("X\u00e1c nh\u1eadn n\u1ea1p ti\u1ec1n GI\u1ea2 L\u1eacP"); DesktopTheme.dialog(confirmation, stage);
         if (confirmation.showAndWait().orElse(ButtonType.NO) != ButtonType.YES) { return; }
         reviewing = true; controls();
-        CompletableFuture.supplyAsync(() -> running.wallets().review(request.id(), accepted), worker).whenComplete((result, error) -> Platform.runLater(() -> {
+        String reason = rejectionReason.getText();
+        CompletableFuture.supplyAsync(() -> running.wallets().review(request.id(), accepted, reason), worker).whenComplete((result, error) -> Platform.runLater(() -> {
             reviewing = false; if (!stage.isShowing()) { return; }
             message.setText(error == null ? result.username() + ": " + WalletUi.status(result.status()) : root(error)); controls(); refresh();
         }));

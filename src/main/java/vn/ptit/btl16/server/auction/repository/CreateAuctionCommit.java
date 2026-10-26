@@ -13,6 +13,7 @@ public final class CreateAuctionCommit {
     private final Instant startTime;
     private final Instant endTime;
     private final RoomVisibility visibility;
+    private final boolean anonymousGuests;
     private final String roomPasswordHash;
     private final String roomPasswordSalt;
     private final Integer roomPasswordIterations;
@@ -41,6 +42,15 @@ public final class CreateAuctionCommit {
             String roomPasswordHash,
             String roomPasswordSalt,
             Integer roomPasswordIterations) {
+        this(hostUserId, hostUsername, productId, startPrice, minBidIncrement, startTime, endTime,
+                visibility, roomPasswordHash, roomPasswordSalt, roomPasswordIterations, false);
+    }
+
+    public CreateAuctionCommit(long hostUserId, String hostUsername, long productId,
+            BigDecimal startPrice, BigDecimal minBidIncrement, Instant startTime, Instant endTime,
+            RoomVisibility visibility, String roomPasswordHash, String roomPasswordSalt,
+            Integer roomPasswordIterations, boolean anonymousGuests) {
+        this.anonymousGuests = anonymousGuests;
         this.hostUserId = hostUserId;
         this.hostUsername = hostUsername;
         this.productId = productId;
@@ -62,6 +72,7 @@ public final class CreateAuctionCommit {
     public Instant getStartTime() { return startTime; }
     public Instant getEndTime() { return endTime; }
     public RoomVisibility getVisibility() { return visibility; }
+    public boolean hasAnonymousGuests() { return anonymousGuests; }
     public String getRoomPasswordHash() { return roomPasswordHash; }
     public String getRoomPasswordSalt() { return roomPasswordSalt; }
     public Integer getRoomPasswordIterations() { return roomPasswordIterations; }

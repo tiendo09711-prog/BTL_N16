@@ -8,15 +8,25 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 public final class RoomManager {
+    @FunctionalInterface
+    public interface PresenceListener { void changed(long auctionId, String type, long userId, java.time.Instant time); }
+    private PresenceListener presence = (room, type, user, time) -> { };
+    public synchronized void setPresenceListener(PresenceListener listener) { presence = listener; }
     private final ConcurrentHashMap<Long, ConcurrentHashMap<String, RoomMember>> membersByAuction =
             new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Set<Long>> auctionsByConnection = new ConcurrentHashMap<>();
 
-    public void join(
+    public synchronized void join(
             long auctionId,
             String connectionId,
             long userId,
             String username) {
+        var existing = membersByAuction.get(auctionId);
+        if (existing != null && existing.containsKey(connectionId) && existing.get(connectionId).getUserId() != userId) {
+            leave(auctionId, connectionId);
+        }
+        boolean alreadyPresent = membersSnapshot(auctionId).stream().anyMatch(member -> member.getUserId() == userId);
+        if (!alreadyPresent) { presence.changed(auctionId, "JOINED", userId, java.time.Instant.now()); }
         membersByAuction
                 .computeIfAbsent(auctionId, key -> new ConcurrentHashMap<>())
                 .put(connectionId, new RoomMember(connectionId, userId, username));
@@ -25,9 +35,13 @@ public final class RoomManager {
                 .add(auctionId);
     }
 
-    public void leave(long auctionId, String connectionId) {
+    public synchronized void leave(long auctionId, String connectionId) {
         ConcurrentHashMap<String, RoomMember> room = membersByAuction.get(auctionId);
         if (room != null) {
+            RoomMember member = room.get(connectionId);
+            if (member != null && room.values().stream().filter(value -> value.getUserId() == member.getUserId()).count() == 1) {
+                presence.changed(auctionId, "LEFT", member.getUserId(), java.time.Instant.now());
+            }
             room.remove(connectionId);
             if (room.isEmpty()) {
                 membersByAuction.remove(auctionId, room);
@@ -42,27 +56,23 @@ public final class RoomManager {
         }
     }
 
-    public void removeConnection(String connectionId) {
-        Set<Long> subscriptions = auctionsByConnection.remove(connectionId);
+    public synchronized void removeConnection(String connectionId) {
+        Set<Long> subscriptions = auctionsByConnection.get(connectionId);
         if (subscriptions == null) {
             return;
         }
-        for (Long auctionId : subscriptions) {
-            ConcurrentHashMap<String, RoomMember> room = membersByAuction.get(auctionId);
-            if (room != null) {
-                room.remove(connectionId);
-                if (room.isEmpty()) {
-                    membersByAuction.remove(auctionId, room);
-                }
-            }
-        }
+        for (Long auctionId : Set.copyOf(subscriptions)) { leave(auctionId, connectionId); }
     }
 
-    public void removeAuction(long auctionId) {
-        ConcurrentHashMap<String, RoomMember> room = membersByAuction.remove(auctionId);
+    public synchronized void removeAuction(long auctionId) {
+        ConcurrentHashMap<String, RoomMember> room = membersByAuction.get(auctionId);
         if (room == null) {
             return;
         }
+        for (long userId : room.values().stream().mapToLong(RoomMember::getUserId).distinct().toArray()) {
+            presence.changed(auctionId, "LEFT", userId, java.time.Instant.now());
+        }
+        membersByAuction.remove(auctionId);
         for (String connectionId : room.keySet()) {
             Set<Long> subscriptions = auctionsByConnection.get(connectionId);
             if (subscriptions != null) {
@@ -96,12 +106,15 @@ public final class RoomManager {
                 .findFirst();
     }
 
-    public Set<String> kickUser(long auctionId, long userId) {
+    public synchronized Set<String> kickUser(long auctionId, long userId) {
         ConcurrentHashMap<String, RoomMember> room = membersByAuction.get(auctionId);
         if (room == null) {
             return Collections.emptySet();
         }
         Set<String> removed = new HashSet<>();
+        if (room.values().stream().anyMatch(member -> member.getUserId() == userId)) {
+            presence.changed(auctionId, "LEFT", userId, java.time.Instant.now());
+        }
         for (RoomMember member : room.values()) {
             if (member.getUserId() == userId && room.remove(member.getConnectionId(), member)) {
                 removed.add(member.getConnectionId());
@@ -131,6 +144,11 @@ public final class RoomManager {
     public int subscriberCount(long auctionId) {
         ConcurrentHashMap<String, RoomMember> room = membersByAuction.get(auctionId);
         return room == null ? 0 : room.size();
+    }
+
+    public java.util.List<RoomMember> membersSnapshot(long auctionId) {
+        var room = membersByAuction.get(auctionId);
+        return room == null ? java.util.List.of() : java.util.List.copyOf(room.values());
     }
 
     public int roomCount() {

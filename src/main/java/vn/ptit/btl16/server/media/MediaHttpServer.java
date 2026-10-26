@@ -11,9 +11,6 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.channels.FileChannel;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
@@ -107,7 +104,7 @@ public final class MediaHttpServer implements AutoCloseable {
     }
 
     private void stream(HttpExchange exchange, String id, String variant, String ticket) throws IOException {
-        var file = service.readable(id, variant, ticket); long size = Files.size(file);
+        var content = service.readable(id, variant, ticket); long size = content.size();
         long start = 0; long end = size - 1; int status = 200;
         String range = exchange.getRequestHeaders().getFirst("Range");
         if (range != null) {
@@ -129,12 +126,13 @@ public final class MediaHttpServer implements AutoCloseable {
         exchange.getResponseHeaders().set("Content-Length", Long.toString(end - start + 1));
         if (exchange.getRequestMethod().equals("HEAD")) { exchange.sendResponseHeaders(status, -1); return; }
         exchange.sendResponseHeaders(status, end - start + 1);
-        try (FileChannel channel = FileChannel.open(file); var output = exchange.getResponseBody()) {
-            channel.position(start); long remaining = end - start + 1; ByteBuffer buffer = ByteBuffer.allocate(65536);
+        try (var input = content.open(start); var output = exchange.getResponseBody()) {
+            long remaining = end - start + 1; byte[] buffer = new byte[65536];
             while (remaining > 0) {
                 service.readable(id, variant, ticket);
-                buffer.clear(); buffer.limit((int) Math.min(buffer.capacity(), remaining)); int count = channel.read(buffer);
-                if (count < 0) { break; } output.write(buffer.array(), 0, count); remaining -= count;
+                int count = input.read(buffer, 0, (int) Math.min(buffer.length, remaining));
+                if (count < 0) { throw new IOException("Incomplete media response"); }
+                output.write(buffer, 0, count); remaining -= count;
             }
         }
     }

@@ -5,9 +5,11 @@ import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { projectRoot } from './dev-utils.mjs';
 import { mainJar, verifyJavafxLibraries } from './package-layout.mjs';
+import { distributionGuides, distributionMigrations, sourceFingerprint, verifyBuildInfo } from './distribution-metadata.mjs';
 
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const expected = hash(readFileSync(path.join(projectRoot, 'target', mainJar)));
+const sourceHash = sourceFingerprint();
 function tar(args) {
   const result = spawnSync('tar', args, { cwd: projectRoot, windowsHide: true, maxBuffer: 64 << 20 });
   if (result.error) throw result.error;
@@ -39,10 +41,14 @@ for (const architecture of ['arm64', 'x64']) {
     verifyJavafxLibraries(files.filter(file => file.startsWith(`${folder}/app/`)).map(file => path.posix.basename(file)), architecture === 'arm64' ? 'mac-aarch64' : 'mac');
     const jar = `${folder}/app/${mainJar}`;
     assert.equal(hash(tar(['-xOzf', archive, jar])), expected, `stale Mac ${role} ${architecture} JAR`);
+    verifyBuildInfo(JSON.parse(tar(['-xOzf', archive, `${folder}/BUILD_INFO.json`]).toString('utf8')), expected, sourceHash,
+      { role: role.toLowerCase(), platform: 'darwin', architecture });
+    for (const guide of distributionGuides) assert.ok(files.includes(`${folder}/${guide}`), `missing guide: ${guide}`);
     const launcher = tar(['-xOzf', archive, `${folder}/BTL16-Auction-${role}.command`]).toString('utf8');
     assert.ok(!launcher.includes('\r') && launcher.includes(architecture === 'arm64' ? 'aarch64|arm64' : 'x86_64|amd64'), 'launcher architecture and LF');
     assert.ok(files.includes(`${folder}/23_ANH_VIDEO_SAN_PHAM.md`), 'media guide travels with every Mac package');
     if (role === 'Server') {
+      for (const migration of distributionMigrations) assert.ok(files.includes(`${folder}/sql/${migration}`), `missing migration: ${migration}`);
       const config = tar(['-xOzf', archive, `${folder}/config/server.properties`]).toString('utf8');
       assert.doesNotMatch(config, /^media\.(ffmpeg|ffprobe)=.*(?:[A-Za-z]:|\.exe)/m, 'Mac must not use Windows tool paths');
       assert.match(config, /^media\.port=8891\s*$/m, 'media port is distributable, not a random test port');
@@ -59,6 +65,10 @@ if (process.platform === 'win32') {
   assert.equal(result.status, 0, 'Windows embedded bundle verification');
   const checksums = readFileSync(path.join(projectRoot, 'dist', 'SHA256SUMS.txt'), 'utf8');
   for (const role of ['Server', 'Client']) {
+    const folder = path.join(projectRoot, 'dist', `BTL16-Auction-${role}`);
+    verifyBuildInfo(JSON.parse(readFileSync(path.join(folder, 'BUILD_INFO.json'), 'utf8')), expected, sourceHash,
+      { role: role.toLowerCase(), platform: 'win32', architecture: process.arch });
+    for (const guide of distributionGuides) assert.ok(readdirSync(folder).includes(guide), `missing Windows guide: ${guide}`);
     const file = `BTL16-Auction-${role}.exe`;
     assert.ok(checksums.includes(`${hash(readFileSync(path.join(projectRoot, 'dist', file)))}  ${file}`), 'Windows EXE checksum');
   }

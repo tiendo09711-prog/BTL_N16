@@ -10,11 +10,6 @@ import vn.ptit.btl16.server.session.SessionManager;
 import vn.ptit.btl16.server.session.UserSession;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
-import java.nio.file.Files;
-import java.nio.file.LinkOption;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -34,16 +29,12 @@ public final class MediaService implements AutoCloseable {
     private final SessionManager sessions;
     private final AuctionManagementService management;
     private final MediaProcessor processor;
-    private final JdbcMediaStorage databaseStorage;
-    private final Path root;
+    private final Map<String, Map<String, byte[]>> uploads = new ConcurrentHashMap<>();
     private final Semaphore workers;
     private final Object storageMutation = new Object();
     private final AtomicBoolean closing = new AtomicBoolean();
-    private java.nio.channels.FileChannel lockChannel;
-    private java.nio.channels.FileLock fileLock;
     private final Map<String, Draft> drafts = new ConcurrentHashMap<>();
     private final Map<String, Ticket> tickets = new ConcurrentHashMap<>();
-    private final java.util.Set<Path> pendingCleanup = ConcurrentHashMap.newKeySet();
     private final ScheduledExecutorService cleanup = Executors.newScheduledThreadPool(2, task -> {
         Thread thread = new Thread(task, "media-cleanup"); thread.setDaemon(true); return thread;
     });
@@ -52,31 +43,9 @@ public final class MediaService implements AutoCloseable {
 
     public MediaService(MediaConfig config, AuctionRepository repository, SessionManager sessions,
                         AuctionManagementService management) {
-        this(config, repository, sessions, management,
-                repository instanceof vn.ptit.btl16.server.auction.repository.JdbcAuctionRepository jdbc ? jdbc.mediaStorage() : null);
-    }
-
-    public MediaService(MediaConfig config, AuctionRepository repository, SessionManager sessions,
-                        AuctionManagementService management, JdbcMediaStorage databaseStorage) {
         this.config = config; this.repository = repository; this.sessions = sessions; this.management = management;
-        this.databaseStorage = databaseStorage;
         this.processor = new MediaProcessor(config); this.workers = new Semaphore(config.workers());
-        try {
-            Files.createDirectories(config.root()); root = config.root().toRealPath();
-            if (Files.isSymbolicLink(root.resolve(".media.lock"))) { throw new IOException("Unsafe lock file"); }
-            lockChannel = java.nio.channels.FileChannel.open(root.resolve(".media.lock"), java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.WRITE);
-            fileLock = lockChannel.tryLock();
-            if (fileLock == null) { throw new IOException("Media directory already in use"); }
-            directory("products"); directory("staging");
-            try (var children = Files.list(directory("staging"))) {
-                for (Path child : children.toList()) { deleteTree(child); }
-            }
-        } catch (IOException | RuntimeException exception) {
-            releaseFileLock();
-            throw new IllegalStateException("Cannot prepare media data directory (may be in use by another server)", exception);
-        }
         cleanup.scheduleWithFixedDelay(this::expire, 30, 30, TimeUnit.SECONDS);
-        cleanup.scheduleWithFixedDelay(this::cleanupUnusedQuietly, 60, 3600, TimeUnit.SECONDS);
     }
 
     public MediaConfig config() { return config; }
@@ -106,7 +75,7 @@ public final class MediaService implements AutoCloseable {
         if (declaredBytes > limit) { fail(ErrorCode.MEDIA_LIMIT, "Tep vuot " + limit + " byte"); }
         if (!workers.tryAcquire()) { fail(ErrorCode.MEDIA_LIMIT, "May chu dang xu ly media, vui long thu lai"); }
         boolean reservation = false;
-        String id = UUID.randomUUID().toString(); Path folder = null;
+        String id = UUID.randomUUID().toString();
         AtomicBoolean timedOut = new AtomicBoolean();
         var timeout = cleanup.schedule(() -> { timedOut.set(true); try { input.close(); } catch (IOException ignored) { } }, config.timeoutSeconds(), TimeUnit.SECONDS);
         try {
@@ -115,9 +84,9 @@ public final class MediaService implements AutoCloseable {
                 if (draft.cancelled.get() || draft.files.size() + draft.busy >= 12) { fail(ErrorCode.MEDIA_LIMIT, "Qua nhieu tep cho mot ban nhap"); }
                 draft.busy++; draft.inputs.add(input);
             }
-            folder = directory("staging").resolve(id); Files.createDirectory(folder);
+            java.io.ByteArrayOutputStream source = new java.io.ByteArrayOutputStream();
             long bytes = 0;
-            try (OutputStream output = Files.newOutputStream(folder.resolve("source"))) {
+            try (var output = source) {
                 byte[] buffer = new byte[65536]; int read;
                 while (true) {
                     try { read = input.read(buffer); }
@@ -135,21 +104,21 @@ public final class MediaService implements AutoCloseable {
                 }
             }
             if (bytes == 0 || (declaredBytes >= 0 && bytes != declaredBytes)) { fail(ErrorCode.MEDIA_INVALID, "Tep rong hoac tai chua du"); }
-            ProductMedia media = processor.process(folder, id, kind, name, turns, left, top, width, height, draft.cancelled::get);
+            MediaProcessor.Processed processed = processor.process(source.toByteArray(), id, kind, name, turns, left, top, width, height, draft.cancelled::get);
+            ProductMedia media = processed.media();
             synchronized (draft) {
                 if (draft.cancelled.get()) { fail(ErrorCode.UPLOAD_CANCELLED, "Da huy tai len"); }
                 management.requireMediaEdit(authenticate(draft.token), draft.productId);
                 long total = draft.files.values().stream().mapToLong(ProductMedia::bytes).sum() + media.bytes();
                 if (total > config.productBytes()) { fail(ErrorCode.MEDIA_LIMIT, "Ban nhap vuot " + config.productBytes() + " byte; hay xoa tep khong dung"); }
-                draft.files.put(id, media); folder = null; return media;
+                uploads.put(id, processed.content());
+                draft.files.put(id, media); return media;
             }
         } finally {
             timeout.cancel(false);
             synchronized (draft) { if (draft.inputs.remove(input)) { draft.busy--; } }
-            if (folder != null) { deleteStaged(folder); }
             if (reservation) { release(); }
             workers.release();
-            if (closing.get() && workers.availablePermits() == config.workers()) { releaseFileLock(); }
             if (draft.cancelled.get()) { discard(draft); }
         }
     }
@@ -157,7 +126,7 @@ public final class MediaService implements AutoCloseable {
     public void remove(UserSession session, String draftId, String mediaId) throws IOException {
         Draft draft = draft(session, draftId);
         synchronized (draft) {
-            if (draft.files.remove(mediaId) != null) { deleteStaged(mediaFolder(mediaId, true)); }
+            if (draft.files.remove(mediaId) != null) { uploads.remove(mediaId); }
         }
     }
 
@@ -170,9 +139,9 @@ public final class MediaService implements AutoCloseable {
             if (draft.productId == 0 || media.productId() != draft.productId) { fail(ErrorCode.AUCTION_FORBIDDEN, "Media thuoc san pham khac"); }
         }
         if (!media.image()) { fail(ErrorCode.MEDIA_INVALID, "Chi bien tap anh"); }
-        Path source = (staged ? draftMediaFolder(mediaId) : mediaFolder(mediaId, false)).resolve("source");
-        try (InputStream input = Files.newInputStream(source)) {
-            return upload(session, draftId, "IMAGE", media.name(), input, Files.size(source), turns, left, top, width, height);
+        MediaContent source = content(mediaId, "source", staged);
+        try (InputStream input = source.open(0)) {
+            return upload(session, draftId, "IMAGE", media.name(), input, source.size(), turns, left, top, width, height);
         }
     }
 
@@ -194,20 +163,15 @@ public final class MediaService implements AutoCloseable {
             management.prepareMediaProduct(session, draft.productId, code, name, description, selected);
             if (selected.stream().mapToLong(ProductMedia::bytes).sum() > config.productBytes()) { fail(ErrorCode.MEDIA_LIMIT, "San pham vuot gioi han dung luong"); }
             synchronized (storageMutation) {
+                Map<String, Map<String, byte[]>> content = new LinkedHashMap<>();
                 for (ProductMedia media : selected) {
                     if (draft.files.containsKey(media.id())) {
-                        Path staged = mediaFolder(media.id(), true);
-                        if (Files.isDirectory(staged, LinkOption.NOFOLLOW_LINKS)) {
-                            Files.move(staged, mediaFolder(media.id(), false), StandardCopyOption.ATOMIC_MOVE);
-                        }
-                    }
-                    verifyFiles(media);
+                        Map<String, byte[]> payload = uploads.get(media.id());
+                        if (payload == null) { throw new IOException("Missing upload payload"); }
+                        content.put(media.id(), payload);
+                    } else { verifyContent(media); }
                 }
-                Map<String, Path> folders = new LinkedHashMap<>();
-                if (databaseStorage != null) {
-                    for (ProductMedia media : selected) { folders.put(media.id(), mediaFolder(media.id(), false)); }
-                }
-                Product product = management.saveMediaProduct(session, draft.productId, code, name, description, selected, folders);
+                Product product = management.saveMediaProduct(session, draft.productId, code, name, description, selected, content);
                 draft.cancelled.set(true); drafts.remove(draft.id);
                 discard(draft);
                 return product;
@@ -263,7 +227,7 @@ public final class MediaService implements AutoCloseable {
         return result;
     }
 
-    public Path readable(String id, String variant, String key) throws IOException {
+    public MediaContent readable(String id, String variant, String key) throws IOException {
         Ticket ticket = tickets.get(key == null ? "" : key);
         if (ticket == null || !ticket.mediaId.equals(id) || ticket.expires.isBefore(Instant.now())) { fail(ErrorCode.ROOM_ACCESS_DENIED, "Quyen xem media het han; hay tai lai"); }
         UserSession session = authenticate(ticket.token);
@@ -285,43 +249,35 @@ public final class MediaService implements AutoCloseable {
             case "original" -> "source";
             default -> "invalid";
         };
-        Path path = (staged ? draftMediaFolder(id) : mediaFolder(id, false)).resolve(filename);
-        if (!Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)) { fail(ErrorCode.MEDIA_INVALID, "Tep media khong con san sang"); }
-        return path;
+        if (filename.equals("invalid")) { fail(ErrorCode.MEDIA_INVALID, "Bien the media khong hop le"); }
+        return content(id, filename, staged);
     }
 
     public void requireReady(long productId) {
-        try { for (ProductMedia media : repository.findProductMedia(productId)) { verifyFiles(media); } }
+        try { for (ProductMedia media : repository.findProductMedia(productId)) { verifyContent(media); } }
         catch (IOException exception) { throw new AuctionException(ErrorCode.MEDIA_INVALID, "Media bi thieu; can khoi phuc ban sao luu tren server"); }
     }
 
     public byte[] cover(long productId) {
         ProductMedia image = repository.findProductMedia(productId).stream().filter(ProductMedia::image).findFirst()
                 .orElseThrow(() -> new AuctionException(ErrorCode.PRODUCT_IMAGE_INVALID, "San pham chua co anh hop le"));
-        try { return Files.readAllBytes(mediaFolder(image.id(), false).resolve("thumbnail.jpg")); }
+        try (InputStream input = repository.mediaContent(image.id(), "thumbnail.jpg").open(0)) { return input.readAllBytes(); }
         catch (IOException exception) { throw new AuctionException(ErrorCode.MEDIA_INVALID, "Anh khong san sang"); }
     }
 
     public List<String> migrateLegacy() {
         List<String> failures = new ArrayList<>();
-        if (databaseStorage != null) { return failures; }
-        for (long productId : repository.findLegacyImageProductIds()) {
-            Path folder = null; boolean reservation = false;
+        for (Long productId : repository.findLegacyImageProductIds()) {
+            boolean reservation = false;
             try {
                 reserve(); reservation = true;
                 ProductImage old = repository.findProductImage(productId).orElseThrow();
                 if (old.getSize() > config.imageBytes()) { fail(ErrorCode.MEDIA_LIMIT, "Anh cu vuot nguong"); }
-                String id = UUID.randomUUID().toString(); folder = directory("staging").resolve(id); Files.createDirectory(folder);
-                Files.write(folder.resolve("source"), old.getData());
-                if (!java.util.Arrays.equals(java.security.MessageDigest.getInstance("SHA-256").digest(old.getData()),
-                        java.security.MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(folder.resolve("source"))))) { throw new IOException("Verification failed"); }
-                ProductMedia media = processor.process(folder, id, "IMAGE", old.getName(), 0, 0, 0, 1, 1, () -> false);
-                synchronized (storageMutation) {
-                    Files.move(folder, mediaFolder(id, false), StandardCopyOption.ATOMIC_MOVE); folder = null; verifyFiles(media);
-                    repository.migrateLegacyImage(productId, old.getVersion(), media);
-                }
+                MediaProcessor.Processed processed = processor.process(old.getData(), UUID.randomUUID().toString(), "IMAGE",
+                        old.getName(), 0, 0, 0, 1, 1, () -> false);
+                repository.migrateLegacyImage(productId, old.getVersion(), processed.media(), processed.content());
             } catch (Exception exception) { failures.add("Product " + productId + ": " + exception.getClass().getSimpleName()); }
-            finally { if (reservation) { release(); } if (folder != null) { try { deleteTree(folder); } catch (IOException ignored) { } } }
+            finally { if (reservation) { release(); } }
         }
         return failures;
     }
@@ -346,59 +302,40 @@ public final class MediaService implements AutoCloseable {
     }
 
     private synchronized void reserve() throws IOException {
-        long used;
-        try (var files = Files.walk(databaseStorage == null ? root : directory("staging"))) { used = files.filter(path -> Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)).mapToLong(path -> { try { return Files.size(path); } catch (IOException exception) { throw new java.io.UncheckedIOException(exception); } }).sum(); }
-        if (databaseStorage != null) { used += databaseStorage.usedBytes(); }
-        if (used + reserved + config.productBytes() > config.storageBytes() || Files.getFileStore(root).getUsableSpace() < reserved + config.productBytes() + (64L << 20)) {
-            fail(ErrorCode.MEDIA_STORAGE_FULL, "Kho media/odia khong du cho tep va bien the; can sao luu va don kho an toan");
+        long staged = uploads.values().stream().flatMap(payload -> payload.values().stream()).mapToLong(bytes -> bytes.length).sum();
+        long required = staged + reserved + config.productBytes();
+        if (repository.mediaBytes() + required > config.storageBytes()) {
+            fail(ErrorCode.MEDIA_STORAGE_FULL, "Kho media MySQL khong du cho tep va bien the");
+        }
+        if (required > Runtime.getRuntime().maxMemory() / 3) {
+            fail(ErrorCode.MEDIA_STORAGE_FULL, "Khong du RAM de xu ly media khong dung tep tam; hay giam kich thuoc tep hoac tang heap server");
         }
         reserved += config.productBytes();
     }
     private synchronized void release() { reserved -= config.productBytes(); }
 
-    private void verifyFiles(ProductMedia media) throws IOException {
-        Path folder = mediaFolder(media.id(), false);
-        for (String filename : List.of("source", "thumbnail.jpg", media.image() ? "detail.jpg" : "video.mp4")) {
-            Path file = folder.resolve(filename);
-            if (!Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS) || Files.size(file) == 0) { throw new IOException("Missing media variant"); }
+    private MediaContent content(String id, String variant, boolean staged) throws IOException {
+        if (!staged) { return repository.mediaContent(id, variant); }
+        Map<String, byte[]> payload = uploads.get(id);
+        byte[] bytes = payload == null ? null : payload.get(variant);
+        if (bytes == null || bytes.length == 0) { throw new IOException("Missing upload variant"); }
+        return MediaContent.memory(bytes);
+    }
+
+    private void verifyContent(ProductMedia media) throws IOException {
+        for (String variant : List.of("source", "thumbnail.jpg", media.image() ? "detail.jpg" : "video.mp4")) {
+            if (repository.mediaContent(media.id(), variant).size() == 0) { throw new IOException("Missing media variant"); }
         }
     }
-    private Path directory(String name) throws IOException {
-        Path path = root.resolve(name);
-        if (Files.isSymbolicLink(path)) { throw new IOException("Unsafe media directory"); }
-        Files.createDirectories(path); return path;
-    }
-    private Path draftMediaFolder(String id) throws IOException {
-        Path staged = mediaFolder(id, true);
-        return Files.isDirectory(staged, LinkOption.NOFOLLOW_LINKS) ? staged : mediaFolder(id, false);
-    }
-    private Path mediaFolder(String id, boolean staged) throws IOException {
-        if (!id.matches("[a-f0-9-]{36}")) { throw new IOException("Invalid media id"); }
-        Path path = directory(staged ? "staging" : "products").resolve(id);
-        if (Files.isSymbolicLink(path)) { throw new IOException("Unsafe media folder"); }
-        if (!staged && databaseStorage != null) {
-            synchronized (storageMutation) { databaseStorage.materialize(id, path); }
-        }
-        return path;
-    }
-    private void deleteTree(Path folder) throws IOException {
-        Path checked = folder.toAbsolutePath().normalize();
-        boolean staged = checked.startsWith(root.resolve("staging")) && !checked.equals(root.resolve("staging"));
-        boolean unused = checked.startsWith(root.resolve("products")) && checked.getParent().equals(root.resolve("products"))
-                && checked.getFileName().toString().matches("[a-f0-9-]{36}") && repository.findMedia(checked.getFileName().toString()).isEmpty();
-        if (!staged && !unused) { throw new IOException("Refusing unsafe/referenced cleanup"); }
-        if (!Files.exists(checked, LinkOption.NOFOLLOW_LINKS)) { return; }
-        try (var files = Files.walk(checked)) { for (Path path : files.sorted(java.util.Comparator.reverseOrder()).toList()) { Files.deleteIfExists(path); } }
-    }
+
     private void discard(Draft draft) {
         synchronized (draft) {
             if (draft.busy != 0) { return; }
-            for (String id : draft.files.keySet()) { try { deleteStaged(mediaFolder(id, true)); } catch (IOException ignored) { } }
-            drafts.remove(draft.id);
+            for (String id : draft.files.keySet()) { uploads.remove(id); }
+            draft.files.clear(); drafts.remove(draft.id);
         }
     }
     private void expire() {
-        for (Path folder : pendingCleanup) { deleteStaged(folder); }
         tickets.entrySet().removeIf(entry -> entry.getValue().expires.isBefore(Instant.now()));
         for (Draft draft : drafts.values()) {
             if (draft.expires.isBefore(Instant.now()) || sessions.findByToken(draft.token).filter(UserSession::isActive).isEmpty()) {
@@ -407,32 +344,6 @@ public final class MediaService implements AutoCloseable {
                 discard(draft);
             }
         }
-    }
-    private void deleteStaged(Path folder) {
-        for (int attempt = 0; attempt < 6; attempt++) {
-            try { deleteTree(folder); pendingCleanup.remove(folder); return; }
-            catch (IOException exception) {
-                try { Thread.sleep(50); } catch (InterruptedException interrupted) { Thread.currentThread().interrupt(); break; }
-            }
-        }
-        pendingCleanup.add(folder);
-    }
-    public void cleanupUnused() throws IOException {
-        synchronized (storageMutation) {
-            try (var folders = Files.list(directory("products"))) {
-                for (Path folder : folders.toList()) {
-                    String id = folder.getFileName().toString();
-                    if (!id.matches("[a-f0-9-]{36}") || Files.isSymbolicLink(folder)
-                            || Files.getLastModifiedTime(folder).toInstant().isAfter(Instant.now().minusSeconds(86400))) { continue; }
-                    if (repository.findMedia(id).isEmpty()) { deleteTree(folder); }
-                }
-            }
-        }
-    }
-    private void cleanupUnusedQuietly() { try { cleanupUnused(); } catch (Exception ignored) { } }
-    private synchronized void releaseFileLock() {
-        try { if (fileLock != null && fileLock.isValid()) { fileLock.release(); } } catch (IOException ignored) { }
-        try { if (lockChannel != null && lockChannel.isOpen()) { lockChannel.close(); } } catch (IOException ignored) { }
     }
     @Override public void close() {
         if (!closing.compareAndSet(false, true)) { return; }
@@ -443,19 +354,9 @@ public final class MediaService implements AutoCloseable {
             discard(draft);
         }
         tickets.clear();
-        try {
-            if (workers.tryAcquire(config.workers(), 5, TimeUnit.SECONDS)) {
-                releaseFileLock(); workers.release(config.workers());
-                if (databaseStorage != null && root.getFileName().toString().startsWith("btl16-mysql-media-")
-                        && root.getParent().equals(Path.of(System.getProperty("java.io.tmpdir")).toRealPath())) {
-                    try (var paths = Files.walk(root)) {
-                        for (Path path : paths.sorted(java.util.Comparator.reverseOrder()).toList()) { Files.deleteIfExists(path); }
-                    }
-                }
-            }
-            cleanup.awaitTermination(5, TimeUnit.SECONDS);
-        } catch (InterruptedException exception) { Thread.currentThread().interrupt(); }
-        catch (IOException exception) { System.err.println("[MEDIA] Temporary cache cleanup: " + exception.getMessage()); }
+        uploads.clear();
+        try { cleanup.awaitTermination(5, TimeUnit.SECONDS); }
+        catch (InterruptedException exception) { Thread.currentThread().interrupt(); }
     }
     private static void fail(ErrorCode code, String message) { throw new AuctionException(code, message); }
     private record Ticket(String token, String mediaId, long productId, String draftId, long auctionId, Instant expires) { }

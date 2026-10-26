@@ -31,7 +31,8 @@ Test dung thu muc tam, DB rieng va cong ngau nhien, khong dung DB/media producti
 
 | Nhom | Tinh huong |
 | --- | --- |
-| MysqlStorageSelfTest | XAMPP that voi DB btl16_verify_* rieng; anh >1 MiB chia doan, video, vi/nap/giu cho/thanh toan dung mot lan; xoa cache khi stop; restart doc lai tu MySQL; video Range |
+| MysqlStorageSelfTest | XAMPP that voi DB btl16_verify_* rieng; anh >1 MiB chia doan, video, vi/nap/giu cho/thanh toan dung mot lan; khong tao cache/tep media tam; restart doc truc tiep tu MySQL; HEAD, Range qua ranh gioi chunk va suffix |
+| SeekableMp4SelfTest | Chi muc MP4 hoan chinh trong RAM, frame khong doi, offset 32/64-bit, idempotence va tu choi du lieu cat cut/phan manh |
 | WalletSelfTest | So du dau 0; auth/rieng tu; cho duyet/tu choi/chap nhan/khong trung; giu cho, vuot gia, roi phong; thieu tien; race nhieu phong; rollback; thanh toan dung mot lan va restart |
 | WalletUiSelfTest | QR doc duoc bang bo giai ma; Da nhap chi gui cho duyet; nut xac nhan hien ngay; nut duyet/tu choi server; client tu dong cap nhat so du; chi tiet ho so/so giao dich |
 | DesktopUiSelfTest | Phong rieng sau khi vao; anh lon/lich su/buoc gia; quay lai san; refresh khong lam mat ket qua; khoa bid khi dong; dem nguoc 60 giay va tu dong an phong |
@@ -53,6 +54,32 @@ ke ca khi client cu chua khoa nut. Kick nguoi da bid luon bi chan o server,
 ke ca nguoi do khong con dan dau.
 
 ## Gioi han phai noi ro
+
+## Nghiem thu nang cap Cum 1-6
+
+- Them CompletionSelfTest/CompletionUiSelfTest: loc/sort toan sanh truoc paging,
+  xem lai tao phong + gui lap, inbox owner-only/read/restart/dedup, vi loc truoc
+  LIMIT va ly do tu choi, projection log van hanh khong payload nhay cam.
+- AuctionJourneySelfTest chay ca PRIVATE NAMED va PRIVATE ANONYMOUS: HEIC/product,
+  chat/profile/mute nhung van bid, cung gia gan dong thoi, reconnect, cho het han
+  that, receipt + PURCHASE/Sale khop ledger, server restart va kiem DB durable.
+- DesktopUiSelfTest phai vao phong qua handler join that de cho snapshot/vi ready;
+  khong bo qua gate moi bang cach goi rieng applySnapshot trong fixture dan dau.
+- H2 2.3.232 chi dung test: quan sat du lieu bi lui sau nhieu open/close (runtime
+  da ENDED nhung file DB quay ve OPEN/140, mat cac phien/bid da commit). Ap dung
+  AUTO_COMPACT_FILL_RATE=0 vao URL test, tuong ung workaround upstream
+  h2database/h2database issue #4247. Khong sua URL MySQL, khong doi quy trinh settle,
+  khong dong goi H2. Log fail cu duoc giu; ket qua sau workaround ghi rieng.
+- Full runner: `node tools/run-tests.mjs --ui --mysql`; --mysql chi dung cac DB
+  btl16_verify_* rieng va cleanup, khong btl_16. Chi them --mysql khi may co MySQL.
+- Build hai vai tro bang `npm run dist`. Kiem payload bang
+  `powershell -NoProfile -ExecutionPolicy Bypass -File tools/verify-media-bundles.ps1`.
+  Smoke JAR/runtime dong goi: `node tools/run-tests.mjs --skip-build --ui --mysql --packaged`.
+- Kich ban/demo/LAN: `32_DEMO_VA_NGHIEM_THU.md`. Lenh va ket qua THUC TE moi nhat:
+  `33_KET_QUA_NGHIEM_THU.md`, `DEMO_UPGRADE_STATE.md`; khong lay dong lenh huong dan
+  trong tai lieu nay lam bang chung da chay.
+
+## Gioi han
 
 - Windows: test that tren may hien tai; log moi quyet dinh PASS/FAIL.
 - Dang nhap duoc khong co nghia kenh anh da thong: may server can mo ca TCP 8890
