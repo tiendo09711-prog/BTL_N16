@@ -45,6 +45,10 @@ public final class CompletionSelfTest {
                     var denied = stranger.sendRequest(MessageType.READ_MY_NOTIFICATION, Map.of("notificationId", Long.toString(notification), "read", "true")).get(10, TimeUnit.SECONDS);
                     TestSupport.equals("AUCTION_FORBIDDEN", denied.get("errorCode"), "notification ownership checked on server");
                     for (int retry = 0; retry < 2; retry++) { request(first, MessageType.READ_MY_NOTIFICATION, Map.of("notificationId", Long.toString(notification), "read", "true")); }
+                    var unreadPage = request(first, MessageType.GET_MY_NOTIFICATIONS, Map.of("unreadOnly", "true", "limit", "6"));
+                    for (int index = 0; index < Integer.parseInt(unreadPage.get("count")); index++) {
+                        TestSupport.check(!Long.toString(notification).equals(unreadPage.get("notification." + index + ".id")), "read notification is excluded by server unread filtering");
+                    }
                     var entries = request(first, MessageType.GET_WALLET_ENTRIES, Map.of("auctionId", Long.toString(room), "type", "RELEASE", "userId", Long.toString(secondId)));
                     TestSupport.equals(Long.toString(firstId), entries.get("userId"), "filtered ledger owner comes from session");
                     TestSupport.equals("1", entries.get("entryCount"), "room release belongs to previous leader");
@@ -82,6 +86,15 @@ public final class CompletionSelfTest {
                     long found = 0; int count = Integer.parseInt(page.get("count"));
                     for (int index = 0; index < count; index++) { if (Long.toString(notification).equals(page.get("notification." + index + ".id"))) { found++; TestSupport.equals("true", page.get("notification." + index + ".read"), "read survives restart"); } }
                     TestSupport.equals(1L, found, "outbid not duplicated after restart"); TestSupport.equals(3, count, "topup source retries do not duplicate notification");
+                    var one = request(first, MessageType.GET_MY_NOTIFICATIONS, Map.of("limit", "1"));
+                    TestSupport.equals("1", one.get("count"), "notification page size is honored");
+                    TestSupport.equals("true", one.get("hasMore"), "small notification page preserves next cursor");
+                    var following = request(first, MessageType.GET_MY_NOTIFICATIONS, Map.of("limit", "1", "beforeId", one.get("nextBeforeId")));
+                    TestSupport.check(!one.get("notification.0.id").equals(following.get("notification.0.id")), "notification pages do not overlap");
+                    for (String invalid : List.of("0", "101", "invalid")) {
+                        var rejectedPage = first.sendRequest(MessageType.GET_MY_NOTIFICATIONS, Map.of("limit", invalid)).get(10, TimeUnit.SECONDS);
+                        TestSupport.equals("false", rejectedPage.get("success"), "invalid notification page size rejected: " + invalid);
+                    }
                 }
             }
         } finally { restore("btl16.server.config", oldConfig); restore("btl16.dataDir", oldData); }
@@ -93,6 +106,14 @@ public final class CompletionSelfTest {
         var ordered = LobbyQuery.filter(auctions, 1, "ALL", "ALL", true, "ALL", "", "PRICE_DESC", now);
         TestSupport.equals(75L, LobbyQuery.page(ordered, 0, 30).get(0).getAuctionId(), "global sort before pagination");
         TestSupport.equals(45L, LobbyQuery.page(ordered, 1, 30).get(0).getAuctionId(), "second page correctly sorted");
+        TestSupport.equals(75L, LobbyQuery.filter(auctions, 1, "ALL", "ALL", false, "ALL", "", "NEWEST", now).get(0).getAuctionId(), "newest room appears first");
+        var latest = auctions.get(74);
+        var early = new ClientAuction(76, 76, "EARLY", "Early product", "", 1, "host", amount("1"), amount("1"), amount("1"),
+                null, "", now.minusSeconds(1), now.plusSeconds(600), "OPEN", null, 1, 0);
+        TestSupport.equals(76L, LobbyQuery.filter(List.of(latest, early), 1, "ALL", "ALL", false, "ALL", "", "STARTING", now)
+                .get(0).getAuctionId(), "start sorting uses opening time rather than newest room or ending time");
+        TestSupport.equals(75, LobbyQuery.filter(auctions, 1, "ALL", "ALL", false, "ALL", "HOST", "NEWEST", now).size(), "marketplace search also finds seller usernames without case sensitivity");
+        TestSupport.equals(0, LobbyQuery.filter(auctions, 1, "ALL", "ALL", false, "PRODUCT_NAME", "HOST", "NEWEST", now).size(), "product-only search retains its narrower meaning");
         TestSupport.equals(0, LobbyQuery.filter(auctions, 2, "PRIVATE", "ANONYMOUS", false, "ALL", "", "ENDING", now).size(), "existing visibility and identity filters");
     }
     private static BigDecimal amount(String value) { return new BigDecimal(value); }

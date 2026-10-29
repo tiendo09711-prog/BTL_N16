@@ -18,16 +18,16 @@ public final class AuctionRules {
 
     public static BigDecimal money(BigDecimal value, ErrorCode errorCode) {
         if (value == null || value.precision() > 32 || Math.abs((long) value.scale()) > 32) {
-            throw new AuctionException(errorCode, "Gia tri tien khong hop le");
+            throw new AuctionException(errorCode, "Giá trị tiền không hợp lệ");
         }
         BigDecimal normalized;
         try {
             normalized = value.setScale(2, RoundingMode.UNNECESSARY);
         } catch (ArithmeticException exception) {
-            throw new AuctionException(errorCode, "Gia tri tien chi duoc co toi da 2 so thap phan");
+            throw new AuctionException(errorCode, "Giá trị tiền chỉ được có tối đa 2 số thập phân");
         }
         if (normalized.signum() <= 0 || normalized.compareTo(MAX_MONEY) > 0) {
-            throw new AuctionException(errorCode, "Gia tri tien nam ngoai khoang cho phep");
+            throw new AuctionException(errorCode, "Giá trị tiền nằm ngoài khoảng cho phép");
         }
         return normalized;
     }
@@ -35,7 +35,7 @@ public final class AuctionRules {
     public static void requireCompetitivePrice(BigDecimal startPrice, BigDecimal increment) {
         if (startPrice.add(increment).compareTo(MAX_MONEY) > 0) {
             throw new AuctionException(ErrorCode.INVALID_INCREMENT,
-                    "Gia khoi diem cong buoc gia vuot gioi han cho phep");
+                    "Giá khởi điểm cộng bước giá vượt giới hạn cho phép");
         }
     }
 }

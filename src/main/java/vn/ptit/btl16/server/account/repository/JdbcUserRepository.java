@@ -16,7 +16,7 @@ import java.util.Optional;
 public final class JdbcUserRepository implements UserRepository {
     private static final String SELECT_COLUMNS =
             "user_id, username, display_name, email, phone, password_hash, password_salt, "
-                    + "password_iterations, active, created_at, updated_at, last_login_at";
+                    + "password_iterations, active, created_at, updated_at, last_login_at, friend_code";
 
     private static final String FIND_BY_USERNAME =
             "SELECT " + SELECT_COLUMNS + " FROM users WHERE username = ?";
@@ -26,7 +26,7 @@ public final class JdbcUserRepository implements UserRepository {
             "SELECT 1 FROM users WHERE username = ? LIMIT 1";
     private static final String INSERT_USER =
             "INSERT INTO users(username, display_name, email, phone, password_hash, password_salt, "
-                    + "password_iterations, active) VALUES(?, ?, ?, ?, ?, ?, ?, TRUE)";
+                    + "password_iterations, friend_code, active) VALUES(?, ?, ?, ?, ?, ?, ?, ?, TRUE)";
     private static final String UPDATE_PROFILE =
             "UPDATE users SET display_name = ?, email = ?, phone = ?, updated_at = CURRENT_TIMESTAMP "
                     + "WHERE user_id = ?";
@@ -72,6 +72,15 @@ public final class JdbcUserRepository implements UserRepository {
     }
 
     @Override
+    public Optional<UserAccount> findByDisplayNameAndFriendCode(String displayName, String friendCode) {
+        try (var connection = connectionFactory.openDatabase(); var query = connection.prepareStatement(
+                "SELECT " + SELECT_COLUMNS + " FROM users WHERE LOWER(display_name)=LOWER(?) AND friend_code=?")) {
+            query.setString(1, displayName); query.setString(2, friendCode);
+            try (var rows = query.executeQuery()) { return rows.next() ? Optional.of(mapUser(rows)) : Optional.empty(); }
+        } catch (SQLException error) { throw new RepositoryException("Cannot find account by friend tag", error); }
+    }
+
+    @Override
     public boolean existsByUsername(String normalizedUsername) {
         try (Connection connection = connectionFactory.openDatabase();
              PreparedStatement statement = connection.prepareStatement(EXISTS_BY_USERNAME)) {
@@ -102,13 +111,21 @@ public final class JdbcUserRepository implements UserRepository {
             statement.setString(5, passwordHash.getHashBase64());
             statement.setString(6, passwordHash.getSaltBase64());
             statement.setInt(7, passwordHash.getIterations());
-            statement.executeUpdate();
-            try (ResultSet keys = statement.getGeneratedKeys()) {
-                if (!keys.next()) {
-                    throw new RepositoryException("Database did not return user_id", null);
+            int start = AccountTags.randomStart();
+            for (int attempt = 0; attempt < 10_000; attempt++) {
+                statement.setString(8, AccountTags.candidate(start, attempt));
+                try {
+                    statement.executeUpdate();
+                    try (ResultSet keys = statement.getGeneratedKeys()) {
+                        if (!keys.next()) { throw new RepositoryException("Database did not return user_id", null); }
+                        return keys.getLong(1);
+                    }
+                } catch (SQLException error) {
+                    if (!AccountTags.duplicate(error) || existsByUsername(normalizedUsername)) { throw error; }
                 }
-                return keys.getLong(1);
             }
+            throw new vn.ptit.btl16.server.account.service.AccountException(
+                    vn.ptit.btl16.common.protocol.ErrorCode.VALIDATION_ERROR, "Tên hiển thị này đã hết mã kết bạn. Hãy chọn tên khác.");
         } catch (SQLException exception) {
             throw new RepositoryException("Cannot create user", exception);
         }
@@ -124,6 +141,11 @@ public final class JdbcUserRepository implements UserRepository {
             statement.setLong(4, userId);
             return statement.executeUpdate() == 1;
         } catch (SQLException exception) {
+            if (AccountTags.duplicate(exception)) {
+                throw new vn.ptit.btl16.server.account.service.AccountException(
+                        vn.ptit.btl16.common.protocol.ErrorCode.VALIDATION_ERROR,
+                        "Tên hiển thị và mã kết bạn này đã được sử dụng. Hãy chọn tên hiển thị khác.");
+            }
             throw new RepositoryException("Cannot update profile", exception);
         }
     }
@@ -198,7 +220,7 @@ public final class JdbcUserRepository implements UserRepository {
                 rs.getBoolean("active"),
                 toInstant(rs.getTimestamp("created_at")),
                 toInstant(rs.getTimestamp("updated_at")),
-                toInstant(rs.getTimestamp("last_login_at")));
+                toInstant(rs.getTimestamp("last_login_at")), rs.getString("friend_code"));
     }
 
     private void setNullable(PreparedStatement statement, int index, String value) throws SQLException {

@@ -179,6 +179,7 @@ public final class RoomSocialService {
         Map<String, String> data = new LinkedHashMap<>();
         data.put("participantId", Long.toString(userId));
         data.put("displayName", user.getDisplayName());
+        data.put("friendCode", user.getFriendCode());
         data.put("biography", details.biography());
         data.put("avatarBase64", details.avatar());
         data.put("profileVersion", Long.toString(details.version()));
@@ -223,7 +224,7 @@ public final class RoomSocialService {
 
     private void requireNotMuted(long room, long user) {
         RoomInteractionStore.Mute mute = interactions.mute(room, user);
-        if (mute.active(Instant.now())) { throw new AuctionException(ErrorCode.ROOM_ACCESS_DENIED, "Chat bi tat tieng den " + mute.until() + ": " + mute.reason()); }
+        if (mute.active(Instant.now())) { throw new AuctionException(ErrorCode.ROOM_ACCESS_DENIED, "Trò chuyện bị tắt tiếng đến " + mute.until() + ": " + mute.reason()); }
     }
 
     private Set<Long> requestedChatIds(RequestContext context, long room) {
@@ -339,11 +340,24 @@ public final class RoomSocialService {
     }
 
     public WireMessage project(String connectionId, WireMessage message) {
+        if (message.getType() == MessageType.PRIVATE_MESSAGE || message.getType() == MessageType.FRIENDS_CHANGED) {
+            long target = Long.parseLong(message.get(message.getType() == MessageType.PRIVATE_MESSAGE ? "recipientId" : "recipientUserId"));
+            if (sessions.findByConnection(connectionId).filter(session -> session.getUserId() == target).isEmpty()) {
+                throw new AuctionException(ErrorCode.AUTH_REQUIRED, "Private event recipient changed");
+            }
+            return message;
+        }
         if (message.getType() == MessageType.PERSONAL_RECEIPT_RESULT || message.getType() == MessageType.MY_AUCTION_RECEIPTS_RESULT) {
             if (sessions.findByConnection(connectionId).isEmpty()) { throw new AuctionException(ErrorCode.AUTH_REQUIRED, "Session expired"); }
             return message;
         }
         Map<String, String> data = new LinkedHashMap<>(message.getData());
+        if (message.getType() == MessageType.AUCTION_ENDED) {
+            // Compare before anonymous identities are projected, even if the winner has left the room.
+            var recipient = sessions.findByConnection(connectionId);
+            data.put("winnerIsSelf", Boolean.toString(recipient.isPresent()
+                    && Long.toString(recipient.get().getUserId()).equals(data.get("winnerId"))));
+        }
         if (Set.of(MessageType.ROOM_EVENTS_RESULT, MessageType.AUCTION_STATS_RESULT, MessageType.BID_HISTORY_RESULT).contains(message.getType())) {
             var recipient = sessions.findByConnection(connectionId).orElseThrow(() -> new AuctionException(ErrorCode.AUTH_REQUIRED, "Session expired"));
             management.requireHistoryReadAccess(recipient, WireValues.requireLong(data, "auctionId"));
@@ -377,9 +391,9 @@ public final class RoomSocialService {
             maskPair(data, "previousWinnerId", "previousWinnerUsername", auction);
             maskPair(data, "winnerId", "winnerUsername", auction);
             maskPair(data, "userId", "username", auction);
-            maskPair(data, "bid.userId", "bid.username", auction);
+            maskBid(data, "bid.", auction);
             for (String key : new ArrayList<>(data.keySet())) {
-                if (key.matches("bid\\.\\d+\\.userId")) { maskPair(data, key, key.substring(0, key.length() - 6) + "username", auction); }
+                if (key.matches("bid\\.\\d+\\.userId")) { maskBid(data, key.substring(0, key.length() - 6), auction); }
                 if (key.matches("event\\.\\d+\\.userId")) { maskPair(data, key, key.substring(0, key.length() - 6) + "username", auction); }
             }
             for (String key : List.of("newLeader", "username")) {
@@ -391,6 +405,13 @@ public final class RoomSocialService {
         }
         return new WireMessage(message.getVersion(), message.getKind(), message.getType(), message.getRequestId(),
                 message.getServerSequence(), message.getSentAtEpochMillis(), data);
+    }
+
+    private void maskBid(Map<String, String> data, String prefix, AuctionSnapshot auction) {
+        maskPair(data, prefix + "userId", prefix + "username", auction);
+        if (data.containsKey(prefix + "displayName")) {
+            data.put(prefix + "displayName", data.getOrDefault(prefix + "username", ""));
+        }
     }
 
     private void maskPair(Map<String, String> data, String idKey, String nameKey, AuctionSnapshot auction) {

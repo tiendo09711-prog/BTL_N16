@@ -55,7 +55,7 @@ public final class BidService {
         try {
             Instant now = Instant.now();
             if (repository.isAuctionUserBlocked(auctionId, session.getUserId())) {
-                throw new AuctionException(ErrorCode.USER_BLOCKED_FROM_AUCTION, "Ban da bi chan khoi phong");
+                throw new AuctionException(ErrorCode.USER_BLOCKED_FROM_AUCTION, "Bạn đã bị chặn khỏi phòng");
             }
             if (!rooms.isMember(auctionId, connectionId, session.getUserId())) {
                 throw new AuctionException(
@@ -65,16 +65,16 @@ public final class BidService {
             if (runtime.getHostUserId() == session.getUserId()) {
                 throw new AuctionException(
                         ErrorCode.AUCTION_FORBIDDEN,
-                        "Chu tri khong duoc tu dat gia san pham cua minh");
+                        "Chủ trì không được tự đặt giá sản phẩm của mình");
             }
             if (runtime.getStatusUnsafe() != AuctionStatus.OPEN) {
                 throw new AuctionException(ErrorCode.AUCTION_NOT_OPEN, "Auction is not open");
             }
             if (now.isBefore(runtime.getStartTime())) {
-                throw new AuctionException(ErrorCode.AUCTION_NOT_OPEN, "Phien dau gia chua bat dau");
+                throw new AuctionException(ErrorCode.AUCTION_NOT_OPEN, "Phiên đấu giá chưa bắt đầu");
             }
             if (Long.valueOf(session.getUserId()).equals(runtime.getCurrentWinnerIdUnsafe())) {
-                throw new AuctionException(ErrorCode.BID_ALREADY_LEADING, "Ban dang dan dau, khong the tu nang gia");
+                throw new AuctionException(ErrorCode.BID_ALREADY_LEADING, "Bạn đang dẫn đầu, không thể tự nâng giá");
             }
             if (!now.isBefore(runtime.getEndTimeUnsafe())) {
                 throw new AuctionException(ErrorCode.BID_AFTER_END, "Bid arrived after auction end time");
@@ -165,7 +165,8 @@ public final class BidService {
         }
 
         Long previousWinnerId = outcome.getPreviousWinnerId();
-        if (previousWinnerId != null && previousWinnerId.longValue() != outcome.getBid().getUserId()) {
+        if (previousWinnerId != null && previousWinnerId.longValue() != outcome.getBid().getUserId()
+                && rooms.membersSnapshot(auction.getAuctionId()).stream().anyMatch(member -> member.getUserId() == previousWinnerId)) {
             broadcasts.notifyUser(
                     previousWinnerId,
                     MessageType.OUTBID_NOTIFICATION,

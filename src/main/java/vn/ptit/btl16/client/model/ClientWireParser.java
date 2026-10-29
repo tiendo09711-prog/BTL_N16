@@ -77,7 +77,8 @@ public final class ClientWireParser {
                 text(data, prefix + "imageName"),
                 integer(data, prefix + "imageSize", 0),
                 longValue(data, prefix + "imageVersion", 0L),
-                restorationStatus(text(data, prefix + "restorationStatus")));
+                restorationStatus(text(data, prefix + "restorationStatus")),
+                vn.ptit.btl16.common.protocol.ProductTransactionStatus.parse(text(data, prefix + "transactionStatus")));
     }
 
     private static ProductRestorationStatus restorationStatus(String value) {
@@ -103,6 +104,7 @@ public final class ClientWireParser {
                 longValue(data, prefix + "auctionId", 0L),
                 longValue(data, prefix + "userId", 0L),
                 text(data, prefix + "username"),
+                text(data, prefix + "displayName"),
                 decimal(data, prefix + "amount"),
                 longValue(data, prefix + "serverSequence", 0L),
                 instant(data, prefix + "createdAt"));

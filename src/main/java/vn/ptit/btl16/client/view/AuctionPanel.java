@@ -30,17 +30,16 @@ public final class AuctionPanel extends JPanel {
     private final JTable auctionTable = new JTable(auctionModel);
     private final JTable bidTable = new JTable(bidModel);
 
-    private final JLabel accountLabel = new JLabel("Chua dang nhap");
-    private final JButton refreshListButton = new JButton("Tai danh sach");
-    private final JButton myProductsButton = new JButton("San pham cua toi");
-    private final JButton myAuctionsButton = new JButton("Phong cua toi");
-    private final JButton addProductButton = new JButton("Them san pham");
-    private final JButton editProductButton = new JButton("Sua san pham");
-    private final JButton deactivateProductButton = new JButton("An san pham");
-    private final JButton restoreProductButton = new JButton("Khoi phuc mat hang");
-    private final JButton createAuctionButton = new JButton("Tao phong");
-    private final JButton profileButton = new JButton("Ho so");
-    private final JButton logoutButton = new JButton("Dang xuat");
+    private final JLabel accountLabel = new JLabel("Chưa đăng nhập");
+    private final JButton refreshListButton = new JButton("Tải danh sách");
+    private final JButton myProductsButton = new JButton("Sản phẩm bán");
+    private final JButton myAuctionsButton = new JButton("Phòng của tôi");
+    private final JButton addProductButton = new JButton("Thêm sản phẩm");
+    private final JButton editProductButton = new JButton("Sửa sản phẩm");
+    private final JButton deleteProductButton = new JButton("Xóa sản phẩm");
+    private final JButton createAuctionButton = new JButton("Tạo phòng");
+    private final JButton profileButton = new JButton("Hồ sơ");
+    private final JButton logoutButton = new JButton("Đăng xuất");
 
     private final JLabel idValue = new JLabel("-");
     private final JLabel productValue = new JLabel("-");
@@ -52,15 +51,15 @@ public final class AuctionPanel extends JPanel {
     private final JLabel statusValue = new JLabel("-");
     private final JLabel watcherValue = new JLabel("0");
     private final JTextArea descriptionArea = new JTextArea(4, 34);
-    private final JButton joinButton = new JButton("Vao phong");
-    private final JButton leaveButton = new JButton("Roi phong");
-    private final JButton historyButton = new JButton("Tai lich su bid");
+    private final JButton joinButton = new JButton("Vào phòng");
+    private final JButton leaveButton = new JButton("Rời phòng");
+    private final JButton historyButton = new JButton("Tải lịch sử ra giá");
     private final JTextField amountField = new JTextField(16);
-    private final JButton bidButton = new JButton("Dat gia");
-    private final JButton extendButton = new JButton("Gia han");
-    private final JButton endButton = new JButton("Ket thuc");
-    private final JButton cancelButton = new JButton("Huy phong");
-    private final JButton kickButton = new JButton("Moi user");
+    private final JButton bidButton = new JButton("Đặt giá");
+    private final JButton extendButton = new JButton("Gia hạn");
+    private final JButton endButton = new JButton("Kết thúc");
+    private final JButton cancelButton = new JButton("Hủy phòng");
+    private final JButton kickButton = new JButton("Mời người dùng");
     private final JTextArea notifications = new JTextArea(7, 40);
 
     private ClientAuction joinedAuction;
@@ -81,8 +80,7 @@ public final class AuctionPanel extends JPanel {
         managementActions.add(myAuctionsButton);
         managementActions.add(addProductButton);
         managementActions.add(editProductButton);
-        managementActions.add(deactivateProductButton);
-        managementActions.add(restoreProductButton);
+        managementActions.add(deleteProductButton);
         managementActions.add(createAuctionButton);
         managementActions.add(profileButton);
         managementActions.add(logoutButton);
@@ -94,7 +92,7 @@ public final class AuctionPanel extends JPanel {
         auctionTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         auctionTable.setAutoCreateRowSorter(true);
         JScrollPane auctionScroll = new JScrollPane(auctionTable);
-        auctionScroll.setBorder(BorderFactory.createTitledBorder("Danh sach phien dau gia"));
+        auctionScroll.setBorder(BorderFactory.createTitledBorder("Danh sách phiên đấu giá"));
 
         JPanel detail = buildDetailPanel();
         JSplitPane horizontal = new JSplitPane(
@@ -109,7 +107,7 @@ public final class AuctionPanel extends JPanel {
         notifications.setLineWrap(true);
         notifications.setWrapStyleWord(true);
         JScrollPane notificationScroll = new JScrollPane(notifications);
-        notificationScroll.setBorder(BorderFactory.createTitledBorder("Thong bao realtime"));
+        notificationScroll.setBorder(BorderFactory.createTitledBorder("Thông báo thời gian thực"));
         add(notificationScroll, BorderLayout.SOUTH);
 
         auctionTable.getSelectionModel().addListSelectionListener(event -> {
@@ -122,7 +120,7 @@ public final class AuctionPanel extends JPanel {
 
     private JPanel buildDetailPanel() {
         JPanel root = new JPanel(new BorderLayout(6, 6));
-        root.setBorder(BorderFactory.createTitledBorder("Phong dau gia"));
+        root.setBorder(BorderFactory.createTitledBorder("Phòng đấu giá"));
 
         JPanel values = new JPanel(new GridBagLayout());
         GridBagConstraints c = new GridBagConstraints();
@@ -130,15 +128,15 @@ public final class AuctionPanel extends JPanel {
         c.fill = GridBagConstraints.HORIZONTAL;
         c.weightx = 1.0;
         int row = 0;
-        addRow(values, c, row++, "Auction ID:", idValue);
-        addRow(values, c, row++, "San pham:", productValue);
-        addRow(values, c, row++, "Chu tri:", hostValue);
-        addRow(values, c, row++, "Gia hien tai:", priceValue);
-        addRow(values, c, row++, "Buoc gia toi thieu:", minIncrementValue);
-        addRow(values, c, row++, "Nguoi dan dau:", leaderValue);
+        addRow(values, c, row++, "Mã phiên:", idValue);
+        addRow(values, c, row++, "Sản phẩm:", productValue);
+        addRow(values, c, row++, "Chủ trì:", hostValue);
+        addRow(values, c, row++, "Giá hiện tại:", priceValue);
+        addRow(values, c, row++, "Bước giá tối thiểu:", minIncrementValue);
+        addRow(values, c, row++, "Người dẫn đầu:", leaderValue);
         addRow(values, c, row++, "Countdown:", countdownValue);
-        addRow(values, c, row++, "Trang thai:", statusValue);
-        addRow(values, c, row++, "Nguoi theo doi:", watcherValue);
+        addRow(values, c, row++, "Trạng thái:", statusValue);
+        addRow(values, c, row++, "Người theo dõi:", watcherValue);
 
         descriptionArea.setEditable(false);
         descriptionArea.setLineWrap(true);
@@ -164,7 +162,7 @@ public final class AuctionPanel extends JPanel {
         values.add(hostButtons, c);
 
         JPanel bidBar = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
-        bidBar.add(new JLabel("Muc gia VND:"));
+        bidBar.add(new JLabel("Mức giá VND:"));
         bidBar.add(amountField);
         bidBar.add(bidButton);
         c.gridy = row;
@@ -172,7 +170,7 @@ public final class AuctionPanel extends JPanel {
         root.add(values, BorderLayout.NORTH);
 
         JScrollPane bidScroll = new JScrollPane(bidTable);
-        bidScroll.setBorder(BorderFactory.createTitledBorder("Lich su dat gia gan nhat"));
+        bidScroll.setBorder(BorderFactory.createTitledBorder("Lịch sử đặt giá gần nhất"));
         root.add(bidScroll, BorderLayout.CENTER);
         return root;
     }
@@ -194,7 +192,7 @@ public final class AuctionPanel extends JPanel {
     }
 
     public void renderModel(ClientAppModel model) {
-        accountLabel.setText("Tai khoan: " + model.getUsername()
+        accountLabel.setText("Tài khoản: " + model.getUsername()
                 + " | " + model.getDisplayName());
         currentUserId = model.getUserId();
         auctionModel.setValues(model.auctionSnapshot(), model.serverNow());
@@ -233,7 +231,7 @@ public final class AuctionPanel extends JPanel {
         priceValue.setText(Money.display(value.getCurrentPrice()));
         minIncrementValue.setText(Money.display(value.getMinBidIncrement()));
         leaderValue.setText(value.getCurrentWinnerUsername().isBlank()
-                ? "Chua co" : value.getCurrentWinnerUsername());
+                ? "Chưa có" : value.getCurrentWinnerUsername());
         countdownValue.setText(value.isOpen()
                 ? Times.countdown(value.getEndTime(), now)
                 : "00:00");
@@ -288,8 +286,7 @@ public final class AuctionPanel extends JPanel {
         myAuctionsButton.setEnabled(!busy);
         addProductButton.setEnabled(!busy);
         editProductButton.setEnabled(!busy);
-        deactivateProductButton.setEnabled(!busy);
-        restoreProductButton.setEnabled(!busy);
+        deleteProductButton.setEnabled(!busy);
         createAuctionButton.setEnabled(!busy);
         profileButton.setEnabled(!busy);
         logoutButton.setEnabled(!busy);
@@ -315,12 +312,7 @@ public final class AuctionPanel extends JPanel {
     public void onMyAuctions(ActionListener listener) { myAuctionsButton.addActionListener(listener); }
     public void onAddProduct(ActionListener listener) { addProductButton.addActionListener(listener); }
     public void onEditProduct(ActionListener listener) { editProductButton.addActionListener(listener); }
-    public void onDeactivateProduct(ActionListener listener) {
-        deactivateProductButton.addActionListener(listener);
-    }
-    public void onRestoreProduct(ActionListener listener) {
-        restoreProductButton.addActionListener(listener);
-    }
+    public void onDeleteProduct(ActionListener listener) { deleteProductButton.addActionListener(listener); }
     public void onCreateAuction(ActionListener listener) { createAuctionButton.addActionListener(listener); }
     public void onProfile(ActionListener listener) { profileButton.addActionListener(listener); }
     public void onLogout(ActionListener listener) { logoutButton.addActionListener(listener); }

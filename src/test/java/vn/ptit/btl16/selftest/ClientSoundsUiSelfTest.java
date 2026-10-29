@@ -8,6 +8,7 @@ import javafx.scene.media.AudioClip;
 import javafx.stage.Stage;
 import javafx.stage.Window;
 import vn.ptit.btl16.client.fx.ClientSoundUi;
+import vn.ptit.btl16.client.fx.ClientBidVoice;
 import vn.ptit.btl16.client.fx.ClientSounds;
 import vn.ptit.btl16.client.fx.ClientSounds.Cue;
 import vn.ptit.btl16.client.fx.FxClientController;
@@ -37,6 +38,8 @@ import java.util.function.Consumer;
 public final class ClientSoundsUiSelfTest {
     private static final AtomicLong CLOCK = new AtomicLong(1_000_000_000L);
     private static final List<Cue> PLAYED = new ArrayList<>();
+    private static final List<String> SPOKEN = new java.util.concurrent.CopyOnWriteArrayList<>();
+    private static final java.util.concurrent.atomic.AtomicInteger VOICE_STOPS = new java.util.concurrent.atomic.AtomicInteger();
     private record View(Stage stage, FxClientController controller, ClientAppModel model, Network network, ClientSounds sounds) { }
 
     public static void main(String[] args) throws Exception {
@@ -50,17 +53,26 @@ public final class ClientSoundsUiSelfTest {
                         Map.of("success", "true", "userId", "2", "username", "buyer", "sessionToken", "sound-session"))));
                 Network network = new Network();
                 ClientSounds sounds = new ClientSounds(null, (cue, volume) -> PLAYED.add(cue), CLOCK::get);
+                ClientBidVoice voice = new ClientBidVoice(sounds, new ClientBidVoice.Speech() {
+                    public boolean available() { return true; }
+                    public void speak(String text, java.util.function.DoubleSupplier volume, java.util.function.BooleanSupplier cancelled) { if (!cancelled.getAsBoolean()) { SPOKEN.add(text); } }
+                    public void stop() { VOICE_STOPS.incrementAndGet(); }
+                }, Platform::runLater);
                 Stage stage = new Stage();
                 FxClientController controller = new FxClientController(stage, ClientConfig.loadDefault(), model, network,
-                        new AccountApi(network), new AuctionApi(network), sounds);
+                        new AccountApi(network), new AuctionApi(network), sounds, voice);
                 invoke(controller, "buildScenes"); stage.setScene((Scene) field(controller, "mainScene")); stage.show();
                 return new View(stage, controller, model, network, sounds);
             });
             controlsAndOwnership(view);
+            presentation(view);
             bids(view);
+            narration(view);
             chat(view);
             staleReply(view);
+            closingNarration(view);
             countdownAndEvents(view);
+            winnerNarration(view);
             fx(() -> {
                 for (Cue cue : Cue.values()) {
                     AudioClip clip = new AudioClip(Objects.requireNonNull(ClientSounds.class.getResource(cue.resource())).toExternalForm());
@@ -68,7 +80,7 @@ public final class ClientSoundsUiSelfTest {
                 }
                 return null;
             });
-            System.out.println("[PASS] ClientSoundsUiSelfTest: controls/volume/mute, Client-only windows, confirmed bid/chat sounds, dedup, anonymous aliases, countdown/server end, disconnect/stale reply, native WAV decode");
+            System.out.println("[PASS] ClientSoundsUiSelfTest: controls/volume/mute, confirmed bid/chat sounds, room-only 30s voice, winner-only congratulations in room/lobby, dedup/resync, countdown/server end, native WAV decode");
         } finally {
             View closing = view;
             fx(() -> {
@@ -80,11 +92,72 @@ public final class ClientSoundsUiSelfTest {
         }
     }
 
+    private static void presentation(View view) throws Exception {
+        fx(() -> { ((MenuButton) view.stage().getScene().lookup("#client-sound-settings")).show(); return null; });
+        drain();
+        fx(() -> {
+            MenuButton menu = (MenuButton) view.stage().getScene().lookup("#client-sound-settings");
+            VBox panel = (VBox) ((CustomMenuItem) menu.getItems().get(1)).getContent();
+            panel.applyCss(); panel.layout();
+            Label amount = (Label) panel.lookup(".sound-settings-label");
+            javafx.scene.paint.Color foreground = (javafx.scene.paint.Color) amount.getTextFill();
+            javafx.scene.paint.Color background = (javafx.scene.paint.Color) panel.getBackground().getFills().getFirst().getFill();
+            TestSupport.check((luminance(background) + .05) / (luminance(foreground) + .05) >= 4.5, "sound menu text has readable contrast on its actual popup background");
+            snapshot(panel.getScene(), "sound-settings.png");
+            menu.hide();
+            Scene original = view.stage().getScene();
+            ((Button) original.lookup("#auction-rules-navigation")).fire();
+            original.getRoot().applyCss(); original.getRoot().layout();
+            TestSupport.check(original.lookup("#auction-rules-content") != null && view.stage().getScene() == original, "reading rules stays in the account shell");
+            snapshot(original, "auction-rules.png");
+            ((Button) original.lookup("#account-marketplace-navigation")).fire();
+            return null;
+        });
+    }
+
+    private static double luminance(javafx.scene.paint.Color color) {
+        double[] channels = { color.getRed(), color.getGreen(), color.getBlue() };
+        for (int i = 0; i < channels.length; i++) { channels[i] = channels[i] <= .04045 ? channels[i] / 12.92 : Math.pow((channels[i] + .055) / 1.055, 2.4); }
+        return .2126 * channels[0] + .7152 * channels[1] + .0722 * channels[2];
+    }
+
+    private static void snapshot(Scene scene, String name) throws Exception {
+        scene.getRoot().applyCss(); scene.getRoot().layout();
+        var image = scene.snapshot(null);
+        var bitmap = new java.awt.image.BufferedImage((int) image.getWidth(), (int) image.getHeight(), java.awt.image.BufferedImage.TYPE_INT_ARGB);
+        for (int y = 0; y < bitmap.getHeight(); y++) { for (int x = 0; x < bitmap.getWidth(); x++) { bitmap.setRGB(x, y, image.getPixelReader().getArgb(x, y)); } }
+        var output = java.nio.file.Path.of("target", "desktop-preview"); java.nio.file.Files.createDirectories(output);
+        javax.imageio.ImageIO.write(bitmap, "png", output.resolve(name).toFile());
+    }
+
+    private static void narration(View view) throws Exception {
+        ready(view, "100", 0);
+        int before = SPOKEN.size();
+        Map<String, String> update = data("1500000", -3);
+        update.putAll(Map.of("bid.bidId", "42", "bid.auctionId", "1", "bid.userId", "-3", "bid.username", "Khách #3",
+                "bid.amount", "1500000", "bid.serverSequence", "42", "bid.createdAt", Instant.now().toString()));
+        fx(() -> {
+            invoke(view.controller(), "handleServerEvent", new Class<?>[]{WireMessage.class}, message(MessageType.BID_UPDATE, update));
+            invoke(view.controller(), "handleServerEvent", new Class<?>[]{WireMessage.class}, message(MessageType.BID_UPDATE, update));
+            return null;
+        });
+        TestSupport.waitUntil(() -> SPOKEN.size() == before + 1, 3000, "one narration for a real accepted bid event");
+        ClientBidVoiceSelfTest.checkAnnouncement(SPOKEN.get(before), "Khách số 3",
+                "wire event uses an uploaded MC sentence with the displayed anonymous alias");
+    }
+
     private static void controlsAndOwnership(View view) throws Exception {
         fx(() -> {
             MenuButton menu = (MenuButton) view.stage().getScene().lookup("#client-sound-settings");
             TestSupport.check(menu != null, "sound menu visible on Client");
             var panel = ((CustomMenuItem) menu.getItems().get(1)).getContent();
+            var music = (CheckBox) panel.lookup("#client-music-enabled");
+            TestSupport.check(music.isSelected(), "background music enabled in settings");
+            music.fire(); TestSupport.check(!view.sounds().isMusicEnabled(), "music can be muted independently");
+            TestSupport.check(view.sounds().isEnabled(), "music toggle preserves effects and narration");
+            music.fire();
+            ((Slider) panel.lookup("#client-music-volume")).setValue(45);
+            TestSupport.equals(.45, view.sounds().getMusicVolume(), "music slider updates its separate volume");
             ((Slider) panel.lookup("#client-sound-volume")).setValue(20);
             TestSupport.equals(.2, view.sounds().getVolume(), "volume control updates engine");
             CheckMenuItem enabled = (CheckMenuItem) menu.getItems().get(0);
@@ -144,7 +217,7 @@ public final class ClientSoundsUiSelfTest {
         TestSupport.equals(0, received, "initial chat history is silent");
         fx(() -> {
             RoomSocialPane pane = (RoomSocialPane) field(view.controller(), "socialRoom");
-            ((TabPane) pane.lookup(".tab-pane")).getSelectionModel().select(1);
+            ((TitledPane) pane.lookup("#room-chat-members")).setExpanded(true);
             pane.onMessage(chatMessage(8, -3)); pane.onMessage(chatMessage(8, -3));
             pane.onMessage(new HashMap<>(Map.of("auctionId", "99", "chat.id", "9")));
             return null;
@@ -161,6 +234,58 @@ public final class ClientSoundsUiSelfTest {
         fx(() -> { ((RoomSocialPane) field(view.controller(), "socialRoom")).onMessage(chatMessage(10, -2)); return null; });
         TestSupport.equals(sent + 1, count(Cue.CHAT_SENT), "broadcast plus reply cannot double-play sent message");
         TestSupport.equals(0, view.network().profiles, "sound never requests guest identities or avatars");
+    }
+
+    private static void closingNarration(View view) throws Exception {
+        ready(view, "140", -3);
+        int before = SPOKEN.size();
+        fx(() -> {
+            view.model().leaveJoinedAuction();
+            invoke(view.controller(), "renderAuctions");
+            Map<String, String> ending = data("140", -3);
+            ending.put("endTime", Instant.now().plusSeconds(29).toString());
+            view.model().applySnapshot(ClientWireParser.auction(ending, ""), List.of(), Instant.now(), false);
+            invoke(view.controller(), "refreshClock");
+            return null;
+        });
+        TestSupport.equals(before, SPOKEN.size(), "viewing auction from lobby cannot play its reminder");
+        ready(view, "140", -3);
+        fx(() -> {
+            Map<String, String> ending = data("140", -3);
+            ending.put("endTime", Instant.now().plusSeconds(31).toString());
+            view.model().applySnapshot(ClientWireParser.auction(ending, ""), List.of(), Instant.now(), true);
+            invoke(view.controller(), "refreshClock");
+            TestSupport.equals(before, SPOKEN.size(), "no early reminder");
+            ending = data("140", -3);
+            ending.put("endTime", Instant.now().plusSeconds(29).toString());
+            view.model().applySnapshot(ClientWireParser.auction(ending, ""), List.of(), Instant.now(), true);
+            view.network().state = ConnectionState.DISCONNECTED;
+            invoke(view.controller(), "refreshClock");
+            view.network().state = ConnectionState.CONNECTED;
+            set(view.controller(), "roomSnapshotReady", false);
+            invoke(view.controller(), "refreshClock");
+            set(view.controller(), "roomSnapshotReady", true); set(view.controller(), "roomSyncing", true);
+            invoke(view.controller(), "refreshClock");
+            set(view.controller(), "roomSyncing", false); set(view.controller(), "roomChanging", true);
+            invoke(view.controller(), "refreshClock");
+            set(view.controller(), "roomChanging", false); set(view.controller(), "bidPending", true);
+            set(view.controller(), "lastRoomSignal", System.nanoTime() - TimeUnit.SECONDS.toNanos(11));
+            invoke(view.controller(), "refreshClock");
+            TestSupport.equals(before, SPOKEN.size(), "disconnected, unready, syncing, changing or stale room cannot speak");
+            set(view.controller(), "bidPending", false); set(view.controller(), "lastRoomSignal", System.nanoTime());
+            invoke(view.controller(), "refreshClock");
+            invoke(view.controller(), "refreshClock");
+            return null;
+        });
+        TestSupport.waitUntil(() -> SPOKEN.size() == before + 1, 3000, "fresh joined room gets one closing reminder");
+        TestSupport.equals("Có ai muốn đưa ra mức giá cao hơn không ạ?", SPOKEN.get(before), "controller speaks requested thirty-second invitation");
+        fx(() -> {
+            Map<String, String> ending = data("140", -3); ending.put("endTime", Instant.now().plusSeconds(28).toString());
+            invoke(view.controller(), "applySnapshot", new Class<?>[]{ApiResponse.class, boolean.class},
+                    new ApiResponse(message(MessageType.RESYNC_RESULT, ending)), true);
+            invoke(view.controller(), "refreshClock"); return null;
+        });
+        TestSupport.equals(before + 1, SPOKEN.size(), "resync and repeated ticks cannot replay reminder");
     }
 
     private static void countdownAndEvents(View view) throws Exception {
@@ -197,6 +322,57 @@ public final class ClientSoundsUiSelfTest {
             invoke(view.controller(), "handleServerEvent", new Class<?>[]{WireMessage.class}, message(MessageType.AUCTION_ENDED, ended)); return null;
         }); drain();
         TestSupport.equals(end + 1, count(Cue.AUCTION_END), "confirmed server close sounds once");
+    }
+
+    private static void winnerNarration(View view) throws Exception {
+        int before = SPOKEN.size();
+        Map<String, String> lobbyWin = winningResult(20);
+        fx(() -> {
+            invoke(view.controller(), "handleServerEvent", new Class<?>[]{WireMessage.class}, message(MessageType.AUCTION_ENDED, lobbyWin));
+            return null;
+        });
+        TestSupport.waitUntil(() -> SPOKEN.size() == before + 1, 3000, "personal win outside auction room speaks");
+        TestSupport.equals("Chúc mừng bạn đã đấu giá thành công Bình gốm cổ!", SPOKEN.get(before), "congratulations use actual product name");
+        fx(() -> {
+            Map<String, String> opening = data("120", 0); opening.put("auctionId", "21");
+            view.model().applySnapshot(ClientWireParser.auction(opening, ""), List.of(), Instant.now(), true);
+            invoke(view.controller(), "renderAuctions");
+            Map<String, String> expired = data("120", -2);
+            expired.putAll(Map.of("auctionId", "21", "endTime", Instant.now().minusSeconds(1).toString()));
+            view.model().applySnapshot(ClientWireParser.auction(expired, ""), List.of(), Instant.now(), true);
+            invoke(view.controller(), "refreshClock"); return null;
+        });
+        TestSupport.equals(before + 1, SPOKEN.size(), "local expiry cannot announce a win before server confirmation");
+        Map<String, String> roomWin = winningResult(21);
+        fx(() -> {
+            invoke(view.controller(), "handleServerEvent", new Class<?>[]{WireMessage.class}, message(MessageType.AUCTION_ENDED, roomWin));
+            return null;
+        });
+        TestSupport.waitUntil(() -> SPOKEN.size() == before + 2, 3000, "personal win inside room speaks");
+        int stops = VOICE_STOPS.get();
+        fx(() -> {
+            invoke(view.controller(), "handleServerEvent", new Class<?>[]{WireMessage.class}, message(MessageType.AUCTION_ENDED, roomWin));
+            invoke(view.controller(), "handleServerEvent", new Class<?>[]{WireMessage.class}, message(MessageType.AUCTION_ENDED, lobbyWin));
+            invoke(view.controller(), "applySnapshot", new Class<?>[]{ApiResponse.class, boolean.class},
+                    new ApiResponse(message(MessageType.RESYNC_RESULT, roomWin)), true);
+            Map<String, String> loser = winningResult(22); loser.put("winnerIsSelf", "false");
+            invoke(view.controller(), "handleServerEvent", new Class<?>[]{WireMessage.class}, message(MessageType.AUCTION_ENDED, loser));
+            Map<String, String> empty = winningResult(23); empty.put("winnerId", "");
+            invoke(view.controller(), "handleServerEvent", new Class<?>[]{WireMessage.class}, message(MessageType.AUCTION_ENDED, empty));
+            Map<String, String> cancelled = winningResult(24); cancelled.put("status", "CANCELLED");
+            invoke(view.controller(), "handleServerEvent", new Class<?>[]{WireMessage.class}, message(MessageType.AUCTION_CANCELLED, cancelled));
+            return null;
+        }); drain();
+        TestSupport.equals(before + 2, SPOKEN.size(), "duplicates, losing, no bids and cancellation never congratulate");
+        TestSupport.equals(stops, VOICE_STOPS.get(), "duplicate end and closed snapshot do not cut off congratulations");
+    }
+
+    private static Map<String, String> winningResult(long room) {
+        Map<String, String> result = data("120", -2);
+        result.putAll(Map.of("auctionId", Long.toString(room), "status", "ENDED", "productName", "Bình gốm cổ",
+                "winnerId", "-2", "winnerUsername", "Khách #2", "winnerIsSelf", "true", "finalPrice", "120",
+                "endedAt", Instant.now().toString(), "endTime", Instant.now().minusSeconds(1).toString()));
+        return result;
     }
 
     private static void staleReply(View view) throws Exception {

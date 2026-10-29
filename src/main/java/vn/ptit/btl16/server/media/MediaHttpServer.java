@@ -49,7 +49,7 @@ public final class MediaHttpServer implements AutoCloseable {
             Map<String, String> query = query(exchange.getRequestURI().getRawQuery());
             String method = exchange.getRequestMethod();
             if (path.length == 5 && path[2].equals("files") && (method.equals("GET") || method.equals("HEAD"))) {
-                if (!downloads.tryAcquire()) { reply(exchange, 429, Map.of("errorCode", "MEDIA_LIMIT", "message", "Nhieu luot tai media; hay thu lai")); return; }
+                if (!downloads.tryAcquire()) { reply(exchange, 429, Map.of("errorCode", "MEDIA_LIMIT", "message", "Nhiều lượt tải ảnh/video; hãy thử lại")); return; }
                 try { stream(exchange, path[3], path[4], query.get("ticket")); } finally { downloads.release(); }
                 return;
             }
@@ -85,21 +85,21 @@ public final class MediaHttpServer implements AutoCloseable {
                     JsonNode body = body(exchange); var ids = new ArrayList<String>();
                     for (JsonNode item : body.path("mediaIds")) { ids.add(item.asText()); }
                     var product = service.commit(session, id, body.path("code").asText(), body.path("name").asText(), body.path("description").asText(), ids);
-                    reply(exchange, 200, Map.of("productId", product.getProductId())); return;
+                    reply(exchange, 200, Map.of("productId", product.getProductId(), "code", product.getCode())); return;
                 }
             }
-            reply(exchange, 404, Map.of("errorCode", "MEDIA_INVALID", "message", "Yeu cau media khong ton tai"));
+            reply(exchange, 404, Map.of("errorCode", "MEDIA_INVALID", "message", "Yêu cầu ảnh/video không tồn tại"));
         } catch (AuctionException exception) {
             if (exchange.getResponseCode() != -1) { return; }
             reply(exchange, exception.getErrorCode() == ErrorCode.AUTH_REQUIRED ? 401 : 400,
                     Map.of("errorCode", exception.getErrorCode().name(), "message", exception.getMessage()));
         } catch (IllegalArgumentException exception) {
             if (exchange.getResponseCode() != -1) { return; }
-            reply(exchange, 400, Map.of("errorCode", "MEDIA_INVALID", "message", "Yeu cau media khong hop le"));
+            reply(exchange, 400, Map.of("errorCode", "MEDIA_INVALID", "message", "Yêu cầu ảnh/video không hợp lệ"));
         } catch (Exception exception) {
             if (exchange.getResponseCode() != -1) { return; }
             java.util.logging.Logger.getLogger(MediaHttpServer.class.getName()).log(java.util.logging.Level.WARNING, "Media request failed", exception);
-            reply(exchange, 500, Map.of("errorCode", "MEDIA_PROCESSING_FAILED", "message", "Khong the xu ly media. Hay thu lai hoac kiem tra kho luu tru server"));
+            reply(exchange, 500, Map.of("errorCode", "MEDIA_PROCESSING_FAILED", "message", "Không thể xử lý ảnh/video. Hãy thử lại hoặc kiểm tra kho lưu trữ Server"));
         } finally { exchange.close(); }
     }
 

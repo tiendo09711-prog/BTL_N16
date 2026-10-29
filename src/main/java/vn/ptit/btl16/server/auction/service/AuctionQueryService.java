@@ -25,13 +25,41 @@ public final class AuctionQueryService {
         return auctions.snapshots().stream().filter(value -> value.getStatus() == vn.ptit.btl16.server.auction.model.AuctionStatus.OPEN).toList();
     }
 
+    public java.util.Map<String, String> topProducts() { return repository.topProducts(); }
+    public java.util.Map<String, String> topSellers() { return repository.topSellers(); }
+
+    /** Each current participant, valid bid and recorded join contributes one point; leaves add none. */
+    public java.util.Map<String, String> featured(long userId, RoomManager rooms, java.time.Instant now) {
+        var activity = repository.auctionActivity();
+        record Candidate(AuctionSnapshot auction, int people, vn.ptit.btl16.server.auction.model.AuctionActivity stats) {
+            long score() { return stats.score(people); }
+        }
+        var top = listAuctions().stream()
+                .filter(a -> a.getVisibility() == vn.ptit.btl16.server.auction.model.RoomVisibility.PUBLIC && a.isOpenAt(now))
+                .filter(a -> !repository.isAuctionUserBlocked(a.getAuctionId(), userId))
+                .map(a -> new Candidate(a, rooms.participantCount(a.getAuctionId()), activity.getOrDefault(a.getAuctionId(), new vn.ptit.btl16.server.auction.model.AuctionActivity(0, 0))))
+                .sorted(java.util.Comparator.comparingLong(Candidate::score).reversed()
+                        .thenComparing(java.util.Comparator.comparingInt(Candidate::people).reversed())
+                        .thenComparing(c -> c.auction().getEndTime()).thenComparingLong(c -> c.auction().getAuctionId()))
+                .limit(5).toList();
+        var data = AuctionWireData.auctionList(top.stream().map(Candidate::auction).toList(), rooms, now);
+        for (int i = 0; i < top.size(); i++) {
+            var c = top.get(i); String prefix = "auction." + i + ".";
+            data.put(prefix + "watcherCount", Integer.toString(c.people()));
+            data.put(prefix + "featuredScore", Long.toString(c.score()));
+            data.put(prefix + "totalBids", Long.toString(c.stats().bidCount()));
+            data.put(prefix + "movementCount", Long.toString(c.stats().movementCount()));
+        }
+        return data;
+    }
+
     public List<AuctionSnapshot> searchAuctions(String rawMode, String rawQuery) {
         String mode = rawMode == null ? "ALL" : rawMode.trim().toUpperCase(Locale.ROOT);
         String query = rawQuery == null ? "" : rawQuery.trim();
         if (query.isBlank() || query.length() > 100) {
             throw new AuctionException(
                     vn.ptit.btl16.common.protocol.ErrorCode.INVALID_SEARCH_QUERY,
-                    "Tu khoa tim kiem phai co 1-100 ky tu");
+                    "Từ khóa tìm kiếm phải có 1-100 ký tự");
         }
         List<AuctionSnapshot> values = listAuctions();
         return switch (mode) {
@@ -49,7 +77,7 @@ public final class AuctionQueryService {
                 } catch (NumberFormatException exception) {
                     throw new AuctionException(
                             vn.ptit.btl16.common.protocol.ErrorCode.INVALID_SEARCH_QUERY,
-                            "Ma phong phai la so");
+                            "Mã phòng phải là số");
                 }
                 yield values.stream().filter(value -> value.getAuctionId() == auctionId).toList();
             }
@@ -70,7 +98,7 @@ public final class AuctionQueryService {
             }
             default -> throw new AuctionException(
                     vn.ptit.btl16.common.protocol.ErrorCode.INVALID_SEARCH_QUERY,
-                    "Che do tim kiem khong hop le");
+                    "Chế độ tìm kiếm không hợp lệ");
         };
     }
 

@@ -28,7 +28,7 @@ public final class RoomSocialStore {
     private final List<Chat> memoryChat = new ArrayList<>();
 
     public RoomSocialStore(JdbcConnectionFactory factory) { this.factory = factory; }
-    JdbcConnectionFactory connectionFactory() { return factory; }
+    public JdbcConnectionFactory connectionFactory() { return factory; }
 
     public synchronized boolean containsChats(long auctionId, java.util.Collection<Long> ids) {
         if (ids.isEmpty()) { return true; }
@@ -190,12 +190,12 @@ public final class RoomSocialStore {
     }
 
     private static Chat duplicate(Chat entry, String body, long replyToId) {
-        if (!entry.body().equals(body) || entry.replyToId() != replyToId) { throw new AuctionException(ErrorCode.VALIDATION_ERROR, "Ma tin nhan da duoc dung cho noi dung khac"); }
+        if (!entry.body().equals(body) || entry.replyToId() != replyToId) { throw new AuctionException(ErrorCode.VALIDATION_ERROR, "Mã tin nhắn đã được dùng cho nội dung khác"); }
         return new Chat(entry.id(), entry.auctionId(), entry.senderId(), entry.nonce(), entry.body(), entry.sentAt(), false, entry.replyToId());
     }
 
     private static void requireDelay(Instant previous, Instant now) {
-        if (Duration.between(previous, now).toMillis() < 750) { throw new AuctionException(ErrorCode.VALIDATION_ERROR, "Hay cho mot giay truoc khi gui tin tiep theo"); }
+        if (Duration.between(previous, now).toMillis() < 750) { throw new AuctionException(ErrorCode.VALIDATION_ERROR, "Hãy chờ một giây trước khi gửi tin tiếp theo"); }
     }
 
     private static AuctionRepositoryException failure(SQLException exception) { return new AuctionRepositoryException("Room social storage failed", exception); }

@@ -85,7 +85,7 @@ public final class ClientController implements AutoCloseable {
                     @Override
                     public void onExhausted(String lastError) {
                         onEdt(() -> view.showError(
-                                "Khong the ket noi lai server: " + lastError));
+                                "Không thể kết nối lại Server: " + lastError));
                     }
                 });
         this.clockTimer = new Timer(250, event -> {
@@ -114,8 +114,7 @@ public final class ClientController implements AutoCloseable {
         auction.onMyAuctions(event -> showMyAuctions());
         auction.onAddProduct(event -> createProduct());
         auction.onEditProduct(event -> editProduct());
-        auction.onDeactivateProduct(event -> deactivateProduct());
-        auction.onRestoreProduct(event -> restoreProduct());
+        auction.onDeleteProduct(event -> deleteProduct());
         auction.onCreateAuction(event -> createAuction());
         auction.onJoin(event -> joinSelectedAuction());
         auction.onLeave(event -> leaveAuction());
@@ -141,7 +140,7 @@ public final class ClientController implements AutoCloseable {
                 .whenComplete((ignored, error) -> onEdt(() -> {
                     setLoginBusy(false);
                     if (error != null) {
-                        view.showError("Khong ket noi duoc server: " + rootMessage(error));
+                        view.showError("Không kết nối được Server: " + rootMessage(error));
                     }
                 }));
     }
@@ -160,7 +159,7 @@ public final class ClientController implements AutoCloseable {
                 .whenComplete((ignored, error) -> onEdt(() -> {
                     setLoginBusy(false);
                     if (error != null) {
-                        view.showError("Ket noi lai that bai: " + rootMessage(error));
+                        view.showError("Kết nối lại thất bại: " + rootMessage(error));
                     }
                 }));
     }
@@ -184,7 +183,7 @@ public final class ClientController implements AutoCloseable {
                 .whenComplete((response, error) -> onEdt(() -> {
                     setLoginBusy(false);
                     if (error != null) {
-                        view.showError("Dang nhap loi: " + rootMessage(error));
+                        view.showError("Đăng nhập lỗi: " + rootMessage(error));
                         return;
                     }
                     if (!response.isSuccess()) {
@@ -194,7 +193,7 @@ public final class ClientController implements AutoCloseable {
                     model.applyIdentity(response);
                     autoReconnectEnabled = true;
                     view.showAuction(model);
-                    view.getAuctionPanel().appendNotification("Dang nhap thanh cong");
+                    view.getAuctionPanel().appendNotification("Đăng nhập thành công");
                     loadAuctionList(false);
                 }));
     }
@@ -209,7 +208,7 @@ public final class ClientController implements AutoCloseable {
             char[] confirmation = input.getConfirmation();
             try {
                 if (!Arrays.equals(password, confirmation)) {
-                    view.showError("Mat khau nhap lai khong khop");
+                    view.showError("Mật khẩu nhập lại không khớp");
                     return;
                 }
                 setLoginBusy(true);
@@ -222,11 +221,11 @@ public final class ClientController implements AutoCloseable {
                         .whenComplete((response, error) -> onEdt(() -> {
                             setLoginBusy(false);
                             if (error != null) {
-                                view.showError("Dang ky loi: " + rootMessage(error));
+                                view.showError("Đăng ký lỗi: " + rootMessage(error));
                             } else if (!response.isSuccess()) {
                                 view.showError(failure(response));
                             } else {
-                                view.showInfo("Dang ky thanh cong. Hay dang nhap.");
+                                view.showInfo("Đăng ký thành công. Hãy đăng nhập.");
                             }
                         }));
             } finally {
@@ -245,7 +244,7 @@ public final class ClientController implements AutoCloseable {
                 setAuctionBusy(false);
             }
             if (error != null) {
-                view.showError("Tai danh sach loi: " + rootMessage(error));
+                view.showError("Tải danh sách lỗi: " + rootMessage(error));
                 return;
             }
             if (!response.isSuccess()) {
@@ -262,13 +261,13 @@ public final class ClientController implements AutoCloseable {
         auctions.myAuctions().whenComplete((response, error) -> onEdt(() -> {
             setAuctionBusy(false);
             if (error != null) {
-                view.showError("Tai phong cua toi loi: " + rootMessage(error));
+                view.showError("Tải phòng của tôi lỗi: " + rootMessage(error));
             } else if (!response.isSuccess()) {
                 view.showError(failure(response));
             } else {
                 applyAuctionList(response);
                 view.renderAuction(model);
-                view.getAuctionPanel().appendNotification("Dang hien thi cac phong ban chu tri");
+                view.getAuctionPanel().appendNotification("Đang hiển thị các phòng bạn chủ trì");
             }
         }));
     }
@@ -288,17 +287,17 @@ public final class ClientController implements AutoCloseable {
                 .whenComplete((response, error) -> onEdt(() -> {
                     setAuctionBusy(false);
                     if (error != null) {
-                        view.showError("Them san pham loi: " + rootMessage(error));
+                        view.showError("Thêm sản phẩm lỗi: " + rootMessage(error));
                     } else if (!response.isSuccess()) {
                         view.showError(failure(response));
                     } else {
-                        view.showInfo("Da them san pham " + response.get("name"));
+                        view.showInfo("Đã thêm sản phẩm " + response.get("name"));
                     }
                 }));
     }
 
     private void editProduct() {
-        loadMyProducts(products -> view.chooseProduct(products, "Chon san pham can sua", false)
+        loadMyProducts(products -> view.chooseProduct(products, "Chọn sản phẩm cần sửa", false)
                 .ifPresent(product -> view.promptProduct(product)
                         .ifPresent(input -> updateProduct(input))));
     }
@@ -313,74 +312,43 @@ public final class ClientController implements AutoCloseable {
                 .whenComplete((response, error) -> onEdt(() -> {
                     setAuctionBusy(false);
                     if (error != null) {
-                        view.showError("Sua san pham loi: " + rootMessage(error));
+                        view.showError("Sửa sản phẩm lỗi: " + rootMessage(error));
                     } else if (!response.isSuccess()) {
                         view.showError(failure(response));
                     } else {
-                        view.showInfo("Da cap nhat san pham");
+                        view.showInfo("Đã cập nhật sản phẩm");
                         loadAuctionList(false);
                     }
                 }));
     }
 
-    private void deactivateProduct() {
-        loadMyProducts(products -> view.chooseProduct(products, "Chon san pham can an", true)
+    private void deleteProduct() {
+        loadMyProducts(products -> view.chooseProduct(products, "Chọn sản phẩm cần xóa", false)
                 .ifPresent(product -> {
-                    if (!view.confirm("Vo hieu hoa san pham " + product.getName() + "?")) {
+                    if (!view.confirm("Xóa sản phẩm “" + product.getName() + "”? Sản phẩm không thể khôi phục. Lịch sử đấu giá và giao dịch vẫn được giữ nguyên.")) {
                         return;
                     }
                     setAuctionBusy(true);
-                    auctions.deactivateProduct(product.getProductId())
+                    auctions.deleteProduct(product.getProductId())
                             .whenComplete((response, error) -> onEdt(() -> {
                                 setAuctionBusy(false);
                                 if (error != null) {
-                                    view.showError("An san pham loi: " + rootMessage(error));
+                                    view.showError("Xóa sản phẩm lỗi: " + rootMessage(error));
                                 } else if (!response.isSuccess()) {
                                     view.showError(failure(response));
                                 } else {
-                                    view.showInfo("Da vo hieu hoa san pham");
+                                    view.showInfo("Đã xóa sản phẩm");
                                 }
                             }));
-                }));
-    }
-
-    private void restoreProduct() {
-        loadMyProducts(products -> view.chooseProduct(products.stream()
-                        .filter(product -> !product.isActive()).toList(), "Khoi phuc mat hang da ngung", false)
-                .ifPresent(product -> {
-                    if (!product.canRestore()) {
-                        view.showError(switch (product.getRestorationStatus()) {
-                            case SOLD -> "Mat hang da co nguoi thang, khong duoc dau gia lai ke ca chua thanh toan";
-                            case OPEN_AUCTION -> "Mat hang van con phien dang mo, chua the khoi phuc";
-                            default -> "Mat hang khong can khoi phuc";
-                        });
-                        return;
-                    }
-                    if (!view.confirm("Khoi phuc " + product.getName()
-                            + "? Khong mo lai phien cu, khong xoa lich su va khong cho sua thong tin da dong bang.")) {
-                        return;
-                    }
-                    setAuctionBusy(true);
-                    auctions.restoreProduct(product.getProductId()).whenComplete((response, error) -> onEdt(() -> {
-                        setAuctionBusy(false);
-                        if (error != null) {
-                            view.showError("Khoi phuc loi: " + rootMessage(error));
-                        } else if (!response.isSuccess()) {
-                            view.showError(failure(response));
-                        } else {
-                            view.showInfo("Mat hang dang hoat dong; co the tao phien moi neu du dieu kien");
-                            loadAuctionList(false);
-                        }
-                    }));
                 }));
     }
 
     private void createAuction() {
         loadMyProducts(products -> view.promptAuction(products).ifPresent(input -> {
             try {
-                BigDecimal startPrice = parseMoneyInput(input.getStartPrice(), "Gia khoi diem");
+                BigDecimal startPrice = parseMoneyInput(input.getStartPrice(), "Giá khởi điểm");
                 BigDecimal minIncrement = parseMoneyInput(
-                        input.getMinBidIncrement(), "Buoc gia toi thieu");
+                        input.getMinBidIncrement(), "Bước giá tối thiểu");
                 int durationMinutes = Integer.parseInt(input.getDurationMinutes().trim());
                 setAuctionBusy(true);
                 auctions.createAuction(
@@ -391,17 +359,17 @@ public final class ClientController implements AutoCloseable {
                         .whenComplete((response, error) -> onEdt(() -> {
                             setAuctionBusy(false);
                             if (error != null) {
-                                view.showError("Tao phong loi: " + rootMessage(error));
+                                view.showError("Tạo phòng lỗi: " + rootMessage(error));
                             } else if (!response.isSuccess()) {
                                 view.showError(failure(response));
                             } else {
                                 applySnapshot(response, false);
                                 view.renderAuction(model);
-                                view.showInfo("Da tao phong dau gia #" + response.get("auctionId"));
+                                view.showInfo("Đã tạo phòng đấu giá #" + response.get("auctionId"));
                             }
                         }));
             } catch (NumberFormatException exception) {
-                view.showError("Thoi luong phai la so nguyen");
+                view.showError("Thời lượng phải là số nguyên");
             } catch (IllegalArgumentException exception) {
                 view.showError(exception.getMessage());
             }
@@ -413,7 +381,7 @@ public final class ClientController implements AutoCloseable {
         auctions.myProducts().whenComplete((response, error) -> onEdt(() -> {
             setAuctionBusy(false);
             if (error != null) {
-                view.showError("Tai san pham loi: " + rootMessage(error));
+                view.showError("Tải sản phẩm lỗi: " + rootMessage(error));
             } else if (!response.isSuccess()) {
                 view.showError(failure(response));
             } else {
@@ -427,7 +395,7 @@ public final class ClientController implements AutoCloseable {
         if (auctionId == null) {
             return;
         }
-        view.promptText("Gia han", "So giay gia han (10-600)", "60").ifPresent(raw -> {
+        view.promptText("Gia hạn", "Số giây gia hạn (10-600)", "60").ifPresent(raw -> {
             try {
                 int seconds = Integer.parseInt(raw);
                 setAuctionBusy(true);
@@ -435,36 +403,36 @@ public final class ClientController implements AutoCloseable {
                         .whenComplete((response, error) -> onEdt(() -> {
                             setAuctionBusy(false);
                             if (error != null) {
-                                view.showError("Gia han loi: " + rootMessage(error));
+                                view.showError("Gia hạn lỗi: " + rootMessage(error));
                             } else if (!response.isSuccess()) {
                                 view.showError(failure(response));
                             } else {
                                 applySnapshot(response, false);
                                 view.renderAuction(model);
-                                view.showInfo("Da gia han " + seconds + " giay");
+                                view.showInfo("Đã gia hạn " + seconds + " giây");
                             }
                         }));
             } catch (NumberFormatException exception) {
-                view.showError("So giay gia han khong hop le");
+                view.showError("Số giây gia hạn không hợp lệ");
             }
         });
     }
 
     private void endSelectedAuction() {
         Long auctionId = view.getAuctionPanel().getSelectedAuctionId();
-        if (auctionId == null || !view.confirm("Ket thuc som phien #" + auctionId + "?")) {
+        if (auctionId == null || !view.confirm("Kết thúc sớm phiên #" + auctionId + "?")) {
             return;
         }
         setAuctionBusy(true);
         auctions.endAuction(auctionId).whenComplete((response, error) -> onEdt(() -> {
             setAuctionBusy(false);
             if (error != null) {
-                view.showError("Ket thuc phien loi: " + rootMessage(error));
+                view.showError("Kết thúc phiên lỗi: " + rootMessage(error));
             } else if (!response.isSuccess()) {
                 view.showError(failure(response));
             } else {
                 loadAuctionList(false);
-                view.showInfo("Da ket thuc phien #" + auctionId);
+                view.showInfo("Đã kết thúc phiên #" + auctionId);
             }
         }));
     }
@@ -472,19 +440,19 @@ public final class ClientController implements AutoCloseable {
     private void cancelSelectedAuction() {
         Long auctionId = view.getAuctionPanel().getSelectedAuctionId();
         if (auctionId == null || !view.confirm(
-                "Huy phien #" + auctionId + "? Chi huy duoc khi chua co bid.")) {
+                "Hủy phiên #" + auctionId + "? Chỉ hủy được khi chưa có lượt ra giá.")) {
             return;
         }
         setAuctionBusy(true);
         auctions.cancelAuction(auctionId).whenComplete((response, error) -> onEdt(() -> {
             setAuctionBusy(false);
             if (error != null) {
-                view.showError("Huy phien loi: " + rootMessage(error));
+                view.showError("Hủy phiên lỗi: " + rootMessage(error));
             } else if (!response.isSuccess()) {
                 view.showError(failure(response));
             } else {
                 loadAuctionList(false);
-                view.showInfo("Da huy phien #" + auctionId);
+                view.showInfo("Đã hủy phiên #" + auctionId);
             }
         }));
     }
@@ -494,7 +462,7 @@ public final class ClientController implements AutoCloseable {
         if (auctionId == null) {
             return;
         }
-        view.promptText("Moi nguoi dung", "Nhap username can moi", "")
+        view.promptText("Mời người dùng", "Nhập tên tài khoản cần mời", "")
                 .filter(value -> !value.isBlank())
                 .ifPresent(username -> {
                     setAuctionBusy(true);
@@ -502,11 +470,11 @@ public final class ClientController implements AutoCloseable {
                             .whenComplete((response, error) -> onEdt(() -> {
                                 setAuctionBusy(false);
                                 if (error != null) {
-                                    view.showError("Moi user loi: " + rootMessage(error));
+                                    view.showError("Mời người dùng lỗi: " + rootMessage(error));
                                 } else if (!response.isSuccess()) {
                                     view.showError(failure(response));
                                 } else {
-                                    view.showInfo("Da moi " + username + " khoi phong");
+                                    view.showInfo("Đã mời " + username + " khỏi phòng");
                                 }
                             }));
                 });
@@ -515,7 +483,7 @@ public final class ClientController implements AutoCloseable {
     private void joinSelectedAuction() {
         Long selected = view.getAuctionPanel().getSelectedAuctionId();
         if (selected == null) {
-            view.showError("Hay chon mot phien dau gia");
+            view.showError("Hãy chọn một phiên đấu giá");
             return;
         }
         Long current = model.getJoinedAuctionId();
@@ -529,7 +497,7 @@ public final class ClientController implements AutoCloseable {
         operation.whenComplete((response, error) -> onEdt(() -> {
             setAuctionBusy(false);
             if (error != null) {
-                view.showError("Vao phong loi: " + rootMessage(error));
+                view.showError("Vào phòng lỗi: " + rootMessage(error));
                 return;
             }
             if (!response.isSuccess()) {
@@ -539,7 +507,7 @@ public final class ClientController implements AutoCloseable {
             applySnapshot(response, true);
             view.renderAuction(model);
             view.getAuctionPanel().appendNotification(
-                    "Da vao phong auction " + selected);
+                    "Đã vào phòng đấu giá " + selected);
         }));
     }
 
@@ -552,7 +520,7 @@ public final class ClientController implements AutoCloseable {
         auctions.leave(auctionId).whenComplete((response, error) -> onEdt(() -> {
             setAuctionBusy(false);
             if (error != null) {
-                view.showError("Roi phong loi: " + rootMessage(error));
+                view.showError("Rời phòng lỗi: " + rootMessage(error));
                 return;
             }
             if (!response.isSuccess()) {
@@ -561,7 +529,7 @@ public final class ClientController implements AutoCloseable {
             }
             model.leaveJoinedAuction();
             view.renderAuction(model);
-            view.getAuctionPanel().appendNotification("Da roi phong auction " + auctionId);
+            view.getAuctionPanel().appendNotification("Đã rời phòng đấu giá " + auctionId);
         }));
     }
 
@@ -574,7 +542,7 @@ public final class ClientController implements AutoCloseable {
         auctions.history(auctionId).whenComplete((response, error) -> onEdt(() -> {
             setAuctionBusy(false);
             if (error != null) {
-                view.showError("Tai lich su loi: " + rootMessage(error));
+                view.showError("Tải lịch sử lỗi: " + rootMessage(error));
             } else if (!response.isSuccess()) {
                 view.showError(failure(response));
             } else {
@@ -589,7 +557,7 @@ public final class ClientController implements AutoCloseable {
     private void placeBid() {
         Long auctionId = model.getJoinedAuctionId();
         if (auctionId == null) {
-            view.showError("Ban chua vao phong dau gia");
+            view.showError("Bạn chưa vào phòng đấu giá");
             return;
         }
         BigDecimal amount;
@@ -603,7 +571,7 @@ public final class ClientController implements AutoCloseable {
         auctions.bid(auctionId, amount).whenComplete((response, error) -> onEdt(() -> {
             setAuctionBusy(false);
             if (error != null) {
-                view.showError("Dat gia loi: " + rootMessage(error));
+                view.showError("Đặt giá lỗi: " + rootMessage(error));
                 return;
             }
             if (!response.isSuccess()) {
@@ -614,12 +582,12 @@ public final class ClientController implements AutoCloseable {
             view.getAuctionPanel().clearAmount();
             view.renderAuction(model);
             view.getAuctionPanel().appendNotification(
-                    "Server chap nhan bid " + amount.toPlainString() + " VND");
+                    "Server chấp nhận lượt ra giá " + amount.toPlainString() + " VND");
         }));
     }
 
     private BigDecimal parseBidAmount(String raw) {
-        return parseMoneyInput(raw, "Muc gia");
+        return parseMoneyInput(raw, "Mức giá");
     }
 
     private BigDecimal parseMoneyInput(String raw, String label) {
@@ -646,13 +614,13 @@ public final class ClientController implements AutoCloseable {
                 .whenComplete((response, error) -> onEdt(() -> {
                     setAuctionBusy(false);
                     if (error != null) {
-                        view.showError("Cap nhat ho so loi: " + rootMessage(error));
+                        view.showError("Cập nhật hồ sơ lỗi: " + rootMessage(error));
                     } else if (!response.isSuccess()) {
                         view.showError(failure(response));
                     } else {
                         model.applyIdentity(response);
                         view.renderAuction(model);
-                        view.showInfo("Da cap nhat ho so");
+                        view.showInfo("Đã cập nhật hồ sơ");
                     }
                 }));
     }
@@ -668,7 +636,7 @@ public final class ClientController implements AutoCloseable {
             char[] confirmation = input.getConfirmation();
             try {
                 if (!Arrays.equals(next, confirmation)) {
-                    view.showError("Mat khau moi nhap lai khong khop");
+                    view.showError("Mật khẩu mới nhập lại không khớp");
                     return;
                 }
                 setAuctionBusy(true);
@@ -676,11 +644,11 @@ public final class ClientController implements AutoCloseable {
                         .whenComplete((response, error) -> onEdt(() -> {
                             setAuctionBusy(false);
                             if (error != null) {
-                                view.showError("Doi mat khau loi: " + rootMessage(error));
+                                view.showError("Đổi mật khẩu lỗi: " + rootMessage(error));
                             } else if (!response.isSuccess()) {
                                 view.showError(failure(response));
                             } else {
-                                view.showInfo("Doi mat khau thanh cong");
+                                view.showInfo("Đổi mật khẩu thành công");
                             }
                         }));
             } finally {
@@ -692,7 +660,7 @@ public final class ClientController implements AutoCloseable {
     }
 
     private void logout() {
-        if (!view.confirm("Dang xuat tai khoan hien tai?")) {
+        if (!view.confirm("Đăng xuất tài khoản hiện tại?")) {
             return;
         }
         autoReconnectEnabled = false;
@@ -703,7 +671,7 @@ public final class ClientController implements AutoCloseable {
             model.clearIdentity();
             view.showLogin();
             if (error != null) {
-                view.showError("Session local da xoa, server tra loi loi: " + rootMessage(error));
+                view.showError("Phiên đăng nhập cục bộ đã xóa, Server trả lời lỗi: " + rootMessage(error));
             }
         }));
     }
@@ -713,7 +681,7 @@ public final class ClientController implements AutoCloseable {
         onEdt(() -> {
             view.renderConnection(state, detail);
             if (state == ConnectionState.DISCONNECTED && model.hasSessionToken()) {
-                view.getAuctionPanel().appendNotification("Mat ket noi: " + detail);
+                view.getAuctionPanel().appendNotification("Mất kết nối: " + detail);
             }
         });
         if (state == ConnectionState.DISCONNECTED
@@ -732,7 +700,7 @@ public final class ClientController implements AutoCloseable {
         accounts.resumeSession(model.getSessionToken())
                 .whenComplete((response, error) -> {
                     if (error != null) {
-                        onEdt(() -> view.showError("Resume session loi: " + rootMessage(error)));
+                        onEdt(() -> view.showError("Khôi phục phiên đăng nhập lỗi: " + rootMessage(error)));
                         return;
                     }
                     if (!response.isSuccess()) {
@@ -745,7 +713,7 @@ public final class ClientController implements AutoCloseable {
                             autoReconnectEnabled = false;
                             model.clearIdentity();
                             view.showLogin();
-                            view.showError("Khong phuc hoi duoc session: " + failure(response));
+                            view.showError("Không phục hồi được phiên đăng nhập: " + failure(response));
                         });
                         return;
                     }
@@ -753,7 +721,7 @@ public final class ClientController implements AutoCloseable {
                     auctions.resync(joinedBeforeDisconnect)
                             .whenComplete((sync, syncError) -> onEdt(() -> {
                                 if (syncError != null) {
-                                    view.showError("Resync loi: " + rootMessage(syncError));
+                                    view.showError("Đồng bộ lỗi: " + rootMessage(syncError));
                                     return;
                                 }
                                 if (!sync.isSuccess()) {
@@ -767,7 +735,7 @@ public final class ClientController implements AutoCloseable {
                                 }
                                 view.showAuction(model);
                                 view.getAuctionPanel().appendNotification(
-                                        "Reconnect + resume + resync thanh cong");
+                                        "Kết nối lại, khôi phục phiên và đồng bộ thành công");
                             }));
                 });
     }
@@ -793,8 +761,8 @@ public final class ClientController implements AutoCloseable {
                     view.renderAuction(model);
                     String source = data.getOrDefault("extensionSource", "ANTI_SNIPING");
                     view.getAuctionPanel().appendNotification(
-                            source + ": auction " + id + " duoc gia han "
-                                    + data.getOrDefault("extensionSeconds", "") + " giay");
+                            source + ": auction " + id + " được gia hạn "
+                                    + data.getOrDefault("extensionSeconds", "") + " giây");
                 });
             }
             case AUCTION_CREATED -> {
@@ -834,7 +802,7 @@ public final class ClientController implements AutoCloseable {
                     String winner = data.getOrDefault("winnerUsername", "");
                     view.getAuctionPanel().appendNotification(
                             "AUCTION_ENDED: " + auction.getProductName()
-                                    + " | winner=" + (winner.isBlank() ? "khong co" : winner)
+                                    + " | winner=" + (winner.isBlank() ? "không có" : winner)
                                     + " | final=" + data.getOrDefault("finalPrice", ""));
                 });
             }
@@ -857,7 +825,7 @@ public final class ClientController implements AutoCloseable {
                 onEdt(() -> {
                     view.renderAuction(model);
                     view.getAuctionPanel().appendNotification(data.getOrDefault(
-                            "message", "Phien da duoc an khoi san"));
+                            "message", "Phiên đã được ẩn khỏi sàn"));
                 });
             }
             case AUCTION_KICKED -> {
@@ -866,12 +834,12 @@ public final class ClientController implements AutoCloseable {
                 onEdt(() -> {
                     view.renderAuction(model);
                     view.showError(data.getOrDefault(
-                            "message", "Ban da bi moi khoi phong dau gia"));
+                            "message", "Bạn đã bị mời khỏi phòng đấu giá"));
                 });
             }
             case OUTBID_NOTIFICATION -> onEdt(() -> view.getAuctionPanel().appendNotification(
-                    "BAN DA BI VUOT GIA tai " + data.getOrDefault("productName", "")
-                            + ", nguoi moi: " + data.getOrDefault("newLeader", "")));
+                    "BẠN ĐÃ BỊ VƯỢT GIÁ tại " + data.getOrDefault("productName", "")
+                            + ", người mới: " + data.getOrDefault("newLeader", "")));
             default -> {
                 // Responses are completed through requestId; other events are intentionally ignored.
             }

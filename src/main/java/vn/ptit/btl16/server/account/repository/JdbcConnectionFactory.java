@@ -13,7 +13,7 @@ public final class JdbcConnectionFactory {
         this.config = config;
         if (!"com.mysql.cj.jdbc.Driver".equals(config.getDbDriver())
                 && !(config.isEmbeddedDatabase() && Boolean.getBoolean("btl16.test.allowEmbedded"))) {
-            throw new IllegalStateException("Server chi luu du lieu trong MySQL/XAMPP. Hay bat MySQL va kiem tra config/server.properties; khong ho tro database local.");
+            throw new IllegalStateException("Server chỉ lưu dữ liệu trong MySQL/XAMPP. Hãy bật MySQL và kiểm tra config/server.properties; không hỗ trợ cơ sở dữ liệu cục bộ.");
         }
         try {
             Class.forName(config.getDbDriver());

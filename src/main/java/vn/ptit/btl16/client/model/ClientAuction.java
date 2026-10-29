@@ -134,6 +134,11 @@ public final class ClientAuction {
         this.selfParticipantId = selfParticipantId;
     }
 
+    public boolean hasRecentResult(Instant now) {
+        Instant closed = endedAt == null ? endTime : endedAt;
+        return !isOpen() && closed != null && now.isBefore(closed.plusSeconds(60));
+    }
+
     public ClientAuction withTiming(Instant newEndTime, String newStatus, int newWatcherCount) {
         return new ClientAuction(
                 auctionId,

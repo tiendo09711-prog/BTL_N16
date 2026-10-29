@@ -7,6 +7,17 @@ import java.sql.*;
 import java.util.*;
 
 public final class AuctionReceiptStore {
+    private static final String RECEIPT_SELECT = """
+            SELECT s.*, p.personal_role, a.product_id, product.description AS product_description,
+                COALESCE((SELECT payload FROM media_content WHERE media_id =
+                    (SELECT media_id FROM product_media WHERE product_id = a.product_id AND kind = 'IMAGE'
+                        ORDER BY sort_order, media_id LIMIT 1)
+                    AND variant = 'thumbnail.jpg' AND chunk_no = 0), product.image_data) AS product_thumbnail
+            FROM auction_receipt_summaries s
+            JOIN auction_personal_receipts p ON p.auction_id = s.auction_id
+            JOIN auctions a ON a.auction_id = s.auction_id
+            JOIN products product ON product.product_id = a.product_id
+            """;
     public static final String SUMMARY_SCHEMA = """
             CREATE TABLE IF NOT EXISTS auction_receipt_summaries (
                 auction_id BIGINT PRIMARY KEY, product_code VARCHAR(50) NOT NULL,
@@ -28,6 +39,30 @@ public final class AuctionReceiptStore {
             """;
     private final JdbcConnectionFactory factory;
     public AuctionReceiptStore(JdbcConnectionFactory factory) { this.factory = factory; }
+
+    /** Public product/result metadata only; never includes bidder identities or room access data. */
+    public Map<String, String> topProducts() {
+        try (var connection = factory.openDatabase(); var query = connection.prepareStatement("""
+                SELECT s.auction_id, a.product_id, s.product_code, s.product_name, s.final_price, s.ended_at
+                FROM auction_receipt_summaries s JOIN auctions a ON a.auction_id = s.auction_id
+                WHERE s.outcome = 'WON' AND s.final_price IS NOT NULL
+                ORDER BY s.final_price DESC, s.ended_at ASC, s.auction_id ASC LIMIT 10
+                """); var rows = query.executeQuery()) {
+            Map<String, String> data = new LinkedHashMap<>();
+            int index = 0;
+            while (rows.next()) {
+                String prefix = "ranking." + index++ + ".";
+                data.put(prefix + "auctionId", Long.toString(rows.getLong("auction_id")));
+                data.put(prefix + "productId", Long.toString(rows.getLong("product_id")));
+                data.put(prefix + "productCode", rows.getString("product_code"));
+                data.put(prefix + "productName", rows.getString("product_name"));
+                data.put(prefix + "finalPrice", rows.getBigDecimal("final_price").toPlainString());
+                data.put(prefix + "endedAt", rows.getTimestamp("ended_at").toInstant().toString());
+            }
+            data.put("count", Integer.toString(index));
+            return data;
+        } catch (SQLException error) { throw new AuctionRepositoryException("Cannot read product ranking", error); }
+    }
 
     public static void initialize(JdbcConnectionFactory factory) {
         try (var connection = factory.openDatabase(); var statement = connection.createStatement()) {
@@ -124,14 +159,11 @@ public final class AuctionReceiptStore {
     }
 
     public Map<String, String> receipt(long user, long room) {
-        try (var connection = factory.openDatabase(); var query = connection.prepareStatement("""
-                SELECT s.*, p.personal_role FROM auction_receipt_summaries s
-                JOIN auction_personal_receipts p ON p.auction_id = s.auction_id
-                WHERE p.user_id = ? AND s.auction_id = ?
-                """)) {
+        try (var connection = factory.openDatabase(); var query = connection.prepareStatement(
+                RECEIPT_SELECT + " WHERE p.user_id = ? AND s.auction_id = ?")) {
             query.setLong(1, user); query.setLong(2, room);
             try (var rows = query.executeQuery()) {
-                if (!rows.next()) { throw new AuctionException(ErrorCode.AUCTION_FORBIDDEN, "Khong co bien nhan ca nhan da chot cho phien nay"); }
+                if (!rows.next()) { throw new AuctionException(ErrorCode.AUCTION_FORBIDDEN, "Không có biên nhận cá nhân đã chốt cho phiên này"); }
                 var result = summary(rows); wallet(connection, user, room, result); return result;
             }
         } catch (SQLException exception) { throw new AuctionRepositoryException("Cannot read personal receipt", exception); }
@@ -142,11 +174,8 @@ public final class AuctionReceiptStore {
             throw new IllegalArgumentException("Invalid receipt filter");
         }
         String role = switch (scope) { case "WON" -> "p.personal_role = 'WINNER'"; case "HOSTED" -> "p.personal_role = 'HOST'"; default -> "p.personal_role <> 'HOST'"; };
-        String sql = """
-                SELECT s.*, p.personal_role FROM auction_receipt_summaries s
-                JOIN auction_personal_receipts p ON p.auction_id = s.auction_id
-                WHERE p.user_id = ? AND s.auction_id < ? AND
-                """ + role + " AND (? = 'ALL' OR s.outcome = ?) AND (LOWER(s.product_name) LIKE ? OR LOWER(s.product_code) LIKE ? OR CAST(s.auction_id AS CHAR(20)) = ?) ORDER BY s.auction_id DESC LIMIT ?";
+        String sql = RECEIPT_SELECT + " WHERE p.user_id = ? AND s.auction_id < ? AND "
+                + role + " AND (? = 'ALL' OR s.outcome = ?) AND (LOWER(s.product_name) LIKE ? OR LOWER(s.product_code) LIKE ? OR CAST(s.auction_id AS CHAR(20)) = ?) ORDER BY s.auction_id DESC LIMIT ?";
         try (var connection = factory.openDatabase(); var query = connection.prepareStatement(sql)) {
             query.setLong(1, user); query.setLong(2, before); query.setString(3, outcome); query.setString(4, outcome);
             query.setString(5, "%" + search.toLowerCase(Locale.ROOT) + "%"); query.setString(6, "%" + search.toLowerCase(Locale.ROOT) + "%");
@@ -164,6 +193,9 @@ public final class AuctionReceiptStore {
 
     private static Map<String, String> summary(ResultSet rows) throws SQLException {
         Map<String, String> result = new LinkedHashMap<>();
+        result.put("productId", Long.toString(rows.getLong("product_id")));
+        result.put("productDescription", Objects.toString(rows.getString("product_description"), ""));
+        result.put("productThumbnail", thumbnail(rows.getBytes("product_thumbnail")));
         result.put("auctionId", Long.toString(rows.getLong("auction_id"))); result.put("productCode", rows.getString("product_code"));
         result.put("productName", rows.getString("product_name")); result.put("endedAt", rows.getTimestamp("ended_at").toInstant().toString());
         result.put("outcome", rows.getString("outcome")); result.put("winnerDisplay", rows.getString("winner_display"));
@@ -173,14 +205,58 @@ public final class AuctionReceiptStore {
         result.put("anonymousGuests", Boolean.toString(rows.getBoolean("anonymous_guests"))); result.put("personalRole", rows.getString("personal_role")); return result;
     }
 
+    /** Small receipt previews fit within one protocol frame and do not grant room/media access. */
+    private static String thumbnail(byte[] bytes) {
+        if (bytes == null || bytes.length == 0) { return ""; }
+        try (var input = javax.imageio.ImageIO.createImageInputStream(new java.io.ByteArrayInputStream(bytes))) {
+            var readers = javax.imageio.ImageIO.getImageReaders(input);
+            if (!readers.hasNext()) { return ""; }
+            var reader = readers.next();
+            try {
+                reader.setInput(input, true, true);
+                int width = reader.getWidth(0), height = reader.getHeight(0);
+                if (width <= 0 || height <= 0) { return ""; }
+                var parameters = reader.getDefaultReadParam();
+                int sample = Math.max(1, Math.min(width, height) / 120);
+                parameters.setSourceSubsampling(sample, sample, 0, 0);
+                var source = reader.read(0, parameters);
+                double scale = Math.min(1, Math.min(120.0 / source.getWidth(), 120.0 / source.getHeight()));
+                var image = new java.awt.image.BufferedImage(Math.max(1, (int) (source.getWidth() * scale)),
+                        Math.max(1, (int) (source.getHeight() * scale)), java.awt.image.BufferedImage.TYPE_INT_RGB);
+                var graphics = image.createGraphics();
+                try {
+                    graphics.setColor(java.awt.Color.WHITE); graphics.fillRect(0, 0, image.getWidth(), image.getHeight());
+                    graphics.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION, java.awt.RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+                    graphics.drawImage(source, 0, 0, image.getWidth(), image.getHeight(), null);
+                } finally { graphics.dispose(); }
+                var output = new java.io.ByteArrayOutputStream();
+                if (!javax.imageio.ImageIO.write(image, "jpeg", output) || output.size() > 24_000) { return ""; }
+                return Base64.getEncoder().encodeToString(output.toByteArray());
+            } finally { reader.dispose(); }
+        } catch (java.io.IOException | RuntimeException error) { return ""; }
+    }
+
     private static void wallet(Connection connection, long user, long room, Map<String, String> result) throws SQLException {
         String status = "NONE";
-        try (var query = connection.prepareStatement("SELECT status, amount FROM wallet_settlements WHERE auction_id = ? AND (buyer_id = ? OR seller_id = ?)")) {
+        java.math.BigDecimal sellerNet = java.math.BigDecimal.ZERO;
+        try (var query = connection.prepareStatement("SELECT status, amount, fee_rate, platform_fee, base_fee_rate, fee_discount_rate, revenue_rank FROM wallet_settlements WHERE auction_id = ? AND (buyer_id = ? OR seller_id = ?)")) {
             query.setLong(1, room); query.setLong(2, user); query.setLong(3, user);
             try (var rows = query.executeQuery()) {
                 if (rows.next()) {
                     status = rows.getString("status");
                     if (result.get("finalPrice").isBlank() || rows.getBigDecimal("amount").compareTo(new java.math.BigDecimal(result.get("finalPrice"))) != 0) { status = "REVIEW_REQUIRED"; }
+                    var amount = rows.getBigDecimal("amount"); var fee = rows.getBigDecimal("platform_fee"); var rate = rows.getBigDecimal("fee_rate");
+                    sellerNet = amount.subtract(fee);
+                    if (fee.signum() < 0 || fee.compareTo(amount) > 0 || rate.signum() < 0
+                            || rate.compareTo(java.math.BigDecimal.ONE) > 0
+                            || amount.multiply(rate).setScale(2, java.math.RoundingMode.HALF_UP).compareTo(fee) != 0) { status = "REVIEW_REQUIRED"; }
+                    result.put("platformFee", fee.toPlainString()); result.put("feeRate", rate.toPlainString());
+                    result.put("sellerNet", sellerNet.toPlainString());
+                    if (rows.getBigDecimal("base_fee_rate").signum() > 0) {
+                        result.put("baseFeeRate", rows.getBigDecimal("base_fee_rate").toPlainString());
+                        result.put("feeDiscountRate", rows.getBigDecimal("fee_discount_rate").toPlainString());
+                        result.put("revenueRank", Integer.toString(rows.getInt("revenue_rank")));
+                    }
                 }
             }
         }
@@ -205,7 +281,7 @@ public final class AuctionReceiptStore {
                     String type = rows.getString("entry_type"); release |= "RELEASE".equals(type); reserve |= "RESERVE".equals(type);
                     purchase |= "PURCHASE".equals(type) && rows.getBigDecimal("amount").compareTo(finalPrice.negate()) == 0
                             && rows.getBigDecimal("reserved_delta").compareTo(finalPrice.negate()) == 0;
-                    sale |= "SALE".equals(type) && rows.getBigDecimal("amount").compareTo(finalPrice) == 0
+                    sale |= "SALE".equals(type) && rows.getBigDecimal("amount").compareTo(sellerNet) == 0
                             && rows.getBigDecimal("reserved_delta").signum() == 0;
                     review |= "LEGACY_REVIEW".equals(type);
                     String prefix = "entry." + count++ + ".";

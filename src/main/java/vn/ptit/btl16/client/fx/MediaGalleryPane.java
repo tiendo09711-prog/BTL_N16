@@ -41,7 +41,7 @@ public final class MediaGalleryPane extends BorderPane implements AutoCloseable 
     private boolean closed;
 
     public MediaGalleryPane(ProductMediaApi api) {
-        this.api = api; setPadding(new Insets(12)); setStyle("-fx-background-color: #eef5f4;");
+        this.api = api; setPadding(new Insets(12)); getStyleClass().add("media-gallery");
         setMinSize(300, 270); canvas.setMinSize(0, 0);
         Button previous = button("\u2039 Tr\u01b0\u1edbc", () -> select(selected - 1));
         Button next = button("Sau \u203a", () -> select(selected + 1));

@@ -227,6 +227,7 @@ public final class LiveAuctionRoom {
                 : Duration.between(auction.getStartTime(), auction.getEndTime()).toMillis();
         timeProgress.setProgress(!auction.isOpen() || total <= 0 ? 0 : Math.min(1, (double) remaining / total));
         timeProgress.getStyleClass().remove("urgent");
+        AuctionDeadlineStyle.update(deadline, auction, now);
         if (auction.isOpen() && remaining <= 30000) { timeProgress.getStyleClass().add("urgent"); }
         deadline.setText(auction.getEndTime() == null ? "Ch\u01b0a c\u00f3 m\u1ed1c th\u1eddi gian"
                 : (!auction.isOpen() ? "Phi\u00ean \u0111\u00e3 \u0111\u00f3ng" : expired ? "\u0110ang ch\u1edd k\u1ebft qu\u1ea3" : remaining <= 30000
@@ -252,6 +253,7 @@ public final class LiveAuctionRoom {
 
     public void clear() {
         auction = null;
+        AuctionDeadlineStyle.update(deadline, null, Instant.now());
         dataState = "READY";
         bids = List.of();
         plotted = List.of();

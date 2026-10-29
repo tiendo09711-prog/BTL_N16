@@ -8,6 +8,9 @@ config/server-local.properties
 config/client-local.properties
 /dist/
 /tools/media/*.exe
+/tools/speech/piper/
+/tools/speech/*.onnx
+/tools/speech/*.onnx.json
 
 # Generated archives and release bundles
 *.zip

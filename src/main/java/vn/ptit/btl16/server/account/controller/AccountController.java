@@ -33,7 +33,7 @@ public final class AccountController {
                     context.value("email"),
                     context.value("phone"));
             Map<String, String> data = profileData(user);
-            data.put("message", "Dang ky thanh cong");
+            data.put("message", "Đăng ký thành công");
             context.replySuccess(MessageType.REGISTER_RESULT, data);
         } finally {
             Arrays.fill(password, '\0');
@@ -49,7 +49,7 @@ public final class AccountController {
                     context.getConnection().getConnectionId(),
                     context.getConnection().getRemoteAddress());
             Map<String, String> data = loginData(result);
-            data.put("message", "Dang nhap thanh cong");
+            data.put("message", "Đăng nhập thành công");
             context.replySuccess(MessageType.LOGIN_RESULT, data);
         } finally {
             Arrays.fill(password, '\0');
@@ -62,7 +62,7 @@ public final class AccountController {
                 context.getConnection().getConnectionId(),
                 context.getConnection().getRemoteAddress());
         Map<String, String> data = loginData(result);
-        data.put("message", "Phuc hoi session thanh cong");
+        data.put("message", "Khôi phục phiên đăng nhập thành công");
         context.replySuccess(MessageType.RESUME_SESSION_RESULT, data);
     }
 
@@ -72,7 +72,7 @@ public final class AccountController {
         accounts.logout(connectionId);
         context.replySuccess(
                 MessageType.LOGOUT_RESULT,
-                Map.of("message", "Da dang xuat"));
+                Map.of("message", "Đã đăng xuất"));
     }
 
     public void handleGetProfile(RequestContext context) throws Exception {
@@ -87,7 +87,7 @@ public final class AccountController {
                 context.value("email"),
                 context.value("phone"));
         Map<String, String> data = profileData(user);
-        data.put("message", "Cap nhat ho so thanh cong");
+        data.put("message", "Cập nhật hồ sơ thành công");
         context.replySuccess(MessageType.UPDATE_PROFILE_RESULT, data);
     }
 
@@ -101,7 +101,7 @@ public final class AccountController {
                     newPassword);
             context.replySuccess(
                     MessageType.CHANGE_PASSWORD_RESULT,
-                    Map.of("message", "Doi mat khau thanh cong"));
+                    Map.of("message", "Đổi mật khẩu thành công"));
         } finally {
             Arrays.fill(currentPassword, '\0');
             Arrays.fill(newPassword, '\0');
@@ -123,6 +123,7 @@ public final class AccountController {
         data.put("userId", Long.toString(user.getUserId()));
         data.put("username", user.getUsername());
         data.put("displayName", user.getDisplayName());
+        data.put("friendCode", user.getFriendCode());
         data.put("email", user.getEmail());
         data.put("phone", user.getPhone());
         data.put("active", Boolean.toString(user.isActive()));

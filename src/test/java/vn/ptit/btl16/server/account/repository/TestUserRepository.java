@@ -44,6 +44,12 @@ public final class TestUserRepository implements UserRepository {
     }
 
     @Override
+    public Optional<UserAccount> findByDisplayNameAndFriendCode(String displayName, String friendCode) {
+        return byId.values().stream().filter(user -> user.getDisplayName().equalsIgnoreCase(displayName)
+                && user.getFriendCode().equals(friendCode)).findFirst();
+    }
+
+    @Override
     public boolean existsByUsername(String normalizedUsername) {
         return idByUsername.containsKey(normalize(normalizedUsername));
     }
@@ -60,6 +66,12 @@ public final class TestUserRepository implements UserRepository {
             throw new RepositoryException("Username already exists", null);
         }
         long id = ids.incrementAndGet();
+        int start = AccountTags.randomStart(); String friendCode = null;
+        for (int attempt = 0; attempt < 10_000; attempt++) {
+            String candidate = AccountTags.candidate(start, attempt);
+            if (findByDisplayNameAndFriendCode(displayName, candidate).isEmpty()) { friendCode = candidate; break; }
+        }
+        if (friendCode == null) { throw new RepositoryException("No friend tags available", null); }
         Instant now = Instant.now();
         UserAccount user = new UserAccount(
                 id,
@@ -73,7 +85,7 @@ public final class TestUserRepository implements UserRepository {
                 true,
                 now,
                 now,
-                null);
+                null, friendCode);
         byId.put(id, user);
         idByUsername.put(username, id);
         return id;
@@ -84,6 +96,9 @@ public final class TestUserRepository implements UserRepository {
         UserAccount old = byId.get(userId);
         if (old == null) {
             return false;
+        }
+        if (findByDisplayNameAndFriendCode(displayName, old.getFriendCode()).filter(user -> user.getUserId() != userId).isPresent()) {
+            throw new vn.ptit.btl16.server.account.service.AccountException(vn.ptit.btl16.common.protocol.ErrorCode.VALIDATION_ERROR, "Tên hiển thị và mã kết bạn đã tồn tại");
         }
         byId.put(userId, copy(
                 old,
@@ -157,7 +172,7 @@ public final class TestUserRepository implements UserRepository {
                 old.isActive(),
                 old.getCreatedAt(),
                 Instant.now(),
-                lastLogin);
+                lastLogin, old.getFriendCode());
     }
 
     private String normalize(String username) {

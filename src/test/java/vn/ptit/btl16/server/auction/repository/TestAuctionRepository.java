@@ -61,6 +61,12 @@ public final class TestAuctionRepository implements AuctionRepository {
     private final ConcurrentHashMap<Long, AuctionResult> results = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Long, Set<Long>> blockedUsersByAuction = new ConcurrentHashMap<>();
     private final AtomicLong productIds = new AtomicLong();
+    private long nextProductNumber = 1;
+    private String allocateProductCode() {
+        String code;
+        do { code = "MH" + nextProductNumber++; } while (findProductByCode(code).isPresent());
+        return code;
+    }
     private final AtomicLong auctionIds = new AtomicLong();
     private final AtomicLong bidIds = new AtomicLong();
 
@@ -82,8 +88,6 @@ public final class TestAuctionRepository implements AuctionRepository {
         Product current = commit.productId() == 0 ? null : products.get(commit.productId());
         if (commit.productId() != 0 && (current == null || current.getOwnerId() != commit.ownerId())) { throw new AuctionException(ErrorCode.AUCTION_FORBIDDEN, "Not owner"); }
         if (current != null && hasAuctionsForProduct(commit.productId())) { throw new AuctionException(ErrorCode.PRODUCT_FROZEN, "Frozen product"); }
-        Optional<Product> duplicate = findProductByCode(commit.code());
-        if (duplicate.isPresent() && duplicate.get().getProductId() != commit.productId()) { throw new AuctionException(ErrorCode.PRODUCT_CODE_EXISTS, "Duplicate code"); }
         for (ProductMedia media : commit.media()) {
             var existing = findMedia(media.id());
             if (existing.isPresent() && (commit.productId() == 0 || existing.get().productId() != commit.productId())) { throw new AuctionException(ErrorCode.AUCTION_FORBIDDEN, "Media belongs to other product"); }
@@ -91,7 +95,7 @@ public final class TestAuctionRepository implements AuctionRepository {
         long id = current == null ? productIds.incrementAndGet() : current.getProductId();
         ProductMedia cover = commit.media().stream().filter(ProductMedia::image).findFirst().orElseThrow();
         Instant now = Instant.now();
-        Product product = new Product(id, commit.ownerId(), commit.ownerUsername(), commit.code(), commit.name(), commit.description(),
+        Product product = new Product(id, commit.ownerId(), commit.ownerUsername(), current == null ? allocateProductCode() : current.getCode(), commit.name(), commit.description(),
                 current == null || current.isActive(), current == null ? now : current.getCreatedAt(), now, true, "image/jpeg", cover.name(),
                 (int) cover.bytes(), current == null ? 1 : current.getImageVersion() + 1);
         List<ProductMedia> attached = new ArrayList<>();
@@ -175,13 +179,10 @@ public final class TestAuctionRepository implements AuctionRepository {
 
     @Override
     public synchronized Product createProduct(CreateProductCommit commit) {
-        if (findProductByCode(commit.getCode()).isPresent()) {
-            throw new AuctionRepositoryException("Product code already exists");
-        }
         long productId = productIds.incrementAndGet();
         Product product = new Product(
                 productId, commit.getOwnerId(), commit.getOwnerUsername(),
-                commit.getCode(), commit.getName(), commit.getDescription(),
+                allocateProductCode(), commit.getName(), commit.getDescription(),
                 true, commit.getCreatedAt(), commit.getCreatedAt(), commit.hasImage(),
                 commit.getImageMime(), commit.getImageName(),
                 commit.hasImage() ? commit.getImageData().length : 0,
@@ -204,10 +205,6 @@ public final class TestAuctionRepository implements AuctionRepository {
         if (current == null || current.getOwnerId() != commit.getOwnerId()) {
             throw new AuctionRepositoryException("Product was not found for owner");
         }
-        Optional<Product> duplicate = findProductByCode(commit.getCode());
-        if (duplicate.isPresent() && duplicate.get().getProductId() != commit.getProductId()) {
-            throw new AuctionRepositoryException("Product code already exists");
-        }
         long imageVersion = current.getImageVersion();
         boolean hasImage = current.hasImage();
         String imageMime = current.getImageMime();
@@ -224,7 +221,7 @@ public final class TestAuctionRepository implements AuctionRepository {
         }
         Product updated = new Product(
                 current.getProductId(), current.getOwnerId(), current.getOwnerUsername(),
-                commit.getCode(), commit.getName(), commit.getDescription(),
+                current.getCode(), commit.getName(), commit.getDescription(),
                 current.isActive(), current.getCreatedAt(), commit.getUpdatedAt(), hasImage,
                 imageMime, imageName, imageSize, imageVersion);
         products.put(updated.getProductId(), updated);

@@ -49,6 +49,7 @@ public final class CoreAccountModule implements ServerModule {
         router.register(MessageType.PING, false, context -> {
             Map<String, String> data = new LinkedHashMap<>();
             data.put("serverStatus", "UP");
+            data.put("auctionScheduling", "true");
             data.put("serverNow", Instant.now().toString());
             data.put("activeConnections", Integer.toString(connections.size()));
             data.put("onlineUsers", Integer.toString(sessions.activeCount()));

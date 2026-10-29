@@ -18,6 +18,7 @@ public final class WalletController {
         this.sessions = sessions;
     }
     public void register(MessageRouter router) {
+        new VaultController(wallets.vault(), sessions).register(router);
         router.register(MessageType.GET_WALLET, true, context -> {
             if (context.value("auctionId").isBlank()) {
                 reply(context, MessageType.WALLET_RESULT);
@@ -32,19 +33,25 @@ public final class WalletController {
             wallets.submit(context.requireSession().getUserId(), context.value("requestId"), new BigDecimal(context.value("amount")));
             reply(context, MessageType.REQUEST_TOPUP_RESULT);
         });
+        router.register(MessageType.REQUEST_WITHDRAWAL, true, context -> {
+            current(context);
+            wallets.submitWithdrawal(context.requireSession().getUserId(), context.value("requestId"), new BigDecimal(context.value("amount")));
+            reply(context, MessageType.REQUEST_WITHDRAWAL_RESULT);
+        });
         router.register(MessageType.GET_WALLET_ENTRIES, true, context -> {
             var data = context.getRequest().getData();
             var result = wallets.entryPage(context.requireSession().getUserId(),
                     context.value("auctionId").isBlank() ? null : WireValues.requireLong(data, "auctionId"), context.value("type"),
                     context.value("from").isBlank() ? null : java.time.Instant.parse(context.value("from")),
                     context.value("to").isBlank() ? null : java.time.Instant.parse(context.value("to")),
-                    context.value("beforeId").isBlank() ? Long.MAX_VALUE : WireValues.requireLong(data, "beforeId"), 50);
+                    context.value("beforeId").isBlank() ? Long.MAX_VALUE : WireValues.requireLong(data, "beforeId"), 50,
+                    Boolean.parseBoolean(context.value("hideReservations")), Boolean.parseBoolean(context.value("hideLegacyReview")));
             current(context); context.replySuccess(MessageType.WALLET_ENTRIES_RESULT, result);
         });
     }
     private void reply(RequestContext context, MessageType type) throws Exception {
         long userId = context.requireSession().getUserId();
-        var result = WalletWire.encode(wallets.account(userId), wallets.requests(userId, false), wallets.entries(userId));
+        var result = WalletWire.encode(wallets.account(userId), wallets.requests(userId, false), wallets.entries(userId), wallets.withdrawals(userId, false));
         current(context); context.replySuccess(type, result);
     }
     private void current(RequestContext context) {

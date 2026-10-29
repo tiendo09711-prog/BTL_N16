@@ -11,6 +11,8 @@ public final class LobbyQuery {
                                              boolean hosted, String mode, String query, String order, Instant now) {
         String text = query.strip().toLowerCase(Locale.ROOT);
         Comparator<ClientAuction> sort = switch (order) {
+            case "NEWEST" -> Comparator.comparingLong(ClientAuction::getAuctionId).reversed();
+            case "STARTING" -> Comparator.comparing(ClientAuction::getStartTime, Comparator.nullsLast(Comparator.naturalOrder()));
             case "PRICE_ASC" -> Comparator.comparing(ClientAuction::getCurrentPrice);
             case "PRICE_DESC" -> Comparator.comparing(ClientAuction::getCurrentPrice).reversed();
             default -> Comparator.comparing(ClientAuction::getEndTime, Comparator.nullsLast(Comparator.naturalOrder()));
@@ -19,7 +21,8 @@ public final class LobbyQuery {
                 .filter(value -> identity.equals("ALL") || value.hasAnonymousGuests() == identity.equals("ANONYMOUS"))
                 .filter(value -> !hosted || value.isHostedBy(user))
                 .filter(value -> text.isEmpty() || (!mode.equals("PRODUCT_NAME") && Long.toString(value.getAuctionId()).contains(text))
-                        || (!mode.equals("ROOM_ID") && value.getProductName().toLowerCase(Locale.ROOT).contains(text)))
+                        || (!mode.equals("ROOM_ID") && value.getProductName().toLowerCase(Locale.ROOT).contains(text))
+                        || (mode.equals("ALL") && value.getHostUsername().toLowerCase(Locale.ROOT).contains(text)))
                 .sorted(sort.thenComparingLong(ClientAuction::getAuctionId)).toList();
     }
     public static List<ClientAuction> page(List<ClientAuction> filtered, int page, int size) {

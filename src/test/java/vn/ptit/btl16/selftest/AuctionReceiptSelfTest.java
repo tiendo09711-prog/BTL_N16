@@ -47,9 +47,17 @@ public final class AuctionReceiptSelfTest {
             TestSupport.equals(1L, count(factory, "SELECT COUNT(*) FROM wallet_entries WHERE reference_key = 'BUY:" + room + "'"), "one purchase entry");
             TestSupport.equals(1L, count(factory, "SELECT COUNT(*) FROM wallet_entries WHERE reference_key = 'SELL:" + room + "'"), "one sale entry");
             var winner = repository.personalReceipt(2, room); var loser = repository.personalReceipt(3, room); var host = repository.personalReceipt(1, room); var watcher = repository.personalReceipt(4, room);
+            TestSupport.equals(Long.toString(auction.getProduct().getProductId()), winner.get("productId"), "receipt includes its own product");
+            TestSupport.equals(TestMedia.DESCRIPTION, winner.get("productDescription"), "receipt includes the frozen product description");
+            byte[] previewBytes = Base64.getDecoder().decode(winner.get("productThumbnail"));
+            var preview = javax.imageio.ImageIO.read(new java.io.ByteArrayInputStream(previewBytes));
+            TestSupport.check(preview != null && preview.getWidth() <= 120 && preview.getHeight() <= 120 && previewBytes.length <= 24_000, "receipt includes a bounded first-image thumbnail");
+            TestSupport.equals(winner.get("productThumbnail"), repository.personalReceipts(2, "WON", "ALL", "", Long.MAX_VALUE, 30).get("receipt.0.productThumbnail"), "list and detail show the same first product image");
             TestSupport.equals("WINNER", winner.get("personalRole"), "confirmed winner role"); TestSupport.equals("PAID", winner.get("walletStatus"), "purchase ledger confirms payment");
             TestSupport.equals("NOT_WON", loser.get("personalRole"), "loser role"); TestSupport.equals("RELEASED", loser.get("walletStatus"), "loser sees real release");
             TestSupport.equals("HOST", host.get("personalRole"), "host role"); TestSupport.equals("PAID", host.get("walletStatus"), "sale ledger confirms credit");
+            TestSupport.equals("13.00", host.get("platformFee"), "first sale pays ten percent without a prior rank");
+            TestSupport.equals("117.00", host.get("sellerNet"), "seller receives net proceeds");
             TestSupport.equals("WATCHED", watcher.get("personalRole"), "departed watcher retains minimal receipt"); TestSupport.equals("NONE", watcher.get("walletStatus"), "watcher never sees participant wallet");
             TestSupport.equals("0", watcher.get("entryCount"), "watcher ledger empty"); TestSupport.equals("3", winner.get("totalBids"), "whole-session count from cluster2");
             TestSupport.equals("2", winner.get("uniqueBidders"), "distinct bidders"); TestSupport.equals("1", winner.get("extensionCount"), "persisted extension count");
@@ -92,8 +100,31 @@ public final class AuctionReceiptSelfTest {
             repository.blockAuctionUser(new BlockAuctionUserCommit(room, 4, 1, Instant.now()));
             TestSupport.equals("WATCHED", repository.personalReceipt(4, room).get("personalRole"), "kick does not erase own minimal receipt");
             network(factory, repository, room);
+            feeTiers(factory, repository);
             System.out.println("[PASS] AuctionReceiptSelfTest: durable atomic receipts/restart/backfill, exactly-once concurrent close, rollback, roles, real ledger/reconciliation, private/anonymous authorization and disconnect at closure");
         } finally { restore("btl16.server.config", oldConfig); restore("btl16.dataDir", oldData); }
+    }
+    private static void feeTiers(JdbcConnectionFactory factory, JdbcAuctionRepository repository) throws Exception {
+        TestSupport.equals(new BigDecimal("0.05"), vn.ptit.btl16.common.util.AuctionFees.fee(new BigDecimal("0.50")), "fee rounds half up to cents");
+        TestSupport.equals(new BigDecimal("100000000.00"), vn.ptit.btl16.common.util.AuctionFees.fee(new BigDecimal("999999999.99")), "price below a billion uses ten percent before discount");
+        execute(factory, "UPDATE users SET wallet_balance=wallet_balance+4000000000 WHERE user_id=2");
+        for (int value : new int[]{999999999, 1000000000, 1000000001}) {
+            long room = room(repository, "FEE_" + value, false, 600).getAuctionId();
+            bid(repository, room, 2, value); close(repository, factory, room);
+            var receipt = repository.personalReceipt(1, room);
+            BigDecimal price = BigDecimal.valueOf(value);
+            TestSupport.equals("PAID", receipt.get("walletStatus"), "net sale ledger reconciles at threshold " + value);
+            TestSupport.check(new BigDecimal(receipt.get("feeRate")).compareTo(new BigDecimal(value <= 1000000000 ? "0.05" : "0.10")) == 0, "base tax minus rank one reduction at " + value);
+            TestSupport.equals(Map.of(999999999, "49999999.95", 1000000000, "50000000.00", 1000000001, "100000000.10").get(value), receipt.get("platformFee"), "persisted tier fee");
+            TestSupport.check(new BigDecimal(receipt.get("sellerNet")).add(new BigDecimal(receipt.get("platformFee"))).compareTo(price) == 0, "net plus fee equals buyer payment");
+            TestSupport.check(repository.closeAuction(expire(factory, repository, room)).isEmpty(), "fee cannot be charged twice");
+            execute(factory, "UPDATE wallet_settlements SET platform_fee=0,fee_rate=0 WHERE auction_id=" + room);
+            execute(factory, "UPDATE wallet_entries SET amount=" + value + " WHERE reference_key='SELL:" + room + "'");
+            DatabaseSchema.initialize(factory);
+            var legacy = repository.personalReceipt(1, room);
+            TestSupport.equals("0.00", legacy.get("platformFee"), "old zero-fee settlement is not recalculated during migration");
+            TestSupport.equals("PAID", legacy.get("walletStatus"), "zero-fee historical receipt still reconciles");
+        }
     }
 
     private static void rollback(JdbcConnectionFactory factory, JdbcAuctionRepository repository) throws Exception {
@@ -102,6 +133,7 @@ public final class AuctionReceiptSelfTest {
         boolean failed = false; try { repository.closeAuction(commit); } catch (AuctionRepositoryException expected) { failed = true; }
         TestSupport.check(failed, "receipt FK failure injected"); TestSupport.equals(AuctionStatus.OPEN, repository.findAuctionById(room).orElseThrow().getStatus(), "receipt failure rolls back closure");
         TestSupport.equals(0L, count(factory, "SELECT COUNT(*) FROM wallet_entries WHERE reference_key='BUY:" + room + "'"), "receipt failure rolls back payment");
+        TestSupport.equals(0L, count(factory, "SELECT COUNT(*) FROM wallet_settlements WHERE auction_id=" + room), "receipt failure also rolls back platform fee");
         TestSupport.equals(0L, count(factory, "SELECT COUNT(*) FROM auction_results WHERE auction_id=" + room), "receipt failure rolls back result");
         TestSupport.equals(1L, count(factory, "SELECT COUNT(*) FROM wallet_holds WHERE auction_id=" + room), "hold restored by rollback");
         execute(factory, "DELETE FROM room_events WHERE actor_id=999"); TestSupport.check(repository.closeAuction(commit).isPresent(), "retry after rollback succeeds once");

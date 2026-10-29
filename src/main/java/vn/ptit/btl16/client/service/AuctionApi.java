@@ -5,6 +5,7 @@ import vn.ptit.btl16.common.protocol.MessageType;
 import vn.ptit.btl16.common.util.Money;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -19,6 +20,10 @@ public final class AuctionApi {
 
     public CompletableFuture<ApiResponse> listAuctions() {
         return request(MessageType.AUCTION_LIST, Map.of());
+    }
+
+    public CompletableFuture<ApiResponse> featuredAuctions() {
+        return request(MessageType.GET_FEATURED_AUCTIONS, Map.of());
     }
 
     public CompletableFuture<ApiResponse> mediaEndpoint() {
@@ -97,6 +102,10 @@ public final class AuctionApi {
                 "productId", Long.toString(productId)));
     }
 
+    public CompletableFuture<ApiResponse> deleteProduct(long productId) {
+        return request(MessageType.DELETE_PRODUCT, Map.of("productId", Long.toString(productId)));
+    }
+
     public CompletableFuture<ApiResponse> restoreProduct(long productId) {
         return request(MessageType.RESTORE_PRODUCT, Map.of(
                 "productId", Long.toString(productId)));
@@ -127,6 +136,13 @@ public final class AuctionApi {
     public CompletableFuture<ApiResponse> createAuction(long productId, BigDecimal startPrice,
             BigDecimal minBidIncrement, int durationMinutes, String visibility, String roomPassword,
             boolean anonymousGuests) {
+        return createAuction(productId, startPrice, minBidIncrement, durationMinutes, visibility,
+                roomPassword, anonymousGuests, null);
+    }
+
+    public CompletableFuture<ApiResponse> createAuction(long productId, BigDecimal startPrice,
+            BigDecimal minBidIncrement, int durationMinutes, String visibility, String roomPassword,
+            boolean anonymousGuests, Instant startTime) {
         Map<String, String> data = new LinkedHashMap<>();
         data.put("productId", Long.toString(productId));
         data.put("startPrice", Money.wire(startPrice));
@@ -135,7 +151,19 @@ public final class AuctionApi {
         data.put("visibility", visibility == null ? "PUBLIC" : visibility);
         data.put("roomPassword", roomPassword == null ? "" : roomPassword);
         data.put("anonymousGuests", Boolean.toString(anonymousGuests));
-        return request(MessageType.CREATE_AUCTION, data);
+        if (startTime != null) { data.put("startTime", startTime.toString()); }
+        if (startTime == null) { return request(MessageType.CREATE_AUCTION, data); }
+        // Older servers ignore unknown fields, which would silently start a scheduled room immediately.
+        return request(MessageType.PING, Map.of()).thenCompose(server -> {
+            if (!server.isSuccess()) { return CompletableFuture.completedFuture(server); }
+            if (!"true".equals(server.get("auctionScheduling"))) {
+                return CompletableFuture.completedFuture(new ApiResponse(
+                        vn.ptit.btl16.common.protocol.WireMessage.response(MessageType.CREATE_AUCTION_RESULT, null, 0,
+                                Map.of("success", "false", "errorCode", "VALIDATION_ERROR", "message",
+                                        "Server đang chạy bản cũ chưa hỗ trợ hẹn giờ. Hãy cập nhật và khởi động lại Server, sau đó tạo phòng lại."))));
+            }
+            return request(MessageType.CREATE_AUCTION, data);
+        });
     }
 
     public CompletableFuture<ApiResponse> myAuctions() {

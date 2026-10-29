@@ -87,11 +87,12 @@ public final class RoomProgressUiSelfTest {
         data.putAll(Map.of("member.0.participantId", "1", "member.0.name", "Chu phong", "member.0.host", "true", "member.0.self", "true", "member.0.kickReason", "HOST"));
         data.putAll(Map.of("member.1.participantId", "-1", "member.1.name", "Khach #1", "member.1.leading", "true", "member.1.canKick", "false", "member.1.kickReason", "HAS_VALID_BID"));
         network.complete(MessageType.GET_ROOM_SOCIAL, data); drain();
-        var scene = fx(() -> { var sceneValue = new Scene(pane, 620, 480); DesktopTheme.apply(sceneValue); ((TabPane) field(pane, "tabs")).getSelectionModel().select(1); pane.applyCss(); pane.layout(); return sceneValue; });
+        var scene = fx(() -> { var sceneValue = new Scene(pane, 620, 480); DesktopTheme.apply(sceneValue); ((TitledPane) pane.lookup("#room-chat-members")).setExpanded(true); pane.applyCss(); pane.layout(); return sceneValue; });
         TestSupport.check(fx(() -> labels(scene).contains("B\u1ea1n") && labels(scene).contains("\u0110ang d\u1eabn \u0111\u1ea7u")), "self and leader badges");
         TestSupport.check(fx(() -> labels(scene).contains("bid h\u1ee3p l\u1ec7")), "cannot kick reason visible");
         TestSupport.check(fx(() -> pane.lookupAll(".button").stream().filter(node -> ((Button) node).getText().equals("M\u1eddi ra")).allMatch(javafx.scene.Node::isDisabled)), "valid bidder kick button disabled");
-        TestSupport.equals(3, fx(() -> ((TabPane) field(pane, "tabs")).getTabs().size()), "journal separate from chat and members");
+        TestSupport.equals("Trò chuyện (2)", fx(() -> ((Label) pane.lookup("#room-chat-title")).getText()), "conversation header includes participant count");
+        TestSupport.check(fx(() -> pane.auctionContent().lookupAll(".scroll-pane").isEmpty()), "left auction content flows without nested viewports");
         fx(() -> { pane.clear(); return null; });
     }
 

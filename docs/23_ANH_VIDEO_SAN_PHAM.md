@@ -2,11 +2,14 @@
 
 ## Sử dụng JavaFX
 
-- Nếu nút **Lưu sản phẩm** bị mờ, đọc thông báo ngay cạnh nút: ví dụ mô tả `Oke nhé` mới có **7/50 ký tự**, còn thiếu 43 ký tự. Đây là điều kiện dữ liệu, không phải lỗi XAMPP. Bộ đếm bỏ khoảng trắng đầu/cuối và đếm ký tự Unicode; mã, tên, số lượng ảnh và trạng thái tải cũng phải hợp lệ.
+- Mã sản phẩm do hệ thống tự cấp theo dạng **MH1, MH2, MH3…** khi lưu thành công; ô mã chỉ để xem. Không cần nhập mã khi thêm sản phẩm và không thể đổi mã khi chỉnh sửa. Mã cũ vẫn được giữ nguyên.
+- Nếu nút **Lưu sản phẩm** bị mờ, đọc thông báo ngay cạnh nút: ví dụ mô tả `Oke nhé` mới có **7/50 ký tự**, còn thiếu 43 ký tự. Đây là điều kiện dữ liệu, không phải lỗi XAMPP. Bộ đếm bỏ khoảng trắng đầu/cuối và đếm ký tự Unicode; tên, số lượng ảnh và trạng thái tải cũng phải hợp lệ.
 - **Sẵn sàng** ở từng ảnh chỉ có nghĩa ảnh đã tải lên **bản nháp trên server**, chưa có nghĩa sản phẩm đã lưu. Phải bấm **Lưu sản phẩm** để ghi metadata và toàn bộ nội dung ảnh/video vào MySQL. Hủy/đóng cửa sổ trước khi lưu sẽ hủy bản nháp. Thanh thông báo và nút lưu luôn nằm ngoài vùng cuộn; cửa sổ tự giới hạn theo vùng màn hình khả dụng.
 - Khi **Vào phòng**, giao diện chuyển sang không gian riêng: ảnh lớn và mô tả bên trái; giá hiện tại, thời gian, ô đặt giá, bước giá gợi ý và lịch sử mới nhất bên phải. Các nút gợi ý chỉ điền giá, không tự gửi lệnh. **Rời** đưa bạn về danh sách phòng; quyền đặt giá/quản lý vẫn do server kiểm tra.
 
 ## Server, database và XAMPP
+
+- Nếu tải cả ảnh lẫn video đều báo **Chua cai bo xu ly FFmpeg/ffprobe tren may server [MEDIA_PROCESSING_FAILED]**, chạy `powershell -ExecutionPolicy Bypass -File tools/prepare-media.ps1` tại thư mục dự án trên máy Server. Công cụ phải có trong `tools/media` khi chạy source; chỉ có trong thư mục `dist` chưa đủ. Script kiểm tra SHA-256, dùng lại bộ công cụ hợp lệ đang có hoặc khôi phục từ bản Server đóng gói trước khi tải qua mạng. Sau đó dùng **Thay tệp** để chọn lại các tệp đã lỗi, hoặc mở lại cửa sổ thêm sản phẩm.
 
 - Máy chạy **Server EXE** là nơi lưu dữ liệu chung, duy nhất trong **MySQL của XAMPP**, mặc định `127.0.0.1:3306/btl_16`. Phải bật MySQL trước khi chạy Server; Apache không bắt buộc. Client không cần cài hoặc kết nối DB. Không còn H2 hay kho ảnh/video lâu dài trong AppData.
 - Ảnh/video đã lưu nằm trong `media_content` của MySQL. Upload và xử lý chỉ dùng RAM, không tạo tệp staging/cache. Khi xem, server stream trực tiếp các đoạn BLOB từ DB. Sao lưu/chuyển máy chỉ cần toàn bộ database, không có kho media riêng.
@@ -14,7 +17,7 @@
 
 ## Thao tác media
 
-- Trong **Sản phẩm của tôi**, chọn **Thêm sản phẩm** hoặc **Sửa**. Mô tả bắt buộc 50-2000 ký tự sau khi bỏ khoảng trắng ở đầu/cuối; tự ghi đặc điểm, tình trạng và khiếm khuyết nếu có.
+- Trong **Sản phẩm bán**, chọn **Thêm sản phẩm** hoặc mở dấu ba chấm của sản phẩm rồi chọn **Sửa**. Mô tả bắt buộc 50-2000 ký tự sau khi bỏ khoảng trắng ở đầu/cuối; tự ghi đặc điểm, tình trạng và khiếm khuyết nếu có.
 - **Chọn nhiều ảnh** nhận 1-5 ảnh; **Video** nhận tối đa một video. Video không thay thế ảnh. Tệp được tải và chuẩn hóa từng tệp, không đọc toàn bộ danh sách vào RAM. Thanh tiến độ chuyển sang trạng thái xử lý khi tải xong; lỗi nằm ngay ở tệp tương ứng. Có thể xóa tệp lỗi hoặc dùng **Thay tệp** để thử lại.
 - Chọn ảnh trong danh sách, dùng **Làm đại diện**, các nút lên/xuống, **Thay tệp**, **Xóa**. Ảnh đầu tiên là đại diện. Xem trước ảnh/video trước khi lưu; chỉ lưu khi toàn bộ tệp đã sẵn sàng và đủ thông tin.
 - Cuộn chuột hoặc dùng +/- để zoom, kéo để xem chi tiết, **Vừa khung** để đưa ảnh về ban đầu. **Xoay 90°**, **Chọn vùng cắt**, kéo vùng và **Xác nhận cắt** để chỉnh ảnh. Không tự cắt ảnh. **Đặt lại ảnh gốc** bỏ các chỉnh sửa trong lần biên tập hiện tại; nguồn gốc vẫn được giữ trên server. Xoay lại ảnh sẽ bắt đầu vùng cắt toàn ảnh theo hướng mới.
@@ -27,7 +30,7 @@
 - Ảnh: JPEG/JFIF/JPE, PNG/APNG, BMP, GIF, TIFF, WebP, HEIC/HEIF, AVIF, JPEG 2000, ICO và PNM. Có test tệp HEIC thật, HEIC điện thoại 4032x3024 ghép từ 48 ô, AVIF/JP2/ICO/PPM sinh bằng encoder thật; không chỉ kiểm tra header hay đuôi tệp. GIF/APNG dùng khung đầu; TIFF dùng trang đầu; chưa cam kết phát ảnh động hoặc xem nhiều trang TIFF.
 - JPEG có EXIF hướng xoay đã được thử; hướng được chuẩn hóa trước xoay/cắt. PNG trong suốt được đặt trên nền trắng, không thành nền đen. Ảnh lớn được thu vừa, giữ tỷ lệ; bản chi tiết tối đa cạnh 4096 px, thumbnail tối đa cạnh 360 px, đều là JPEG riêng biệt.
 - Video: MP4/MOV với MPEG-4 + AAC, WebM với VP9 + Opus, MKV/AVI với MPEG-4 + AAC đã được thử. Server nhận diện container/luồng thật bằng ffprobe và giải mã lại; đổi đuôi hoặc MIME không làm tệp lỗi thành hợp lệ. Không cam kết mọi codec trong mọi container.
-- Video được chuyển sang MP4 H.264/AAC, yuv420p, tối đa 1920x1080, 30 fps, fast-start; không tự cắt ngắn video để lách giới hạn thời lượng. Đã kiểm tra phát, tua và điều chỉnh âm lượng bằng JavaFX MediaPlayer thật trên máy Windows hiện tại.
+- Video được chuyển sang MP4 H.264/AAC, yuv420p, tối đa 1920x1080, 30 fps, fast-start; không tự cắt ngắn video để lách giới hạn thời lượng. Việc xem trước phụ thuộc bộ giải mã Windows/JavaFX trên Client. Kiểm tra ngày 26/10/2026: tải và lưu PNG, WebP, MP4 qua editor thành công; `MediaUiSelfTest` còn lỗi `MEDIA_INVALID` ở bước phát video có âm thanh AAC trên máy này. Việc lưu sản phẩm vẫn hoạt động. Thử riêng JavaFX 21.0.9 và 25.0.1 cũng gặp lỗi phát AAC; phiên bản JavaFX của dự án được giữ nguyên.
 - HEIC dạng lưới được ghép đủ ảnh trước khi thu nhỏ, không lấy nhầm một ô 512 px làm cả ảnh; kiểm tra tổng kích thước lưới để không lách quota. Tên viết hoa, tên không có đuôi hoặc đuôi sai không quyết định bộ giải mã. Tệp được chuẩn hóa thành JPEG để client Windows và Mac không phải tự giải mã HEIC/AVIF bằng JavaFX.
 - Không thể cam kết nhận mọi tệp mang tên ảnh: SVG/RAW, dữ liệu hỏng, codec không có trong FFmpeg hoặc tệp vượt quota vẫn bị từ chối. Các biến thể HDR, ảnh chiều sâu/không gian, màu in chuyên nghiệp, mọi hướng xoay của HEIC và mọi thiết bị ghi hình thực tế chưa được kiểm chứng đầy đủ. Giữ giới hạn tài nguyên để tránh làm treo server.
 

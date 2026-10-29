@@ -18,21 +18,21 @@ public final class InputValidation {
     public static void requireValidUsername(String username) {
         if (!USERNAME.matcher(safe(username)).matches()) {
             throw new ValidationException(
-                    "Username must contain 3-30 letters, numbers or underscore characters");
+                    "Tên đăng nhập phải gồm 3-30 chữ cái không dấu, chữ số hoặc dấu gạch dưới");
         }
     }
 
     public static void requireValidPassword(char[] password) {
         int length = password == null ? 0 : password.length;
         if (length < 6 || length > 72) {
-            throw new ValidationException("Password length must be 6-72 characters");
+            throw new ValidationException("Mật khẩu phải có 6-72 ký tự");
         }
     }
 
     public static String cleanDisplayName(String displayName) {
         String value = safe(displayName).trim();
         if (value.isEmpty() || value.length() > 100) {
-            throw new ValidationException("Display name length must be 1-100 characters");
+            throw new ValidationException("Tên hiển thị phải có 1-100 ký tự");
         }
         return value;
     }
@@ -43,7 +43,7 @@ public final class InputValidation {
             return "";
         }
         if (value.length() > 120 || !EMAIL.matcher(value).matches()) {
-            throw new ValidationException("Invalid email");
+            throw new ValidationException("Email không hợp lệ");
         }
         return value;
     }
@@ -54,7 +54,7 @@ public final class InputValidation {
             return "";
         }
         if (!PHONE.matcher(value).matches()) {
-            throw new ValidationException("Invalid phone number");
+            throw new ValidationException("Số điện thoại không hợp lệ");
         }
         return value;
     }

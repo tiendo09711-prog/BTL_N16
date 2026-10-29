@@ -78,8 +78,41 @@ public final class WalletUiSelfTest {
                 Platform.runLater(() -> field(admin, "reject", Button.class).fire()); confirm();
                 waitFor(() -> !field(wallet, "pending", Boolean.class), "client receives rejection");
                 TestSupport.check(server.wallets().account(userId).balance().compareTo(new BigDecimal("5000")) == 0, "reject button preserves existing balance");
+                fx(() -> {
+                    ((TabPane) wallet.lookup("#wallet-money-actions")).getSelectionModel().select(1);
+                    TestSupport.check(wallet.lookup("#wallet-withdrawals-card") != null && wallet.lookup("#wallet-ledger-card") == null, "withdrawal tab shows matching history and ledger has moved to its own page");
+                    field(wallet, "withdrawalAmount", TextField.class).setText("2000"); field(wallet, "withdraw", Button.class).fire(); return null;
+                });
+                waitFor(() -> field(wallet, "withdrawalPending", Boolean.class), "client creates pending withdrawal");
+                TestSupport.check(server.wallets().account(userId).balance().compareTo(new BigDecimal("5000")) == 0, "requesting withdrawal does not debit money");
+                TestSupport.check(fx(() -> field(wallet, "withdraw", Button.class).isDisabled()), "pending withdrawal cannot be resubmitted with a new id");
+                waitFor(() -> field(admin, "pendingWithdrawals", TableView.class).getItems().size() == 1, "withdrawal appears on server approval tab");
+                fx(() -> {
+                    ((TabPane) admin.getCenter()).getSelectionModel().select(2);
+                    field(admin, "pendingWithdrawals", TableView.class).getSelectionModel().selectFirst(); return null;
+                });
+                snapshot(field(wallet, "stage", Stage.class), "wallet-client-withdrawal-pending.png");
+                snapshot(field(admin, "stage", Stage.class), "wallet-server-withdrawal-pending.png");
+                Platform.runLater(() -> field(admin, "approveWithdrawal", Button.class).fire()); confirm();
+                waitFor(() -> server.wallets().account(userId).balance().compareTo(new BigDecimal("3000")) == 0, "server approval button debits exact requested amount");
+                waitFor(() -> !field(wallet, "withdrawalPending", Boolean.class) && field(wallet, "available", Label.class).getText().contains("3.000"), "client polls deducted balance");
+                waitFor(() -> field(admin, "pendingWithdrawals", TableView.class).getItems().isEmpty(), "approved withdrawal leaves pending queue");
+                TestSupport.check(fx(() -> field(wallet, "withdrawals", TableView.class).getItems().stream().anyMatch(value -> ((WithdrawalRequest) value).status().equals("APPROVED"))), "approved request remains in client withdrawal history");
+                snapshot(field(wallet, "stage", Stage.class), "wallet-client-withdrawal-approved.png");
+                fx(() -> { field(wallet, "withdrawalAmount", TextField.class).setText("1000"); field(wallet, "withdraw", Button.class).fire(); return null; });
+                waitFor(() -> field(wallet, "withdrawalPending", Boolean.class) && field(admin, "pendingWithdrawals", TableView.class).getItems().size() == 1, "second withdrawal waits for review");
+                fx(() -> {
+                    field(admin, "pendingWithdrawals", TableView.class).getSelectionModel().selectFirst();
+                    field(admin, "withdrawalRejectionReason", TextField.class).setText("Chưa xác nhận yêu cầu rút"); return null;
+                });
+                Platform.runLater(() -> field(admin, "rejectWithdrawal", Button.class).fire()); confirm();
+                waitFor(() -> !field(wallet, "withdrawalPending", Boolean.class), "withdrawal rejection reaches client");
+                TestSupport.check(server.wallets().account(userId).balance().compareTo(new BigDecimal("3000")) == 0, "reject withdrawal leaves balance unchanged");
+                TestSupport.check(fx(() -> field(wallet, "withdrawals", TableView.class).getItems().stream().anyMatch(value -> ((WithdrawalRequest) value).rejectionReason().equals("Chưa xác nhận yêu cầu rút"))), "client sees rejection reason");
+                fx(() -> { field(wallet, "withdrawalAmount", TextField.class).setText("4000"); field(wallet, "withdraw", Button.class).fire(); return null; });
+                TestSupport.check(fx(() -> field(wallet, "message", Label.class).getText().contains("không đủ")), "client explains insufficient available balance");
                 fx(() -> { field(wallet, "stage", Stage.class).close(); field(admin, "stage", Stage.class).close(); return null; });
-                System.out.println("[PASS] WalletUiSelfTest: real scannable demo QR, Da nhap pending-only, server approve/reject buttons, client live balance, account/profile/ledger details and screenshots");
+                System.out.println("[PASS] WalletUiSelfTest: scannable deposit QR, deposit and withdrawal forms, pending-only submission, server approval/rejection buttons, exact debit, client live balance/history/reason, funds validation and screenshots");
             }
         } finally { fx(() -> { new ArrayList<>(Window.getWindows()).forEach(Window::hide); return null; }); worker.shutdownNow(); Platform.exit(); }
     }

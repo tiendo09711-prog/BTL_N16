@@ -53,9 +53,10 @@ public final class RoomSocialPane extends VBox {
     private final HBox replyBox = new HBox(8, replyPreview, cancelReply);
     private final Label interactionFeedback = DesktopTheme.label("", "muted");
     private final Button retryInteraction = new Button("Th\u1eed l\u1ea1i");
-    private final Tab chatTab = new Tab("Tr\u00f2 chuy\u1ec7n");
-    private final Tab memberTab = new Tab("Ng\u01b0\u1eddi tham gia");
-    private final TabPane tabs = new TabPane(chatTab, memberTab);
+    private final Label chatTitle = DesktopTheme.label("Trò chuyện (0)", "section-title");
+    private final TitledPane memberPane = new TitledPane();
+    private final VBox auctionContent = new VBox(16);
+    private int memberTotal;
     private final TreeMap<Long, Chat> messages = new TreeMap<>();
     private final Map<Long, Map<String, Reaction>> reactions = new HashMap<>();
     private final Map<Long, HBox> reactionBars = new HashMap<>();
@@ -78,6 +79,8 @@ public final class RoomSocialPane extends VBox {
     private java.util.function.Supplier<java.util.concurrent.CompletableFuture<ApiResponse>> failedInteraction;
     private String retryBody = "", retryNonce = "";
     private java.util.function.BiConsumer<ClientSounds.Cue, String> sound = (cue, key) -> { };
+    private java.util.function.BiConsumer<Long, String> friendAction;
+    public void onFriend(java.util.function.BiConsumer<Long, String> action) { friendAction = action; }
     private int unreadCount;
     private javafx.stage.Window owner;
 
@@ -86,55 +89,54 @@ public final class RoomSocialPane extends VBox {
     public RoomSocialPane(ClientTransport transport) {
         this.transport = transport; this.api = new RoomSocialApi(transport);
         this.progress = new RoomProgressPane(transport);
+        progress.setFlowLayout(true);
         getStyleClass().addAll("card", "room-social"); setId("room-social");
-        setMinHeight(0);
+        setMinHeight(Region.USE_PREF_SIZE);
+        chatTitle.setId("room-chat-title");
         privacy.setWrapText(true); feedback.setWrapText(true);
-        scroll.setFitToWidth(true); scroll.setPrefHeight(190); scroll.setMinHeight(55);
+        scroll.setFitToWidth(true); scroll.setPrefHeight(145); scroll.setMinHeight(100); scroll.setMaxHeight(145);
         scroll.getStyleClass().add("social-scroll"); chatRows.setFillWidth(true);
         input.setPromptText("Tr\u00f2 chuy\u1ec7n c\u00f9ng m\u1ecdi ng\u01b0\u1eddi..."); input.setId("room-chat-input");
         send.setId("room-chat-send"); send.getStyleClass().add("primary");
         HBox composer = new HBox(8, input, send); HBox.setHgrow(input, Priority.ALWAYS);
         unread.getStyleClass().add("ghost"); unread.setVisible(false); unread.setManaged(false);
-        unread.setOnAction(event -> { tabs.getSelectionModel().select(chatTab); scroll.setVvalue(1); resetUnread(); });
+        unread.setOnAction(event -> { memberPane.setExpanded(false); scroll.setVvalue(1); resetUnread(); });
         scroll.vvalueProperty().addListener((observable, previous, current) -> { if (!suppressRead && viewingBottom()) { resetUnread(); } });
-        tabs.getSelectionModel().selectedItemProperty().addListener((observable, previous, current) -> { if (viewingBottom()) { resetUnread(); } });
         input.textProperty().addListener((observable, previous, current) -> { counter.setText(current.codePointCount(0, current.length()) + "/500"); updateInput(); });
         input.setOnAction(event -> send()); send.setOnAction(event -> send());
         replyPreview.setWrapText(true); HBox.setHgrow(replyPreview, Priority.ALWAYS);
         replyBox.setId("room-chat-reply-preview"); cancelReply.setId("room-chat-cancel-reply"); cancelReply.setOnAction(event -> cancelReply()); show(replyBox, false);
         VBox chat = new VBox(8, scroll, unread, replyBox, composer, new HBox(10, counter, feedback));
         chat.setMinHeight(0); VBox.setVgrow(scroll, Priority.ALWAYS);
-        ScrollPane memberScroll = new ScrollPane(memberRows); memberScroll.setFitToWidth(true); memberScroll.setPrefHeight(335);
-        memberScroll.getStyleClass().add("social-scroll");
         memberStatus.setId("room-members-status"); memberStatus.setWrapText(true);
         Button retryMembers = new Button("T\u1ea3i l\u1ea1i"); retryMembers.setOnAction(event -> refresh());
-        VBox roster = new VBox(8, memberStatus, retryMembers, memberScroll); roster.setMinHeight(0); VBox.setVgrow(memberScroll, Priority.ALWAYS);
-        chatTab.setContent(chat); memberTab.setContent(roster);
-        tabs.getTabs().add(new Tab("Nh\u1eadt k\u00fd phi\u00ean", progress));
-        tabs.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
-        tabs.setMinHeight(0); VBox.setVgrow(tabs, Priority.ALWAYS);
-        tabs.getStyleClass().add("social-tabs");
+        VBox roster = new VBox(8, memberStatus, retryMembers, memberRows);
+        memberPane.setContent(roster); memberPane.setText("Người trong phòng"); memberPane.setExpanded(false);
+        memberPane.setId("room-chat-members");
+        memberPane.expandedProperty().addListener((observable, before, after) -> { if (!after && viewingBottom()) { resetUnread(); } });
         announcement.setWrapText(true); announcement.setId("room-announcement"); announcementBox.getStyleClass().add("room-announcement");
         editAnnouncement.setId("room-announcement-edit"); editAnnouncement.getStyleClass().add("ghost"); editAnnouncement.setOnAction(event -> editAnnouncement());
         muteStatus.setWrapText(true); muteStatus.setId("room-chat-mute-status"); interactionFeedback.setWrapText(true); interactionFeedback.setId("room-interaction-status");
         retryInteraction.setId("room-interaction-retry"); retryInteraction.setOnAction(event -> { if (failedInteraction != null) { mutate(failedInteraction); } }); show(retryInteraction, false);
-        getChildren().setAll(DesktopTheme.label("KH\u00d4NG GIAN CHUNG", "eyebrow"), privacy, announcementBox, muteStatus, new HBox(8, interactionFeedback, retryInteraction), tabs);
+        getChildren().setAll(chatTitle, privacy, announcementBox, muteStatus,
+                new HBox(8, interactionFeedback, retryInteraction), chat, memberPane);
+        setAuctionPanels(null, null);
         updateInput();
     }
 
+    public VBox auctionContent() { return auctionContent; }
+
     public void setAuctionPanels(Node insights, Node details) {
-        for (Tab tab : new ArrayList<>(tabs.getTabs().subList(3, tabs.getTabs().size()))) {
-            if (tab.getContent() instanceof ScrollPane panel) { panel.setContent(null); }
-            tab.setContent(null); tabs.getTabs().remove(tab);
-        }
-        if (insights != null) { addPanel("Di\u1ec5n bi\u1ebfn gi\u00e1", insights); }
-        if (details != null) { addPanel("Chi ti\u1ebft", details); }
-        tabs.getSelectionModel().select(chatTab);
+        auctionContent.getChildren().clear();
+        addPanel("Nhật ký phiên", progress);
+        if (insights != null) { addPanel("Diễn biến giá", insights); }
+        if (details != null) { addPanel("Chi tiết sản phẩm", details); }
     }
 
     private void addPanel(String title, Node content) {
-        ScrollPane panel = new ScrollPane(content); panel.setFitToWidth(true); panel.setMinHeight(0);
-        panel.getStyleClass().add("social-scroll"); tabs.getTabs().add(new Tab(title, panel));
+        VBox panel = new VBox(12, DesktopTheme.label(title, "section-title"), content);
+        panel.getStyleClass().add("card"); panel.setMinHeight(Region.USE_PREF_SIZE);
+        auctionContent.getChildren().add(panel);
     }
 
     public void setRoom(ClientAuction value, long userId) {
@@ -166,7 +168,7 @@ public final class RoomSocialPane extends VBox {
         reactions.clear(); reactionBars.clear(); chatActions.clear(); hostActions.clear(); observedAfterCursor.clear(); suppressRead = false; mutedUntil = null; muteReason = ""; announcementBody = ""; announcement.setText("");
         failedInteraction = null; interactionFeedback.setText(""); show(retryInteraction, false); cancelReply();
         input.clear(); chatRows.getChildren().clear(); memberRows.getChildren().clear(); feedback.setText(""); resetUnread(); updateInput();
-        tabs.getSelectionModel().select(chatTab);
+        memberTotal = 0; updateUnread(); memberPane.setExpanded(false);
     }
 
     public void tick() {
@@ -187,6 +189,7 @@ public final class RoomSocialPane extends VBox {
             if (!transport.isConnected() || !ok(response, error)) { serverCanChat = false; serverCanInteract = false; memberStatus.setText("Kh\u00f4ng t\u1ea3i \u0111\u01b0\u1ee3c danh s\u00e1ch. B\u1ea5m T\u1ea3i l\u1ea1i; d\u1eef li\u1ec7u hi\u1ec7n c\u00f3 c\u00f3 th\u1ec3 \u0111\u00e3 c\u0169."); updateInput(); return; }
             var data = response.getWireMessage().getData();
             int totalMembers = ClientWireParser.integer(data, "memberTotal", ClientWireParser.integer(data, "memberCount", 0));
+            memberTotal = totalMembers; updateUnread();
             memberStatus.setText(totalMembers + " t\u00e0i kho\u1ea3n \u0111ang trong ph\u00f2ng" + (totalMembers > 200 ? " \u00b7 Ch\u1ec9 hi\u1ec3n th\u1ecb 200 t\u00e0i kho\u1ea3n \u0111\u1ea7u" : ""));
             applyInteraction(data);
             List<Person> next = new ArrayList<>();
@@ -265,7 +268,7 @@ public final class RoomSocialPane extends VBox {
             if (auction != null && message.person().id() == auction.viewerId(actualUserId)) { row.getStyleClass().add("own"); }
             chatRows.getChildren().add(row);
         }
-        memberTab.setText("Ng\u01b0\u1eddi tham gia (" + members.size() + ")");
+        memberPane.setText("Người trong phòng (" + memberTotal + ")");
         for (Person person : members) {
             Label name = new Label(person.toString()); name.setWrapText(true); HBox.setHgrow(name, Priority.ALWAYS);
             HBox row = new HBox(10, avatar(person), name); row.setAlignment(Pos.CENTER_LEFT);
@@ -321,11 +324,17 @@ public final class RoomSocialPane extends VBox {
             if (token != generation || !ok(response, error)) { return; }
             Dialog<Void> dialog = dialog("H\u1ed3 s\u01a1 c\u00f4ng khai");
             Image avatar = image(response.get("avatarBase64")); ImageView view = new ImageView(avatar); view.setFitWidth(80); view.setFitHeight(80);
-            Label name = DesktopTheme.label(response.get("displayName"), "detail-title"); name.setWrapText(true);
+            Label name = DesktopTheme.label(response.get("displayName") + (response.get("friendCode").isBlank() ? "" : " #" + response.get("friendCode")), "detail-title"); name.setWrapText(true);
             Label bio = new Label(response.get("biography").isBlank() ? "Ch\u01b0a c\u00f3 gi\u1edbi thi\u1ec7u." : response.get("biography")); bio.setWrapText(true);
             Label joined = new Label("Tham gia: " + response.get("joinedAt").split("T")[0]);
             Label note = DesktopTheme.label("Email, s\u1ed1 \u0111i\u1ec7n tho\u1ea1i v\u00e0 v\u00ed kh\u00f4ng \u0111\u01b0\u1ee3c chia s\u1ebb.", "muted"); note.setWrapText(true);
-            dialog.getDialogPane().setContent(new VBox(12, view, name, bio, joined, note));
+            VBox content = new VBox(12, view, name, bio, joined, note);
+            if (friendAction != null && id != actualUserId) {
+                Button friend = new Button("Kết bạn / Nhắn tin"); friend.setId("room-profile-friend"); friend.getStyleClass().add("primary");
+                friend.setOnAction(event -> { dialog.close(); if (generation == token) { friendAction.accept(id, response.get("displayName")); } });
+                content.getChildren().add(friend);
+            }
+            dialog.getDialogPane().setContent(content);
             dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE); dialog.show();
         }));
     }
@@ -508,12 +517,12 @@ public final class RoomSocialPane extends VBox {
             });
             remove.setOnAction(event -> { selected[0] = ""; preview.setImage(null); });
             Label note = new Label("T\u1ed1i \u0111a 500 k\u00fd t\u1ef1. \u1ea2nh \u0111\u01b0\u1ee3c thu nh\u1ecf v\u00e0 lo\u1ea1i b\u1ecf metadata. Kh\u00f4ng hi\u1ec7n trong ph\u00f2ng \u1ea9n danh."); note.setWrapText(true);
-            Button publicPreview = new Button("Xem truoc ho so nguoi khac thay");
+            Button publicPreview = new Button("Xem trước hồ sơ người khác thấy");
             publicPreview.setOnAction(event -> {
-                Dialog<Void> view = dialog("Ho so cong khai - xem truoc");
+                Dialog<Void> view = dialog("Hồ sơ công khai - xem trước");
                 ImageView avatar = new ImageView(preview.getImage()); avatar.setFitWidth(80); avatar.setFitHeight(80);
                 Label bio = new Label(biography.getText()); bio.setWrapText(true);
-                Label privacy = new Label("Chi co ten hien thi, ngay tham gia, avatar va gioi thieu. Khach an danh chi hien bi danh; khong xem ho so."); privacy.setWrapText(true);
+                Label privacy = new Label("Chỉ có tên hiển thị, ngày tham gia, ảnh đại diện và giới thiệu. Khách ẩn danh chỉ hiện bí danh; không xem hồ sơ."); privacy.setWrapText(true);
                 view.getDialogPane().setContent(new VBox(10, avatar, new Label(response.get("displayName")), new Label(response.get("joinedAt")), bio, privacy));
                 view.getDialogPane().getButtonTypes().add(ButtonType.CLOSE); view.show();
             });
@@ -541,8 +550,8 @@ public final class RoomSocialPane extends VBox {
         if (error == null && response != null && response.isSuccess()) { return true; }
         feedback.setText(error == null && response != null ? response.getMessageText() : "Kh\u00f4ng th\u1ec3 k\u1ebft n\u1ed1i. H\u00e3y th\u1eed l\u1ea1i."); return false;
     }
-    private boolean viewingBottom() { return tabs.getSelectionModel().getSelectedItem() == chatTab && (scroll.getVvalue() > .95 || messages.isEmpty()); }
-    private void updateUnread() { chatTab.setText("Tr\u00f2 chuy\u1ec7n" + (unreadCount == 0 ? "" : " (" + unreadCount + ")")); unread.setText(unreadCount + " tin nh\u1eafn m\u1edbi \u2193"); show(unread, unreadCount > 0); }
+    private boolean viewingBottom() { return !memberPane.isExpanded() && (scroll.getVvalue() > .95 || messages.isEmpty()); }
+    private void updateUnread() { chatTitle.setText("Trò chuyện (" + memberTotal + ")"); unread.setText(unreadCount + " tin nh\u1eafn m\u1edbi \u2193"); show(unread, unreadCount > 0); }
     private void resetUnread() { unreadCount = 0; updateUnread(); }
     private static Image image(String base64) {
         if (base64 == null || base64.isBlank()) { return null; }

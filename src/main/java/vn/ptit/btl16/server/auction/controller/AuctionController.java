@@ -65,7 +65,7 @@ public final class AuctionController {
                 MessageType.MY_PRODUCTS_RESULT,
                 AuctionWireData.productList(
                         management.myProducts(context.requireSession()),
-                        Instant.now(), management::restorationStatus));
+                        Instant.now(), management::restorationStatus, product -> management.transactionStatus(context.requireSession(), product)));
     }
 
     public void handleUpdateProduct(RequestContext context) throws Exception {
@@ -91,6 +91,12 @@ public final class AuctionController {
         context.replySuccess(
                 MessageType.DEACTIVATE_PRODUCT_RESULT,
                 AuctionWireData.product(product, Instant.now()));
+    }
+
+    public void handleDeleteProduct(RequestContext context) throws Exception {
+        long productId = WireValues.requireLong(context.getRequest().getData(), "productId");
+        management.deleteProduct(context.requireSession(), productId);
+        context.replySuccess(MessageType.DELETE_PRODUCT_RESULT, Map.of("productId", Long.toString(productId)));
     }
 
     public void handleRestoreProduct(RequestContext context) throws Exception {
@@ -134,7 +140,13 @@ public final class AuctionController {
         } catch (IllegalArgumentException exception) {
             throw new AuctionException(
                     vn.ptit.btl16.common.protocol.ErrorCode.VALIDATION_ERROR,
-                    "Loai phong khong hop le");
+                    "Loại phòng không hợp lệ");
+        }
+        Instant startTime;
+        try { startTime = WireValues.optionalInstant(context.getRequest().getData(), "startTime"); }
+        catch (java.time.DateTimeException error) {
+            throw new AuctionException(vn.ptit.btl16.common.protocol.ErrorCode.VALIDATION_ERROR,
+                    "Thời gian bắt đầu không hợp lệ");
         }
         AuctionSnapshot snapshot = management.createAuction(
                 context.requireSession(),
@@ -143,7 +155,8 @@ public final class AuctionController {
                 WireValues.requireDecimal(context.getRequest().getData(), "minBidIncrement"),
                 WireValues.requireInt(context.getRequest().getData(), "durationMinutes"),
                 visibility,
-                context.value("roomPassword"), Boolean.parseBoolean(context.value("anonymousGuests")));
+                context.value("roomPassword"), Boolean.parseBoolean(context.value("anonymousGuests")),
+                startTime);
         context.replySuccess(
                 MessageType.CREATE_AUCTION_RESULT,
                 AuctionWireData.snapshot(snapshot, List.of(), 0, Instant.now()));
@@ -166,6 +179,11 @@ public final class AuctionController {
                 AuctionWireData.auctionList(queries.listAuctions(), rooms, snapshotAt));
     }
 
+    public void handleFeatured(RequestContext context) throws Exception {
+        context.replySuccess(MessageType.FEATURED_AUCTIONS_RESULT,
+                queries.featured(context.requireSession().getUserId(), rooms, Instant.now()));
+    }
+
     public void handleSearch(RequestContext context) throws Exception {
         Instant snapshotAt = Instant.now();
         context.replySuccess(
@@ -174,6 +192,15 @@ public final class AuctionController {
                         queries.searchAuctions(context.value("mode"), context.value("query")),
                         rooms,
                         snapshotAt));
+    }
+
+    public void handleProductRanking(RequestContext context) throws Exception {
+        context.requireSession();
+        context.replySuccess(MessageType.PRODUCT_RANKING_RESULT, queries.topProducts());
+    }
+    public void handleRevenueRanking(RequestContext context) throws Exception {
+        context.requireSession();
+        context.replySuccess(MessageType.REVENUE_RANKING_RESULT, queries.topSellers());
     }
 
     public void handleJoin(RequestContext context) throws Exception {
@@ -200,7 +227,7 @@ public final class AuctionController {
                 MessageType.LEAVE_AUCTION_RESULT,
                 Map.of(
                         "auctionId", Long.toString(auctionId),
-                        "message", "Da roi phong dau gia"));
+                        "message", "Đã rời phòng đấu giá"));
     }
 
     public void handleHistory(RequestContext context) throws Exception {
@@ -228,7 +255,7 @@ public final class AuctionController {
                     outcome.isExtended(),
                     Instant.now(),
                     rooms.subscriberCount(auctionId));
-            data.put("message", "Bid hop le");
+            data.put("message", "Lượt ra giá hợp lệ");
             context.replySuccess(MessageType.BID_ACCEPTED, data);
         } catch (AuctionException exception) {
             replyBidRejected(context, exception);
@@ -285,7 +312,7 @@ public final class AuctionController {
                         "auctionId", Long.toString(auctionId),
                         "userId", Long.toString(outcome.getUserId()),
                         "username", outcome.getUsername(),
-                        "message", "Da moi nguoi dung khoi phong"));
+                        "message", "Đã mời người dùng khỏi phòng"));
     }
 
     public void handleResync(RequestContext context) throws Exception {
@@ -336,7 +363,7 @@ public final class AuctionController {
         } catch (IllegalArgumentException exception) {
             throw new AuctionException(
                     vn.ptit.btl16.common.protocol.ErrorCode.PRODUCT_IMAGE_INVALID,
-                    "Du lieu Base64 cua anh khong hop le");
+                    "Dữ liệu Base64 của ảnh không hợp lệ");
         }
     }
 }

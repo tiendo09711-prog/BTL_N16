@@ -16,10 +16,14 @@ public final class DatabaseSchema {
     public static void initialize(JdbcConnectionFactory factory) {
         createDatabase(factory);
         createTables(factory);
+        vn.ptit.btl16.server.account.repository.AccountTags.initialize(factory);
         upgradeAuctionManagementSchema(factory);
+        vn.ptit.btl16.server.auction.repository.ProductCodeStore.initialize(factory);
+        vn.ptit.btl16.server.auction.repository.ProductDeletionStore.initialize(factory);
         vn.ptit.btl16.server.media.JdbcMediaStorage.initialize(factory);
         vn.ptit.btl16.server.wallet.WalletSchema.initialize(factory);
         vn.ptit.btl16.server.social.RoomSocialSchema.initialize(factory);
+        vn.ptit.btl16.server.social.FriendsStore.initialize(factory);
         vn.ptit.btl16.server.auction.repository.RoomProgressStore.initialize(factory);
         vn.ptit.btl16.server.auction.repository.AuctionReceiptStore.initialize(factory);
         vn.ptit.btl16.server.notification.PersonalNotificationStore.initialize(factory);

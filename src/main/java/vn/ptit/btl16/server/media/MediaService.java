@@ -54,15 +54,15 @@ public final class MediaService implements AutoCloseable {
 
     public UserSession authenticate(String token) {
         UserSession session = token == null ? null : sessions.findByToken(token).orElse(null);
-        if (session == null || !session.isActive()) { fail(ErrorCode.AUTH_REQUIRED, "Can dang nhap lai de su dung media"); }
+        if (session == null || !session.isActive()) { fail(ErrorCode.AUTH_REQUIRED, "Cần đăng nhập lại để sử dụng ảnh/video"); }
         return session;
     }
 
     public synchronized String begin(UserSession session, long productId) {
-        if (closing.get()) { fail(ErrorCode.UPLOAD_CANCELLED, "May chu media da dung"); }
+        if (closing.get()) { fail(ErrorCode.UPLOAD_CANCELLED, "Máy chủ ảnh/video đã dừng"); }
         management.requireMediaEdit(session, productId);
         if (drafts.size() >= 64 || drafts.values().stream().filter(draft -> draft.owner == session.getUserId()).count() >= 3) {
-            fail(ErrorCode.MEDIA_LIMIT, "Hay hoan tat/huy lan dang tai truoc");
+            fail(ErrorCode.MEDIA_LIMIT, "Hãy hoàn tất/hủy lần đang tải trước");
         }
         Draft draft = new Draft(session, productId); drafts.put(draft.id, draft); return draft.id;
     }
@@ -71,9 +71,9 @@ public final class MediaService implements AutoCloseable {
                                long declaredBytes, int turns, double left, double top, double width, double height) throws IOException {
         Draft draft = draft(session, draftId);
         long limit = kind.equals("IMAGE") ? config.imageBytes() : config.videoBytes();
-        if (!List.of("IMAGE", "VIDEO").contains(kind)) { fail(ErrorCode.MEDIA_INVALID, "Loai tep khong hop le"); }
-        if (declaredBytes > limit) { fail(ErrorCode.MEDIA_LIMIT, "Tep vuot " + limit + " byte"); }
-        if (!workers.tryAcquire()) { fail(ErrorCode.MEDIA_LIMIT, "May chu dang xu ly media, vui long thu lai"); }
+        if (!List.of("IMAGE", "VIDEO").contains(kind)) { fail(ErrorCode.MEDIA_INVALID, "Loại tệp không hợp lệ"); }
+        if (declaredBytes > limit) { fail(ErrorCode.MEDIA_LIMIT, "Tệp vượt " + limit + " byte"); }
+        if (!workers.tryAcquire()) { fail(ErrorCode.MEDIA_LIMIT, "Máy chủ đang xử lý ảnh/video, vui lòng thử lại"); }
         boolean reservation = false;
         String id = UUID.randomUUID().toString();
         AtomicBoolean timedOut = new AtomicBoolean();
@@ -81,7 +81,7 @@ public final class MediaService implements AutoCloseable {
         try {
             reserve(); reservation = true;
             synchronized (draft) {
-                if (draft.cancelled.get() || draft.files.size() + draft.busy >= 12) { fail(ErrorCode.MEDIA_LIMIT, "Qua nhieu tep cho mot ban nhap"); }
+                if (draft.cancelled.get() || draft.files.size() + draft.busy >= 12) { fail(ErrorCode.MEDIA_LIMIT, "Quá nhiều tệp cho một bản nháp"); }
                 draft.busy++; draft.inputs.add(input);
             }
             java.io.ByteArrayOutputStream source = new java.io.ByteArrayOutputStream();
@@ -91,26 +91,26 @@ public final class MediaService implements AutoCloseable {
                 while (true) {
                     try { read = input.read(buffer); }
                     catch (IOException exception) {
-                        if (draft.cancelled.get()) { fail(ErrorCode.UPLOAD_CANCELLED, "Da huy tai len"); }
-                        if (timedOut.get()) { fail(ErrorCode.MEDIA_LIMIT, "Qua thoi gian tai tep (" + config.timeoutSeconds() + " giay)"); }
-                        fail(ErrorCode.MEDIA_INVALID, "Ket noi tai len bi ngat hoac tep chua du. Hay thu lai tep nay");
+                        if (draft.cancelled.get()) { fail(ErrorCode.UPLOAD_CANCELLED, "Đã hủy tải lên"); }
+                        if (timedOut.get()) { fail(ErrorCode.MEDIA_LIMIT, "Quá thời gian tải tệp (" + config.timeoutSeconds() + " giây)"); }
+                        fail(ErrorCode.MEDIA_INVALID, "Kết nối tải lên bị ngắt hoặc tệp chưa đủ. Hãy thử lại tệp này");
                         throw exception;
                     }
                     if (read == -1) { break; }
                     bytes += read;
-                    if (draft.cancelled.get()) { fail(ErrorCode.UPLOAD_CANCELLED, "Da huy tai len"); }
-                    if (bytes > limit) { fail(ErrorCode.MEDIA_LIMIT, "Tep vuot " + limit + " byte"); }
+                    if (draft.cancelled.get()) { fail(ErrorCode.UPLOAD_CANCELLED, "Đã hủy tải lên"); }
+                    if (bytes > limit) { fail(ErrorCode.MEDIA_LIMIT, "Tệp vượt " + limit + " byte"); }
                     output.write(buffer, 0, read);
                 }
             }
-            if (bytes == 0 || (declaredBytes >= 0 && bytes != declaredBytes)) { fail(ErrorCode.MEDIA_INVALID, "Tep rong hoac tai chua du"); }
+            if (bytes == 0 || (declaredBytes >= 0 && bytes != declaredBytes)) { fail(ErrorCode.MEDIA_INVALID, "Tệp rỗng hoặc tải chưa đủ"); }
             MediaProcessor.Processed processed = processor.process(source.toByteArray(), id, kind, name, turns, left, top, width, height, draft.cancelled::get);
             ProductMedia media = processed.media();
             synchronized (draft) {
-                if (draft.cancelled.get()) { fail(ErrorCode.UPLOAD_CANCELLED, "Da huy tai len"); }
+                if (draft.cancelled.get()) { fail(ErrorCode.UPLOAD_CANCELLED, "Đã hủy tải lên"); }
                 management.requireMediaEdit(authenticate(draft.token), draft.productId);
                 long total = draft.files.values().stream().mapToLong(ProductMedia::bytes).sum() + media.bytes();
-                if (total > config.productBytes()) { fail(ErrorCode.MEDIA_LIMIT, "Ban nhap vuot " + config.productBytes() + " byte; hay xoa tep khong dung"); }
+                if (total > config.productBytes()) { fail(ErrorCode.MEDIA_LIMIT, "Bản nháp vượt " + config.productBytes() + " byte; hãy xóa tệp không dùng"); }
                 uploads.put(id, processed.content());
                 draft.files.put(id, media); return media;
             }
@@ -135,10 +135,10 @@ public final class MediaService implements AutoCloseable {
         Draft draft = draft(session, draftId); ProductMedia media; boolean staged;
         synchronized (draft) { media = draft.files.get(mediaId); staged = media != null; }
         if (media == null) {
-            media = repository.findMedia(mediaId).orElseThrow(() -> new AuctionException(ErrorCode.MEDIA_INVALID, "Media khong ton tai"));
-            if (draft.productId == 0 || media.productId() != draft.productId) { fail(ErrorCode.AUCTION_FORBIDDEN, "Media thuoc san pham khac"); }
+            media = repository.findMedia(mediaId).orElseThrow(() -> new AuctionException(ErrorCode.MEDIA_INVALID, "Ảnh/video không tồn tại"));
+            if (draft.productId == 0 || media.productId() != draft.productId) { fail(ErrorCode.AUCTION_FORBIDDEN, "Ảnh/video thuộc sản phẩm khác"); }
         }
-        if (!media.image()) { fail(ErrorCode.MEDIA_INVALID, "Chi bien tap anh"); }
+        if (!media.image()) { fail(ErrorCode.MEDIA_INVALID, "Chỉ biên tập ảnh"); }
         MediaContent source = content(mediaId, "source", staged);
         try (InputStream input = source.open(0)) {
             return upload(session, draftId, "IMAGE", media.name(), input, source.size(), turns, left, top, width, height);
@@ -148,20 +148,20 @@ public final class MediaService implements AutoCloseable {
     public Product commit(UserSession session, String draftId, String code, String name, String description, List<String> ids) throws IOException {
         Draft draft = draft(session, draftId);
         synchronized (draft) {
-            if (draft.busy != 0) { fail(ErrorCode.MEDIA_INVALID, "Hay cho tep tai len/xu ly xong"); }
+            if (draft.busy != 0) { fail(ErrorCode.MEDIA_INVALID, "Hãy chờ tệp tải lên/xử lý xong"); }
             management.requireMediaEdit(session, draft.productId);
             List<ProductMedia> selected = new ArrayList<>();
             for (String id : ids) {
                 ProductMedia media = draft.files.get(id);
                 if (media == null) {
-                    media = repository.findMedia(id).orElseThrow(() -> new AuctionException(ErrorCode.MEDIA_INVALID, "Media khong ton tai"));
-                    if (draft.productId == 0 || media.productId() != draft.productId) { fail(ErrorCode.AUCTION_FORBIDDEN, "Khong duoc su dung media cua san pham khac"); }
+                    media = repository.findMedia(id).orElseThrow(() -> new AuctionException(ErrorCode.MEDIA_INVALID, "Ảnh/video không tồn tại"));
+                    if (draft.productId == 0 || media.productId() != draft.productId) { fail(ErrorCode.AUCTION_FORBIDDEN, "Không được sử dụng ảnh/video của sản phẩm khác"); }
                 }
                 selected.add(media);
             }
             ProductRequirements.validate(description, selected);
             management.prepareMediaProduct(session, draft.productId, code, name, description, selected);
-            if (selected.stream().mapToLong(ProductMedia::bytes).sum() > config.productBytes()) { fail(ErrorCode.MEDIA_LIMIT, "San pham vuot gioi han dung luong"); }
+            if (selected.stream().mapToLong(ProductMedia::bytes).sum() > config.productBytes()) { fail(ErrorCode.MEDIA_LIMIT, "Sản phẩm vượt giới hạn dung lượng"); }
             synchronized (storageMutation) {
                 Map<String, Map<String, byte[]>> content = new LinkedHashMap<>();
                 for (ProductMedia media : selected) {
@@ -191,7 +191,7 @@ public final class MediaService implements AutoCloseable {
                 ids = List.of(image.id());
             }
             return commit(session, draftId, code, name, description, ids);
-        } catch (IOException exception) { throw new AuctionException(ErrorCode.MEDIA_PROCESSING_FAILED, "Khong the luu tep media"); }
+        } catch (IOException exception) { throw new AuctionException(ErrorCode.MEDIA_PROCESSING_FAILED, "Không thể lưu tệp ảnh/video"); }
         finally { cancel(session, draftId); }
     }
 
@@ -212,7 +212,7 @@ public final class MediaService implements AutoCloseable {
     }
 
     private Map<String, Object> view(UserSession session, ProductMedia media, String draftId, long auctionId) throws IOException {
-        if (tickets.size() > 8192) { expire(); if (tickets.size() > 8192) { fail(ErrorCode.MEDIA_LIMIT, "Qua nhieu yeu cau xem media"); } }
+        if (tickets.size() > 8192) { expire(); if (tickets.size() > 8192) { fail(ErrorCode.MEDIA_LIMIT, "Quá nhiều yêu cầu xem ảnh/video"); } }
         String ticket = UUID.randomUUID().toString() + UUID.randomUUID();
         tickets.put(ticket, new Ticket(session.getSessionToken(), media.id(), media.productId(), draftId, auctionId, Instant.now().plusSeconds(1800)));
         Map<String, Object> result = new LinkedHashMap<>();
@@ -229,18 +229,18 @@ public final class MediaService implements AutoCloseable {
 
     public MediaContent readable(String id, String variant, String key) throws IOException {
         Ticket ticket = tickets.get(key == null ? "" : key);
-        if (ticket == null || !ticket.mediaId.equals(id) || ticket.expires.isBefore(Instant.now())) { fail(ErrorCode.ROOM_ACCESS_DENIED, "Quyen xem media het han; hay tai lai"); }
+        if (ticket == null || !ticket.mediaId.equals(id) || ticket.expires.isBefore(Instant.now())) { fail(ErrorCode.ROOM_ACCESS_DENIED, "Quyền xem ảnh/video hết hạn; hãy tải lại"); }
         UserSession session = authenticate(ticket.token);
         ProductMedia media;
         boolean staged = ticket.draftId != null;
         if (staged) {
             Draft draft = draft(session, ticket.draftId);
             synchronized (draft) { media = draft.files.get(id); }
-            if (media == null) { fail(ErrorCode.MEDIA_INVALID, "Tep da bi xoa"); }
+            if (media == null) { fail(ErrorCode.MEDIA_INVALID, "Tệp đã bị xóa"); }
         } else {
             management.requireMediaRead(session, ticket.productId, ticket.auctionId);
-            media = repository.findMedia(id).orElseThrow(() -> new AuctionException(ErrorCode.MEDIA_INVALID, "Media da thay doi"));
-            if (media.productId() != ticket.productId) { fail(ErrorCode.ROOM_ACCESS_DENIED, "Media khong thuoc san pham"); }
+            media = repository.findMedia(id).orElseThrow(() -> new AuctionException(ErrorCode.MEDIA_INVALID, "Ảnh/video đã thay đổi"));
+            if (media.productId() != ticket.productId) { fail(ErrorCode.ROOM_ACCESS_DENIED, "Ảnh/video không thuộc sản phẩm"); }
         }
         String filename = switch (variant) {
             case "thumbnail" -> "thumbnail.jpg";
@@ -249,20 +249,20 @@ public final class MediaService implements AutoCloseable {
             case "original" -> "source";
             default -> "invalid";
         };
-        if (filename.equals("invalid")) { fail(ErrorCode.MEDIA_INVALID, "Bien the media khong hop le"); }
+        if (filename.equals("invalid")) { fail(ErrorCode.MEDIA_INVALID, "Biến thể ảnh/video không hợp lệ"); }
         return content(id, filename, staged);
     }
 
     public void requireReady(long productId) {
         try { for (ProductMedia media : repository.findProductMedia(productId)) { verifyContent(media); } }
-        catch (IOException exception) { throw new AuctionException(ErrorCode.MEDIA_INVALID, "Media bi thieu; can khoi phuc ban sao luu tren server"); }
+        catch (IOException exception) { throw new AuctionException(ErrorCode.MEDIA_INVALID, "Ảnh/video bị thiếu; cần khôi phục bản sao lưu trên Server"); }
     }
 
     public byte[] cover(long productId) {
         ProductMedia image = repository.findProductMedia(productId).stream().filter(ProductMedia::image).findFirst()
-                .orElseThrow(() -> new AuctionException(ErrorCode.PRODUCT_IMAGE_INVALID, "San pham chua co anh hop le"));
+                .orElseThrow(() -> new AuctionException(ErrorCode.PRODUCT_IMAGE_INVALID, "Sản phẩm chưa có ảnh hợp lệ"));
         try (InputStream input = repository.mediaContent(image.id(), "thumbnail.jpg").open(0)) { return input.readAllBytes(); }
-        catch (IOException exception) { throw new AuctionException(ErrorCode.MEDIA_INVALID, "Anh khong san sang"); }
+        catch (IOException exception) { throw new AuctionException(ErrorCode.MEDIA_INVALID, "Ảnh không sẵn sàng"); }
     }
 
     public List<String> migrateLegacy() {
@@ -272,7 +272,7 @@ public final class MediaService implements AutoCloseable {
             try {
                 reserve(); reservation = true;
                 ProductImage old = repository.findProductImage(productId).orElseThrow();
-                if (old.getSize() > config.imageBytes()) { fail(ErrorCode.MEDIA_LIMIT, "Anh cu vuot nguong"); }
+                if (old.getSize() > config.imageBytes()) { fail(ErrorCode.MEDIA_LIMIT, "Ảnh cũ vượt ngưỡng"); }
                 MediaProcessor.Processed processed = processor.process(old.getData(), UUID.randomUUID().toString(), "IMAGE",
                         old.getName(), 0, 0, 0, 1, 1, () -> false);
                 repository.migrateLegacyImage(productId, old.getVersion(), processed.media(), processed.content());
@@ -285,7 +285,7 @@ public final class MediaService implements AutoCloseable {
     public void cancel(UserSession session, String id) {
         Draft draft = drafts.get(id);
         if (draft == null) { return; }
-        if (session == null || !session.isActive() || draft.owner != session.getUserId() || !draft.token.equals(session.getSessionToken())) { fail(ErrorCode.AUCTION_FORBIDDEN, "Khong duoc huy ban nhap cua nguoi khac"); }
+        if (session == null || !session.isActive() || draft.owner != session.getUserId() || !draft.token.equals(session.getSessionToken())) { fail(ErrorCode.AUCTION_FORBIDDEN, "Không được hủy bản nháp của người khác"); }
         draft.cancelled.set(true);
         synchronized (draft) {
             for (InputStream input : draft.inputs) { try { input.close(); } catch (IOException ignored) { } }
@@ -295,8 +295,8 @@ public final class MediaService implements AutoCloseable {
 
     private Draft draft(UserSession session, String id) {
         Draft draft = drafts.get(id);
-        if (draft == null || draft.cancelled.get() || draft.expires.isBefore(Instant.now())) { fail(ErrorCode.UPLOAD_CANCELLED, "Ban nhap da huy/het han"); }
-        if (session == null || !session.isActive() || draft.owner != session.getUserId() || !draft.token.equals(session.getSessionToken())) { fail(ErrorCode.AUCTION_FORBIDDEN, "Ban nhap thuoc nguoi khac"); }
+        if (draft == null || draft.cancelled.get() || draft.expires.isBefore(Instant.now())) { fail(ErrorCode.UPLOAD_CANCELLED, "Bản nháp đã hủy/hết hạn"); }
+        if (session == null || !session.isActive() || draft.owner != session.getUserId() || !draft.token.equals(session.getSessionToken())) { fail(ErrorCode.AUCTION_FORBIDDEN, "Bản nháp thuộc người khác"); }
         management.requireMediaEdit(session, draft.productId);
         return draft;
     }
@@ -305,10 +305,10 @@ public final class MediaService implements AutoCloseable {
         long staged = uploads.values().stream().flatMap(payload -> payload.values().stream()).mapToLong(bytes -> bytes.length).sum();
         long required = staged + reserved + config.productBytes();
         if (repository.mediaBytes() + required > config.storageBytes()) {
-            fail(ErrorCode.MEDIA_STORAGE_FULL, "Kho media MySQL khong du cho tep va bien the");
+            fail(ErrorCode.MEDIA_STORAGE_FULL, "Kho ảnh/video MySQL không đủ chỗ cho tệp và biến thể");
         }
         if (required > Runtime.getRuntime().maxMemory() / 3) {
-            fail(ErrorCode.MEDIA_STORAGE_FULL, "Khong du RAM de xu ly media khong dung tep tam; hay giam kich thuoc tep hoac tang heap server");
+            fail(ErrorCode.MEDIA_STORAGE_FULL, "Không đủ RAM để xử lý ảnh/video không dùng tệp tạm; hãy giảm kích thước tệp hoặc tăng bộ nhớ Server");
         }
         reserved += config.productBytes();
     }

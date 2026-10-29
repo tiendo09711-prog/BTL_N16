@@ -39,14 +39,14 @@ public final class AccountService {
         String phone = InputValidation.cleanPhone(phoneRaw);
 
         if (users.existsByUsername(username)) {
-            throw new AccountException(ErrorCode.USERNAME_ALREADY_EXISTS, "Username already exists");
+            throw new AccountException(ErrorCode.USERNAME_ALREADY_EXISTS, "Tên đăng nhập đã tồn tại");
         }
         PasswordHash passwordHash = passwordHasher.hash(password);
         long userId = users.createUser(username, displayName, email, phone, passwordHash);
         return users.findById(userId)
                 .orElseThrow(() -> new AccountException(
                         ErrorCode.PROFILE_NOT_FOUND,
-                        "User was created but cannot be loaded"));
+                        "Tài khoản đã được tạo nhưng chưa tải được thông tin"));
     }
 
     public LoginResult login(
@@ -61,11 +61,11 @@ public final class AccountService {
         UserAccount user = users.findByUsername(username).orElse(null);
         if (user == null) {
             users.recordFailedLogin(username, remoteAddress, "USER_NOT_FOUND");
-            throw new AccountException(ErrorCode.INVALID_CREDENTIALS, "Invalid username or password");
+            throw new AccountException(ErrorCode.INVALID_CREDENTIALS, "Tên đăng nhập hoặc mật khẩu không đúng");
         }
         if (!user.isActive()) {
             users.recordFailedLogin(username, remoteAddress, "ACCOUNT_DISABLED");
-            throw new AccountException(ErrorCode.ACCOUNT_DISABLED, "Account is disabled");
+            throw new AccountException(ErrorCode.ACCOUNT_DISABLED, "Tài khoản đã bị vô hiệu hóa");
         }
         if (!passwordHasher.verify(
                 password,
@@ -73,7 +73,7 @@ public final class AccountService {
                 user.getPasswordHash(),
                 user.getPasswordIterations())) {
             users.recordFailedLogin(username, remoteAddress, "WRONG_PASSWORD");
-            throw new AccountException(ErrorCode.INVALID_CREDENTIALS, "Invalid username or password");
+            throw new AccountException(ErrorCode.INVALID_CREDENTIALS, "Tên đăng nhập hoặc mật khẩu không đúng");
         }
 
         UserSession session = sessions.createSession(
@@ -93,13 +93,13 @@ public final class AccountService {
 
     public LoginResult resume(String sessionToken, String connectionId, String remoteAddress) {
         if (sessionToken == null || sessionToken.isBlank()) {
-            throw new AccountException(ErrorCode.SESSION_NOT_FOUND, "sessionToken is missing");
+            throw new AccountException(ErrorCode.SESSION_NOT_FOUND, "Thiếu mã phiên đăng nhập");
         }
         UserSession session = sessions.resumeSession(sessionToken, connectionId, remoteAddress);
         UserAccount user = users.findById(session.getUserId())
                 .orElseThrow(() -> new AccountException(
                         ErrorCode.PROFILE_NOT_FOUND,
-                        "Session user no longer exists"));
+                        "Tài khoản của phiên đăng nhập không còn tồn tại"));
         return new LoginResult(user, session);
     }
 
@@ -111,7 +111,7 @@ public final class AccountService {
         return users.findById(userId)
                 .orElseThrow(() -> new AccountException(
                         ErrorCode.PROFILE_NOT_FOUND,
-                        "User profile was not found"));
+                        "Không tìm thấy hồ sơ tài khoản"));
     }
 
     public UserAccount updateProfile(
@@ -123,7 +123,7 @@ public final class AccountService {
         String email = InputValidation.cleanEmail(emailRaw);
         String phone = InputValidation.cleanPhone(phoneRaw);
         if (!users.updateProfile(userId, displayName, email, phone)) {
-            throw new AccountException(ErrorCode.PROFILE_NOT_FOUND, "User profile was not found");
+            throw new AccountException(ErrorCode.PROFILE_NOT_FOUND, "Không tìm thấy hồ sơ tài khoản");
         }
         return getProfile(userId);
     }
@@ -134,7 +134,7 @@ public final class AccountService {
         if (Arrays.equals(currentPassword, newPassword)) {
             throw new AccountException(
                     ErrorCode.VALIDATION_ERROR,
-                    "New password must differ from current password");
+                    "Mật khẩu mới phải khác mật khẩu hiện tại");
         }
         UserAccount user = getProfile(userId);
         if (!passwordHasher.verify(
@@ -144,11 +144,11 @@ public final class AccountService {
                 user.getPasswordIterations())) {
             throw new AccountException(
                     ErrorCode.CURRENT_PASSWORD_WRONG,
-                    "Current password is incorrect");
+                    "Mật khẩu hiện tại không đúng");
         }
         PasswordHash newHash = passwordHasher.hash(newPassword);
         if (!users.updatePassword(userId, newHash)) {
-            throw new AccountException(ErrorCode.PROFILE_NOT_FOUND, "User profile was not found");
+            throw new AccountException(ErrorCode.PROFILE_NOT_FOUND, "Không tìm thấy hồ sơ tài khoản");
         }
     }
 }

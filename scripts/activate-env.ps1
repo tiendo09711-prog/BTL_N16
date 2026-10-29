@@ -1,11 +1,11 @@
 $jdkRoot = Join-Path $env:LOCALAPPDATA 'BTL16\tools'
-$jdk = Get-ChildItem -LiteralPath $jdkRoot -Directory -Filter 'jdk-17*' -ErrorAction SilentlyContinue |
+$jdk = Get-ChildItem -LiteralPath $jdkRoot -Directory -Filter 'jdk-25*' -ErrorAction SilentlyContinue |
     Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName 'bin\javac.exe') } |
     Sort-Object LastWriteTime -Descending |
     Select-Object -First 1
 
 if ($null -eq $jdk) {
-    throw "BTL16 JDK 17 was not found in $jdkRoot. See docs/21_LOCAL_WINDOWS_SETUP.md."
+    throw "BTL16 JDK 25 LTS was not found in $jdkRoot. See docs/21_LOCAL_WINDOWS_SETUP.md."
 }
 
 $env:JAVA_HOME = $jdk.FullName

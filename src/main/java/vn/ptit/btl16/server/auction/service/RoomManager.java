@@ -146,6 +146,10 @@ public final class RoomManager {
         return room == null ? 0 : room.size();
     }
 
+    public int participantCount(long auctionId) {
+        return (int) membersSnapshot(auctionId).stream().map(RoomMember::getUserId).distinct().count();
+    }
+
     public java.util.List<RoomMember> membersSnapshot(long auctionId) {
         var room = membersByAuction.get(auctionId);
         return room == null ? java.util.List.of() : java.util.List.copyOf(room.values());

@@ -8,6 +8,7 @@ public final class ClientBid {
     private final long auctionId;
     private final long userId;
     private final String username;
+    private final String displayName;
     private final BigDecimal amount;
     private final long serverSequence;
     private final Instant createdAt;
@@ -20,10 +21,16 @@ public final class ClientBid {
             BigDecimal amount,
             long serverSequence,
             Instant createdAt) {
+        this(bidId, auctionId, userId, username, username, amount, serverSequence, createdAt);
+    }
+
+    public ClientBid(long bidId, long auctionId, long userId, String username, String displayName,
+            BigDecimal amount, long serverSequence, Instant createdAt) {
         this.bidId = bidId;
         this.auctionId = auctionId;
         this.userId = userId;
         this.username = username == null ? "" : username;
+        this.displayName = displayName == null || displayName.isBlank() ? this.username : displayName;
         this.amount = amount;
         this.serverSequence = serverSequence;
         this.createdAt = createdAt;
@@ -33,6 +40,7 @@ public final class ClientBid {
     public long getAuctionId() { return auctionId; }
     public long getUserId() { return userId; }
     public String getUsername() { return username; }
+    public String getDisplayName() { return displayName; }
     public BigDecimal getAmount() { return amount; }
     public long getServerSequence() { return serverSequence; }
     public Instant getCreatedAt() { return createdAt; }

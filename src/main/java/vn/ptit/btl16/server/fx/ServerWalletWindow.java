@@ -32,9 +32,15 @@ public final class ServerWalletWindow extends BorderPane {
     private final Label pendingCount = DesktopTheme.label("", "pill");
     private final Button approve = new Button("Ch\u1ea5p nh\u1eadn & c\u1ed9ng ti\u1ec1n");
     private final Button reject = new Button("T\u1eeb ch\u1ed1i");
-    private final TextField rejectionReason = new TextField("Yeu cau nap mo phong chua duoc xac nhan");
+    private final TextField rejectionReason = new TextField("Yêu cầu nạp mô phỏng chưa được xác nhận");
     private final Timeline poll = new Timeline(new KeyFrame(Duration.seconds(3), event -> refresh()));
     private boolean loading, reviewing, replacing;
+    private final TableView<WithdrawalRequest> pendingWithdrawals = WalletUi.withdrawals(true);
+    private final TableView<WithdrawalRequest> userWithdrawals = WalletUi.withdrawals(false);
+    private final Button approveWithdrawal = new Button("Duyệt & trừ tiền");
+    private final Button rejectWithdrawal = new Button("Từ chối");
+    private final TextField withdrawalRejectionReason = new TextField("Yêu cầu rút mô phỏng chưa được xác nhận");
+    private long refreshGeneration;
 
     public ServerWalletWindow(Window owner, Supplier<ServerApplication> server, Executor worker) {
         this.server = server; this.worker = worker; stage.initOwner(owner); stage.initModality(Modality.WINDOW_MODAL);
@@ -46,21 +52,34 @@ public final class ServerWalletWindow extends BorderPane {
         WalletUi.column(accounts, "GI\u1eee CH\u1ed6", value -> WalletUi.money(value.reserved()), 160);
         WalletUi.column(accounts, "KH\u1ea2 D\u1ee4NG", value -> WalletUi.money(value.available()), 160);
         accounts.setPrefHeight(230); accounts.setMinHeight(140);
+        WalletUi.column(accounts, "TRONG KÉT", value -> WalletUi.money(value.vaultBalance()), 160);
         accounts.getSelectionModel().selectedItemProperty().addListener((observable, before, now) -> { if (!replacing) { renderProfile(now); refresh(); } });
         pending.getSelectionModel().selectedItemProperty().addListener((observable, before, now) -> controls());
+        pendingWithdrawals.setId("server-pending-withdrawals"); userWithdrawals.setId("server-user-withdrawals");
+        pendingWithdrawals.getSelectionModel().selectedItemProperty().addListener((observable, before, now) -> controls());
+        approveWithdrawal.setId("server-approve-withdrawal"); rejectWithdrawal.setId("server-reject-withdrawal");
+        withdrawalRejectionReason.setId("server-withdrawal-rejection-reason");
+        approveWithdrawal.getStyleClass().add("teal"); rejectWithdrawal.getStyleClass().add("danger");
+        approveWithdrawal.setOnAction(event -> reviewWithdrawal(true)); rejectWithdrawal.setOnAction(event -> reviewWithdrawal(false));
         approve.getStyleClass().add("teal"); reject.getStyleClass().add("danger");
         approve.setOnAction(event -> review(true)); reject.setOnAction(event -> review(false));
         VBox accountContent = new VBox(12, accounts, profile, DesktopTheme.label("L\u1ecbch s\u1eed n\u1ea1p", "section-title"), userRequests,
+                DesktopTheme.label("Lịch sử rút tiền", "section-title"), userWithdrawals,
                 DesktopTheme.label("Bi\u1ebfn \u0111\u1ed9ng v\u00ed / thanh to\u00e1n", "section-title"), entries);
         accountContent.setPadding(new Insets(16));
         ScrollPane accountScroll = new ScrollPane(accountContent); accountScroll.setFitToWidth(true);
         VBox pendingContent = new VBox(14, DesktopTheme.label("Ch\u1ec9 duy\u1ec7t y\u00eau c\u1ea7u demo \u0111\u00e3 g\u1eedi t\u1eeb client", "section-title"),
                 DesktopTheme.label("S\u1ed1 ti\u1ec1n \u0111\u01b0\u1ee3c c\u1ed9ng \u0111\u00fang theo y\u00eau c\u1ea7u, kh\u00f4ng ch\u1ec9nh s\u1eeda. Duy\u1ec7t l\u1ea1i kh\u00f4ng c\u1ed9ng tr\u00f9ng. T\u1eeb ch\u1ed1i kh\u00f4ng l\u00e0m thay \u0111\u1ed5i s\u1ed1 d\u01b0.", "muted"),
-                pending, new Label("Ly do tu choi (1-300 ky tu)"), rejectionReason, new HBox(10, approve, reject));
+                pending, new Label("Lý do từ chối (1-300 ký tự)"), rejectionReason, new HBox(10, approve, reject));
         pendingContent.setPadding(new Insets(18)); VBox.setVgrow(pending, Priority.ALWAYS);
         Tab accountTab = new Tab("T\u00e0i kho\u1ea3n & giao d\u1ecbch", accountScroll);
         Tab pendingTab = new Tab("Duy\u1ec7t n\u1ea1p demo", pendingContent); accountTab.setClosable(false); pendingTab.setClosable(false);
-        TabPane tabs = new TabPane(accountTab, pendingTab); setCenter(tabs);
+        VBox withdrawalContent = new VBox(14, DesktopTheme.label("Duyệt yêu cầu rút tiền từ Client", "section-title"),
+                DesktopTheme.label("Chỉ trừ số tiền đã yêu cầu khi được duyệt và còn đủ khả dụng. Tiền giữ chỗ đấu giá được giữ nguyên. Duyệt lại không trừ trùng; từ chối không trừ tiền.", "muted"),
+                pendingWithdrawals, new Label("Lý do từ chối (1-300 ký tự)"), withdrawalRejectionReason, new HBox(10, approveWithdrawal, rejectWithdrawal));
+        withdrawalContent.setPadding(new Insets(18)); VBox.setVgrow(pendingWithdrawals, Priority.ALWAYS);
+        Tab withdrawalTab = new Tab("Duyệt rút tiền", withdrawalContent); withdrawalTab.setId("server-withdrawal-tab"); withdrawalTab.setClosable(false);
+        TabPane tabs = new TabPane(accountTab, pendingTab, withdrawalTab); setCenter(tabs);
         Button refresh = new Button("L\u00e0m m\u1edbi"); refresh.setOnAction(event -> refresh());
         HBox heading = new HBox(14, DesktopTheme.label("T\u00e0i kho\u1ea3n & v\u00ed", "page-title"), DesktopTheme.spacer(), pendingCount, refresh);
         heading.setPadding(new Insets(20)); setTop(heading); message.setPadding(new Insets(12, 20, 16, 20)); setBottom(message);
@@ -81,12 +100,15 @@ public final class ServerWalletWindow extends BorderPane {
         if (!stage.isShowing() || running == null || loading || reviewing) { return; }
         WalletAccount selected = accounts.getSelectionModel().getSelectedItem(); long selectedId = selected == null ? 0 : selected.userId();
         loading = true;
+        long generation = refreshGeneration;
         CompletableFuture.supplyAsync(() -> {
             var wallets = running.wallets();
             return new Snapshot(wallets.accounts(), wallets.requests(0, true), selectedId == 0 ? java.util.List.of() : wallets.entries(selectedId),
-                    selectedId == 0 ? java.util.List.of() : wallets.requests(selectedId, false));
+                    selectedId == 0 ? java.util.List.of() : wallets.requests(selectedId, false), wallets.withdrawals(0, true),
+                    selectedId == 0 ? java.util.List.of() : wallets.withdrawals(selectedId, false));
         }, worker).whenComplete((snapshot, error) -> Platform.runLater(() -> {
             loading = false; if (!stage.isShowing() || server.get() != running) { return; }
+            if (generation != refreshGeneration) { refresh(); return; }
             if (error != null) { message.setText(root(error)); return; }
             replacing = true;
             try {
@@ -95,9 +117,13 @@ public final class ServerWalletWindow extends BorderPane {
                 TopUpRequest chosen = pending.getSelectionModel().getSelectedItem();
                 pending.getItems().setAll(snapshot.pending());
                 if (chosen != null) { pending.getItems().stream().filter(value -> value.id().equals(chosen.id())).findFirst().ifPresent(value -> pending.getSelectionModel().select(value)); }
+                WithdrawalRequest chosenWithdrawal = pendingWithdrawals.getSelectionModel().getSelectedItem();
+                pendingWithdrawals.getItems().setAll(snapshot.pendingWithdrawals());
+                if (chosenWithdrawal != null) { pendingWithdrawals.getItems().stream().filter(value -> value.id().equals(chosenWithdrawal.id())).findFirst().ifPresent(value -> pendingWithdrawals.getSelectionModel().select(value)); }
                 WalletAccount now = accounts.getSelectionModel().getSelectedItem(); renderProfile(now);
                 entries.getItems().setAll(snapshot.entries()); userRequests.getItems().setAll(snapshot.requests());
-                pendingCount.setText(snapshot.pending().size() + " y\u00eau c\u1ea7u ch\u1edd duy\u1ec7t");
+                userWithdrawals.getItems().setAll(snapshot.withdrawals());
+                pendingCount.setText(snapshot.pending().size() + " yêu cầu nạp · " + snapshot.pendingWithdrawals().size() + " yêu cầu rút chờ duyệt");
             } finally { replacing = false; controls(); }
         }));
     }
@@ -108,15 +134,34 @@ public final class ServerWalletWindow extends BorderPane {
                 (accepted ? "C\u1ed9ng " : "T\u1eeb ch\u1ed1i ") + WalletUi.money(request.amount()) + " cho " + request.username() + "?\nY\u00eau c\u1ea7u: " + request.id(), ButtonType.YES, ButtonType.NO);
         confirmation.setHeaderText("X\u00e1c nh\u1eadn n\u1ea1p ti\u1ec1n GI\u1ea2 L\u1eacP"); DesktopTheme.dialog(confirmation, stage);
         if (confirmation.showAndWait().orElse(ButtonType.NO) != ButtonType.YES) { return; }
-        reviewing = true; controls();
+        reviewing = true; refreshGeneration++; controls();
         String reason = rejectionReason.getText();
         CompletableFuture.supplyAsync(() -> running.wallets().review(request.id(), accepted, reason), worker).whenComplete((result, error) -> Platform.runLater(() -> {
             reviewing = false; if (!stage.isShowing()) { return; }
             message.setText(error == null ? result.username() + ": " + WalletUi.status(result.status()) : root(error)); controls(); refresh();
         }));
     }
-    private void controls() { boolean disabled = reviewing || pending.getSelectionModel().getSelectedItem() == null; approve.setDisable(disabled); reject.setDisable(disabled); }
+    private void reviewWithdrawal(boolean accepted) {
+        WithdrawalRequest request = pendingWithdrawals.getSelectionModel().getSelectedItem(); ServerApplication running = server.get();
+        if (request == null || running == null || reviewing) { return; }
+        Alert confirmation = new Alert(Alert.AlertType.CONFIRMATION,
+                (accepted ? "Trừ " : "Từ chối rút ") + WalletUi.money(request.amount()) + " từ ví " + request.username() + "?\nYêu cầu: " + request.id(), ButtonType.YES, ButtonType.NO);
+        confirmation.setHeaderText("Xác nhận rút tiền GIẢ LẬP"); DesktopTheme.dialog(confirmation, stage);
+        if (confirmation.showAndWait().orElse(ButtonType.NO) != ButtonType.YES) { return; }
+        reviewing = true; refreshGeneration++; controls();
+        String reason = withdrawalRejectionReason.getText();
+        CompletableFuture.supplyAsync(() -> running.wallets().reviewWithdrawal(request.id(), accepted, reason), worker).whenComplete((result, error) -> Platform.runLater(() -> {
+            reviewing = false; if (!stage.isShowing() || server.get() != running) { return; }
+            message.setText(error == null ? result.username() + ": " + WalletUi.withdrawalStatus(result.status()) : root(error)); controls(); refresh();
+        }));
+    }
+    private void controls() {
+        boolean disabled = reviewing || pending.getSelectionModel().getSelectedItem() == null; approve.setDisable(disabled); reject.setDisable(disabled);
+        boolean withdrawalDisabled = reviewing || pendingWithdrawals.getSelectionModel().getSelectedItem() == null;
+        approveWithdrawal.setDisable(withdrawalDisabled); rejectWithdrawal.setDisable(withdrawalDisabled);
+    }
     private String root(Throwable error) { while (error.getCause() != null) { error = error.getCause(); } return error.getMessage(); }
     private record Snapshot(java.util.List<WalletAccount> accounts, java.util.List<TopUpRequest> pending,
-                            java.util.List<WalletEntry> entries, java.util.List<TopUpRequest> requests) { }
+                            java.util.List<WalletEntry> entries, java.util.List<TopUpRequest> requests,
+                            java.util.List<WithdrawalRequest> pendingWithdrawals, java.util.List<WithdrawalRequest> withdrawals) { }
 }

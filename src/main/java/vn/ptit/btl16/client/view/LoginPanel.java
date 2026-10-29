@@ -14,10 +14,10 @@ import java.awt.event.ActionListener;
 public final class LoginPanel extends JPanel {
     private final JTextField usernameField = new JTextField(20);
     private final JPasswordField passwordField = new JPasswordField(20);
-    private final JButton loginButton = new JButton("Dang nhap");
-    private final JButton registerButton = new JButton("Dang ky");
-    private final JButton reconnectButton = new JButton("Ket noi lai");
-    private final JLabel hintLabel = new JLabel("Chua co tai khoan? Bam Dang ky de bat dau.");
+    private final JButton loginButton = new JButton("Đăng nhập");
+    private final JButton registerButton = new JButton("Đăng ký");
+    private final JButton reconnectButton = new JButton("Kết nối lại");
+    private final JLabel hintLabel = new JLabel("Chưa có tài khoản? Bấm Đăng ký để bắt đầu.");
     private boolean busy;
     private boolean connected;
 
@@ -31,10 +31,10 @@ public final class LoginPanel extends JPanel {
         c.gridx = 0;
         c.gridy = 0;
         c.gridwidth = 2;
-        add(new JLabel("HE THONG DAU GIA TRUC TUYEN THOI GIAN THUC", JLabel.CENTER), c);
+        add(new JLabel("HỆ THỐNG ĐẤU GIÁ TRỰC TUYẾN THỜI GIAN THỰC", JLabel.CENTER), c);
 
         c.gridy++;
-        add(new JLabel("Java TCP - Nhom 16", JLabel.CENTER), c);
+        add(new JLabel("Java TCP - Nhóm 16", JLabel.CENTER), c);
 
         c.gridwidth = 1;
         c.gridy++;
@@ -45,7 +45,7 @@ public final class LoginPanel extends JPanel {
 
         c.gridy++;
         c.gridx = 0;
-        add(new JLabel("Mat khau:"), c);
+        add(new JLabel("Mật khẩu:"), c);
         c.gridx = 1;
         add(passwordField, c);
 

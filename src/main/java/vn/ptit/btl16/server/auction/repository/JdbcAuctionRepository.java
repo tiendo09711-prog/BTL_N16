@@ -30,6 +30,35 @@ import java.util.List;
 import java.util.Optional;
 
 public final class JdbcAuctionRepository implements AuctionRepository {
+    @Override public void deleteNotification(long user, long id) {
+        new vn.ptit.btl16.server.notification.PersonalNotificationStore(connectionFactory).delete(user, id);
+    }
+    @Override public vn.ptit.btl16.common.protocol.ProductTransactionStatus productTransactionStatus(long productId) {
+        try (var connection = connectionFactory.openDatabase(); var query = connection.prepareStatement("""
+                SELECT CASE WHEN EXISTS(SELECT 1 FROM auctions WHERE product_id=? AND status='ENDED' AND current_winner_id IS NOT NULL)
+                    THEN 'SOLD' WHEN EXISTS(SELECT 1 FROM auctions WHERE product_id=? AND status='OPEN')
+                    THEN 'AUCTIONING' ELSE 'UNTRADED' END
+                """)) {
+            query.setLong(1, productId); query.setLong(2, productId);
+            try (var rows = query.executeQuery()) { rows.next(); return vn.ptit.btl16.common.protocol.ProductTransactionStatus.valueOf(rows.getString(1)); }
+        } catch (SQLException error) { throw new AuctionRepositoryException("Cannot load product transaction status", error); }
+    }
+    @Override public java.util.Map<Long, vn.ptit.btl16.server.auction.model.AuctionActivity> auctionActivity() {
+        try (var connection = connectionFactory.openDatabase(); var query = connection.prepareStatement("""
+                SELECT a.auction_id,
+                    (SELECT COUNT(*) FROM bids b WHERE b.auction_id=a.auction_id) AS bid_count,
+                    (SELECT COUNT(*) FROM room_events e WHERE e.auction_id=a.auction_id AND e.event_type='JOINED') AS movement_count
+                FROM auctions a WHERE a.status='OPEN' AND a.visibility='PUBLIC'
+                """); var rows = query.executeQuery()) {
+            java.util.Map<Long, vn.ptit.btl16.server.auction.model.AuctionActivity> result = new java.util.HashMap<>();
+            while (rows.next()) { result.put(rows.getLong(1), new vn.ptit.btl16.server.auction.model.AuctionActivity(rows.getLong(2), rows.getLong(3))); }
+            return result;
+        } catch (SQLException error) { throw new AuctionRepositoryException("Cannot load featured auction activity", error); }
+    }
+    @Override public java.util.Map<String, String> topProducts() {
+        return new AuctionReceiptStore(connectionFactory).topProducts();
+    }
+    @Override public java.util.Map<String, String> topSellers() { return SellerRevenueStore.topSellers(connectionFactory); }
     @Override public java.util.List<java.util.Map<String,String>> operationEvents(Long room, String type, Instant from, Instant to, long before, int limit) {
         if (before <= 0 || limit < 1 || limit > 100 || (room != null && room <= 0) || (from != null && to != null && !from.isBefore(to))) {
             throw new IllegalArgumentException("Invalid operation log filters");
@@ -134,7 +163,7 @@ public final class JdbcAuctionRepository implements AuctionRepository {
         if (commit.productId() > 0) {
             productId = productTransaction(commit.productId(), commit.ownerId(), (connection, active) -> {
                 if (exists(connection, "SELECT 1 FROM auctions WHERE product_id = ?", commit.productId())) {
-                    throw new AuctionException(ErrorCode.PRODUCT_FROZEN, "Mat hang da tung dau gia; khong duoc sua noi dung, anh/video, anh dai dien hoac thu tu");
+                    throw new AuctionException(ErrorCode.PRODUCT_FROZEN, "Mặt hàng đã từng đấu giá; không được sửa nội dung, ảnh/video, ảnh đại diện hoặc thứ tự");
                 }
                 return writeMediaProduct(connection, commit);
             });
@@ -162,7 +191,7 @@ public final class JdbcAuctionRepository implements AuctionRepository {
                 check.setString(1, media.id());
                 try (ResultSet result = check.executeQuery()) {
                     if (result.next() && (productId == 0 || result.getLong(1) != productId)) {
-                        throw new AuctionException(ErrorCode.AUCTION_FORBIDDEN, "Khong duoc lay media cua san pham khac");
+                        throw new AuctionException(ErrorCode.AUCTION_FORBIDDEN, "Không được lấy ảnh/video của sản phẩm khác");
                     }
                 }
             }
@@ -172,18 +201,19 @@ public final class JdbcAuctionRepository implements AuctionRepository {
                 INSERT INTO products(created_by, code, name, description, image_mime, image_name, image_size, image_version, active, created_at, updated_at)
                 VALUES(?, ?, ?, ?, 'image/jpeg', ?, ?, 1, TRUE, CURRENT_TIMESTAMP(3), CURRENT_TIMESTAMP(3))
                 """ : """
-                UPDATE products SET created_by = ?, code = ?, name = ?, description = ?, image_mime = 'image/jpeg',
+                UPDATE products SET created_by = ?, name = ?, description = ?, image_mime = 'image/jpeg',
                     image_name = ?, image_size = ?, image_version = image_version + 1, updated_at = CURRENT_TIMESTAMP(3)
                 WHERE product_id = ?
                 """;
         try (PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-            statement.setLong(1, commit.ownerId());
-            statement.setString(2, commit.code());
-            statement.setString(3, commit.name());
-            statement.setString(4, commit.description());
-            statement.setString(5, cover.name());
-            statement.setInt(6, (int) Math.min(Integer.MAX_VALUE, cover.bytes()));
-            if (productId > 0) { statement.setLong(7, productId); }
+            int index = 1;
+            statement.setLong(index++, commit.ownerId());
+            if (productId == 0) { statement.setString(index++, ProductCodeStore.allocate(connection)); }
+            statement.setString(index++, commit.name());
+            statement.setString(index++, commit.description());
+            statement.setString(index++, cover.name());
+            statement.setInt(index++, (int) Math.min(Integer.MAX_VALUE, cover.bytes()));
+            if (productId > 0) { statement.setLong(index, productId); }
             statement.executeUpdate();
             if (productId == 0) {
                 try (ResultSet keys = statement.getGeneratedKeys()) {
@@ -281,7 +311,7 @@ public final class JdbcAuctionRepository implements AuctionRepository {
                 try (ResultSet result = check.executeQuery()) {
                     if (!result.next() || result.getLong(1) != expectedVersion
                             || exists(connection, "SELECT 1 FROM product_media WHERE product_id = ?", productId)) {
-                        throw new AuctionException(ErrorCode.DATABASE_CONFLICT, "Anh cu da thay doi trong khi chuyen doi");
+                        throw new AuctionException(ErrorCode.DATABASE_CONFLICT, "Ảnh cũ đã thay đổi trong khi chuyển đổi");
                     }
                 }
             }
@@ -299,64 +329,63 @@ public final class JdbcAuctionRepository implements AuctionRepository {
                     image_name, image_size, image_version, active, created_at, updated_at)
                 VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, TRUE, ?, ?)
                 """;
-        try (Connection connection = connectionFactory.openDatabase();
-             PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-            statement.setLong(1, commit.getOwnerId());
-            statement.setString(2, commit.getCode());
-            statement.setString(3, commit.getName());
-            statement.setString(4, commit.getDescription());
-            byte[] image = commit.getImageData();
-            statement.setBytes(5, image);
-            statement.setString(6, commit.hasImage() ? commit.getImageMime() : null);
-            statement.setString(7, commit.hasImage() ? commit.getImageName() : null);
-            if (commit.hasImage()) {
-                statement.setInt(8, image.length);
-            } else {
-                statement.setNull(8, Types.INTEGER);
-            }
-            statement.setLong(9, commit.hasImage() ? 1L : 0L);
-            statement.setTimestamp(10, Timestamp.from(commit.getCreatedAt()));
-            statement.setTimestamp(11, Timestamp.from(commit.getCreatedAt()));
-            statement.executeUpdate();
-            try (ResultSet keys = statement.getGeneratedKeys()) {
-                if (!keys.next()) {
-                    throw new SQLException("Database did not return product_id");
+        return transaction(connection -> {
+            String code = ProductCodeStore.allocate(connection);
+            try (PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+                statement.setLong(1, commit.getOwnerId());
+                statement.setString(2, code);
+                statement.setString(3, commit.getName());
+                statement.setString(4, commit.getDescription());
+                byte[] image = commit.getImageData();
+                statement.setBytes(5, image);
+                statement.setString(6, commit.hasImage() ? commit.getImageMime() : null);
+                statement.setString(7, commit.hasImage() ? commit.getImageName() : null);
+                if (commit.hasImage()) {
+                    statement.setInt(8, image.length);
+                } else {
+                    statement.setNull(8, Types.INTEGER);
                 }
-                return new Product(
-                        keys.getLong(1), commit.getOwnerId(), commit.getOwnerUsername(),
-                        commit.getCode(), commit.getName(), commit.getDescription(), true,
-                        commit.getCreatedAt(), commit.getCreatedAt(), commit.hasImage(),
-                        commit.getImageMime(), commit.getImageName(),
-                        commit.hasImage() ? image.length : 0, commit.hasImage() ? 1L : 0L);
+                statement.setLong(9, commit.hasImage() ? 1L : 0L);
+                statement.setTimestamp(10, Timestamp.from(commit.getCreatedAt()));
+                statement.setTimestamp(11, Timestamp.from(commit.getCreatedAt()));
+                statement.executeUpdate();
+                try (ResultSet keys = statement.getGeneratedKeys()) {
+                    if (!keys.next()) {
+                        throw new SQLException("Database did not return product_id");
+                    }
+                    return new Product(
+                            keys.getLong(1), commit.getOwnerId(), commit.getOwnerUsername(),
+                            code, commit.getName(), commit.getDescription(), true,
+                            commit.getCreatedAt(), commit.getCreatedAt(), commit.hasImage(),
+                            commit.getImageMime(), commit.getImageName(),
+                            commit.hasImage() ? image.length : 0, commit.hasImage() ? 1L : 0L);
+                }
             }
-        } catch (SQLException exception) {
-            throw new AuctionRepositoryException("Cannot create product", exception);
-        }
+        });
     }
 
     @Override
     public Product updateProduct(UpdateProductCommit commit) {
         String sql = commit.isReplaceImage() ? """
                 UPDATE products
-                SET code = ?, name = ?, description = ?, updated_at = ?,
+                SET name = ?, description = ?, updated_at = ?,
                     image_data = ?, image_mime = ?, image_name = ?, image_size = ?,
                     image_version = image_version + 1
                 WHERE product_id = ? AND created_by = ?
                 """ : """
                 UPDATE products
-                SET code = ?, name = ?, description = ?, updated_at = ?
+                SET name = ?, description = ?, updated_at = ?
                 WHERE product_id = ? AND created_by = ?
                 """;
         productTransaction(commit.getProductId(), commit.getOwnerId(), (connection, active) -> {
             if (exists(connection, "SELECT 1 FROM auctions WHERE product_id = ?", commit.getProductId())) {
-                throw new AuctionException(ErrorCode.PRODUCT_FROZEN, "San pham da tung dau gia khong duoc sua");
+                throw new AuctionException(ErrorCode.PRODUCT_FROZEN, "Sản phẩm đã từng đấu giá không được sửa");
             }
             try (PreparedStatement statement = connection.prepareStatement(sql)) {
-                statement.setString(1, commit.getCode());
-                statement.setString(2, commit.getName());
-                statement.setString(3, commit.getDescription());
-                statement.setTimestamp(4, Timestamp.from(commit.getUpdatedAt()));
-                int index = 5;
+                statement.setString(1, commit.getName());
+                statement.setString(2, commit.getDescription());
+                statement.setTimestamp(3, Timestamp.from(commit.getUpdatedAt()));
+                int index = 4;
                 if (commit.isReplaceImage()) {
                     byte[] image = commit.getImageData();
                     statement.setBytes(index++, image);
@@ -385,7 +414,7 @@ public final class JdbcAuctionRepository implements AuctionRepository {
                 """;
         productTransaction(productId, ownerId, (connection, active) -> {
             if (exists(connection, "SELECT 1 FROM auctions WHERE product_id = ? AND status = 'OPEN'", productId)) {
-                throw new AuctionException(ErrorCode.PRODUCT_IN_USE, "San pham dang co phien mo");
+                throw new AuctionException(ErrorCode.PRODUCT_IN_USE, "Sản phẩm đang có phiên mở");
             }
             try (PreparedStatement statement = connection.prepareStatement(sql)) {
                 statement.setLong(1, productId);
@@ -405,11 +434,11 @@ public final class JdbcAuctionRepository implements AuctionRepository {
             if (!active) {
                 if (exists(connection, "SELECT 1 FROM auctions WHERE product_id = ? AND status = 'OPEN'", productId)) {
                     throw new AuctionException(ErrorCode.PRODUCT_IN_USE,
-                            "Khong the khoi phuc mat hang dang co phien dau gia mo");
+                            "Không thể khôi phục mặt hàng đang có phiên đấu giá mở");
                 }
                 if (exists(connection, "SELECT 1 FROM auctions WHERE product_id = ? AND status = 'ENDED' AND current_winner_id IS NOT NULL", productId)) {
                     throw new AuctionException(ErrorCode.PRODUCT_ALREADY_SOLD,
-                            "Mat hang da co nguoi thang, khong duoc khoi phuc de dau gia lai ke ca chua thanh toan");
+                            "Mặt hàng đã có người thắng, không được khôi phục để đấu giá lại kể cả chưa thanh toán");
                 }
                 try (PreparedStatement statement = connection.prepareStatement(
                         "UPDATE products SET active = TRUE, updated_at = CURRENT_TIMESTAMP(3) WHERE product_id = ?")) {
@@ -432,8 +461,33 @@ public final class JdbcAuctionRepository implements AuctionRepository {
     }
 
     @Override
+    public boolean isProductDeleted(long productId) { return exists("SELECT 1 FROM deleted_products WHERE product_id = ?", productId); }
+
+    @Override
+    public void deleteProduct(long productId, long ownerId) {
+        productTransaction(productId, ownerId, (connection, active) -> {
+            if (exists(connection, "SELECT 1 FROM auctions WHERE product_id = ? AND status = 'OPEN'", productId)) {
+                throw new AuctionException(ErrorCode.PRODUCT_IN_USE, "Sản phẩm còn phiên đang mở hoặc sắp diễn ra. Hãy kết thúc hoặc hủy phiên trước khi xóa.");
+            }
+            if (exists(connection, "SELECT 1 FROM auctions WHERE product_id = ?", productId)) {
+                try (var mark = connection.prepareStatement("INSERT INTO deleted_products(product_id, deleted_at) VALUES(?, CURRENT_TIMESTAMP(3))");
+                     var update = connection.prepareStatement("UPDATE products SET active=FALSE,updated_at=CURRENT_TIMESTAMP(3) WHERE product_id=?")) {
+                    mark.setLong(1, productId); mark.executeUpdate(); update.setLong(1, productId); update.executeUpdate();
+                }
+            } else {
+                try (var media = connection.prepareStatement("DELETE FROM product_media WHERE product_id=?");
+                     var product = connection.prepareStatement("DELETE FROM products WHERE product_id=?")) {
+                    media.setLong(1, productId); media.executeUpdate(); // media_content cascades with product_media.
+                    product.setLong(1, productId); product.executeUpdate();
+                }
+            }
+            return null;
+        });
+    }
+
+    @Override
     public List<Product> findProductsByOwner(long ownerId) {
-        String sql = PRODUCT_SELECT + " WHERE p.created_by = ? ORDER BY p.created_at DESC";
+        String sql = PRODUCT_SELECT + " WHERE p.created_by = ? AND NOT EXISTS (SELECT 1 FROM deleted_products d WHERE d.product_id=p.product_id) ORDER BY p.created_at DESC";
         try (Connection connection = connectionFactory.openDatabase();
              PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setLong(1, ownerId);
@@ -447,6 +501,30 @@ public final class JdbcAuctionRepository implements AuctionRepository {
         } catch (SQLException exception) {
             throw new AuctionRepositoryException("Cannot load owner products", exception);
         }
+    }
+
+    @Override
+    public List<Product> findPurchasedProducts(long userId) {
+        String sql = PRODUCT_SELECT + " WHERE EXISTS (SELECT 1 FROM auctions a JOIN auction_results r ON r.auction_id=a.auction_id"
+                + " WHERE a.product_id=p.product_id AND a.status='ENDED' AND r.winner_id=?) ORDER BY p.updated_at DESC, p.product_id DESC";
+        try (var connection = connectionFactory.openDatabase(); var query = connection.prepareStatement(sql)) {
+            query.setLong(1, userId);
+            try (var rows = query.executeQuery()) {
+                List<Product> products = new ArrayList<>();
+                while (rows.next()) { products.add(mapProduct(rows)); }
+                return products;
+            }
+        } catch (SQLException error) { throw new AuctionRepositoryException("Cannot load purchased products", error); }
+    }
+
+    @Override
+    public boolean hasPurchasedProduct(long userId, long productId) {
+        try (var connection = connectionFactory.openDatabase(); var query = connection.prepareStatement(
+                "SELECT 1 FROM auctions a JOIN auction_results r ON r.auction_id=a.auction_id"
+                + " WHERE a.product_id=? AND a.status='ENDED' AND r.winner_id=? LIMIT 1")) {
+            query.setLong(1, productId); query.setLong(2, userId);
+            try (var rows = query.executeQuery()) { return rows.next(); }
+        } catch (SQLException error) { throw new AuctionRepositoryException("Cannot check purchased product", error); }
     }
 
     @Override
@@ -531,7 +609,7 @@ public final class JdbcAuctionRepository implements AuctionRepository {
                 """;
         long createdId = productTransaction(commit.getProductId(), commit.getHostUserId(), (connection, active) -> {
             if (!active) {
-                throw new AuctionException(ErrorCode.PRODUCT_INACTIVE, "San pham da bi vo hieu hoa");
+                throw new AuctionException(ErrorCode.PRODUCT_INACTIVE, "Sản phẩm đã bị vô hiệu hóa");
             }
             try (PreparedStatement ready = connection.prepareStatement("SELECT description FROM products WHERE product_id = ?")) {
                 ready.setLong(1, commit.getProductId());
@@ -548,10 +626,10 @@ public final class JdbcAuctionRepository implements AuctionRepository {
                 }
             }
             if (exists(connection, "SELECT 1 FROM auctions WHERE product_id = ? AND status = 'OPEN'", commit.getProductId())) {
-                throw new AuctionException(ErrorCode.AUCTION_ALREADY_EXISTS, "San pham da co phien mo");
+                throw new AuctionException(ErrorCode.AUCTION_ALREADY_EXISTS, "Sản phẩm đã có phiên mở");
             }
             if (exists(connection, "SELECT 1 FROM auctions WHERE product_id = ? AND status = 'ENDED' AND current_winner_id IS NOT NULL", commit.getProductId())) {
-                throw new AuctionException(ErrorCode.PRODUCT_ALREADY_SOLD, "San pham da co nguoi thang");
+                throw new AuctionException(ErrorCode.PRODUCT_ALREADY_SOLD, "Sản phẩm đã có người thắng");
             }
             AuctionRules.requireCompetitivePrice(
                     AuctionRules.money(commit.getStartPrice(), ErrorCode.INVALID_AMOUNT),
@@ -640,7 +718,7 @@ public final class JdbcAuctionRepository implements AuctionRepository {
     @Override
     public List<BidRecord> findRecentBids(long auctionId, int limit) {
         String sql = """
-                SELECT b.bid_id, b.auction_id, b.user_id, u.username,
+                SELECT b.bid_id, b.auction_id, b.user_id, u.username, u.display_name,
                        b.amount, b.server_sequence, b.created_at
                 FROM bids b
                 JOIN users u ON u.user_id = b.user_id
@@ -658,6 +736,7 @@ public final class JdbcAuctionRepository implements AuctionRepository {
                     values.add(new BidRecord(
                             resultSet.getLong("bid_id"), resultSet.getLong("auction_id"),
                             resultSet.getLong("user_id"), resultSet.getString("username"),
+                            resultSet.getString("display_name"),
                             resultSet.getBigDecimal("amount"), resultSet.getLong("server_sequence"),
                             resultSet.getTimestamp("created_at").toInstant()));
                 }
@@ -757,16 +836,21 @@ public final class JdbcAuctionRepository implements AuctionRepository {
                 }
                 RoomProgressStore.append(connection, commit.getAuctionId(), "BID_ACCEPTED", commit.getBidderId(), commit.getAmount(), "", commit.getCreatedAt());
                 RoomProgressStore.append(connection, commit.getAuctionId(), "LEADER_CHANGED", commit.getBidderId(), commit.getAmount(), "", commit.getCreatedAt());
-                if (previousLeader != null) {
-                    vn.ptit.btl16.server.notification.PersonalNotificationStore.save(connection, previousLeader,
-                            "OUTBID:" + commit.getAuctionId() + ":" + commit.getServerSequence() + ":" + previousLeader, "OUTBID", commit.getAuctionId(), "", commit.getCreatedAt());
-                }
+                vn.ptit.btl16.server.notification.PersonalNotificationStore.acceptedBid(connection, commit.getAuctionId(),
+                        commit.getBidderId(), previousLeader, commit.getServerSequence(), commit.getCreatedAt());
                 if (commit.getNewEndTime().isAfter(previousEnd)) {
                     RoomProgressStore.append(connection, commit.getAuctionId(), "EXTENDED_AUTO", null, null, commit.getNewEndTime().toString(), commit.getCreatedAt());
                 }
+                String displayName = commit.getBidderUsername();
+                try (var query = connection.prepareStatement("SELECT display_name FROM users WHERE user_id = ?")) {
+                    query.setLong(1, commit.getBidderId());
+                    try (var result = query.executeQuery()) {
+                        if (result.next()) { displayName = result.getString("display_name"); }
+                    }
+                }
                 connection.commit();
                 return new BidRecord(
-                        bidId, commit.getAuctionId(), commit.getBidderId(), commit.getBidderUsername(),
+                        bidId, commit.getAuctionId(), commit.getBidderId(), commit.getBidderUsername(), displayName,
                         commit.getAmount(), commit.getServerSequence(), commit.getCreatedAt());
             } catch (RuntimeException | SQLException exception) {
                 connection.rollback();
@@ -832,6 +916,7 @@ public final class JdbcAuctionRepository implements AuctionRepository {
                     final_price = VALUES(final_price), ended_at = VALUES(ended_at)
                 """;
         try (Connection connection = connectionFactory.openDatabase()) {
+            connection.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
             boolean oldAutoCommit = connection.getAutoCommit();
             connection.setAutoCommit(false);
             try {
@@ -988,10 +1073,13 @@ public final class JdbcAuctionRepository implements AuctionRepository {
                     lock.setLong(1, productId);
                     try (ResultSet result = lock.executeQuery()) {
                         if (!result.next() || result.getLong("created_by") != ownerId) {
-                            throw new AuctionException(ErrorCode.AUCTION_FORBIDDEN, "San pham khong thuoc tai khoan nay");
+                            throw new AuctionException(ErrorCode.AUCTION_FORBIDDEN, "Sản phẩm không thuộc tài khoản này");
                         }
                         active = result.getBoolean("active");
                     }
+                }
+                if (exists(connection, "SELECT 1 FROM deleted_products WHERE product_id=?", productId)) {
+                    throw new AuctionException(ErrorCode.PRODUCT_NOT_FOUND, "Sản phẩm đã được xóa và không thể khôi phục");
                 }
                 Result result = operation.execute(connection, active);
                 connection.commit();
@@ -1020,10 +1108,10 @@ public final class JdbcAuctionRepository implements AuctionRepository {
                     lock.setLong(1, commit.getAuctionId());
                     try (ResultSet result = lock.executeQuery()) {
                         if (!result.next() || result.getLong(1) != commit.getBlockedBy()) {
-                            throw new AuctionException(ErrorCode.AUCTION_FORBIDDEN, "Chi chu tri duoc kick");
+                            throw new AuctionException(ErrorCode.AUCTION_FORBIDDEN, "Chỉ chủ trì được mời người khác ra khỏi phòng");
                         }
                         if (commit.getUserId() == commit.getBlockedBy()) {
-                            throw new AuctionException(ErrorCode.CANNOT_KICK_HOST, "Khong duoc kick chu tri");
+                            throw new AuctionException(ErrorCode.CANNOT_KICK_HOST, "Không được mời chủ trì ra khỏi phòng");
                         }
                     }
                 }
@@ -1033,7 +1121,7 @@ public final class JdbcAuctionRepository implements AuctionRepository {
                     check.setLong(2, commit.getUserId());
                     try (ResultSet result = check.executeQuery()) {
                         if (result.next()) {
-                            throw new AuctionException(ErrorCode.CANNOT_KICK_BIDDER, "Khong duoc kick nguoi da bid");
+                            throw new AuctionException(ErrorCode.CANNOT_KICK_BIDDER, "Không được mời người đã ra giá ra khỏi phòng");
                         }
                     }
                 }

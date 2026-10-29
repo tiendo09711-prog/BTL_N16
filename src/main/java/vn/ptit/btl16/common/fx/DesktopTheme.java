@@ -93,7 +93,7 @@ public final class DesktopTheme {
     public static HBox brand(String suffix) {
         Label name = label("AUCTION", "brand");
         Label badge = label(suffix, "brand-badge");
-        HBox brand = new HBox(10, gavel(25, "#fb7956"), name, badge);
+        HBox brand = new HBox(10, gavel(25, "#d6ab62"), name, badge);
         brand.setAlignment(Pos.CENTER_LEFT);
         return brand;
     }

@@ -81,7 +81,7 @@ public final class MysqlStorageSelfTest {
                                 "mysql_seller", "MISSING_PAYLOAD", "Must rollback", TestMedia.DESCRIPTION, List.of(missingPayload)));
                         throw new AssertionError("missing binary payload must fail");
                     } catch (AuctionRepositoryException expected) {
-                        TestSupport.check(repository.findProductByCode("MISSING_PAYLOAD").isEmpty(), "failed BLOB write rolls back product and metadata");
+                        TestSupport.check(repository.findProductsByOwner(sellerId).stream().noneMatch(value -> value.getName().equals("Must rollback")), "failed BLOB write rolls back product and metadata");
                     }
                     var close = new CloseAuctionCommit(roomId, room.getCurrentWinnerId(), room.getCurrentWinnerUsername(), room.getCurrentPrice(), room.getEndTime(), room.getEndTime());
                     repository.closeAuction(close); repository.closeAuction(close);
@@ -92,7 +92,7 @@ public final class MysqlStorageSelfTest {
                     for (int retry = 0; retry < 2; retry++) { ok(buyer.sendRequest(vn.ptit.btl16.common.protocol.MessageType.READ_MY_NOTIFICATION,
                             Map.of("notificationId", inbox.get("notification.0.id"), "read", "true")).thenApply(ApiResponse::new)); }
                     TestSupport.equals(1, repository.operationEvents(roomId, "BID_ACCEPTED", null, null, Long.MAX_VALUE, 10).size(), "MySQL operator log filter");
-                    money("1890", server.wallets().account(buyerId).balance()); money("110", server.wallets().account(sellerId).balance());
+                    money("1890", server.wallets().account(buyerId).balance()); money("106.70", server.wallets().account(sellerId).balance());
                     try (var connection = factory.openDatabase(); var query = connection.createStatement();
                          var rows = query.executeQuery("SELECT COUNT(*), MAX(OCTET_LENGTH(payload)) FROM media_content")) {
                         rows.next(); TestSupport.check(rows.getLong(1) > 5 && rows.getLong(2) <= 262144, "media binary chunks reside in MySQL, bounded below packet size");
@@ -120,7 +120,7 @@ public final class MysqlStorageSelfTest {
                     var range = download(media, manifest.path("media").get(1).path("video").asText(), "bytes=7-37");
                     TestSupport.equals(206, range.statusCode(), "video Range survives database storage");
                     assertBytes(Arrays.copyOfRange(videoBytes, 7, 38), range.body(), "video Range bytes match");
-                    money("1890", restarted.wallets().account(buyerId).balance()); money("110", restarted.wallets().account(sellerId).balance());
+                    money("1890", restarted.wallets().account(buyerId).balance()); money("106.70", restarted.wallets().account(sellerId).balance());
                     TestSupport.equals("PAID", ok(new AuctionReceiptApi(seller).get(roomId)).get("walletStatus"), "MySQL receipt survives restart");
                 }
             }

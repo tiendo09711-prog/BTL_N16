@@ -9,7 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 final class BidTableModel extends AbstractTableModel {
-    private static final String[] COLUMNS = {"Thu tu", "Nguoi dat", "Muc gia", "Thoi diem"};
+    private static final String[] COLUMNS = {"Thứ tự", "Người đặt", "Mức giá", "Thời điểm"};
     private List<ClientBid> values = new ArrayList<>();
 
     public void setValues(List<ClientBid> values) {

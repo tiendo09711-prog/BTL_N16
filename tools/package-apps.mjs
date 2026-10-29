@@ -92,6 +92,14 @@ async function packageApplication(role) {
     mkdirSync(path.join(staging, 'config'), { recursive: true });
     cpSync(preserveMysqlConfig ? previousConfig : path.join(projectRoot, 'config', 'server-desktop.properties'),
       path.join(staging, 'config', 'server.properties'));
+  } else {
+    const speech = path.join(projectRoot, 'tools', 'speech');
+    const piper = path.join(speech, 'piper', process.platform === 'win32' ? 'piper.exe' : 'piper');
+    if (existsSync(piper) && existsSync(path.join(speech, 'vi_VN-vais1000-medium.onnx'))) {
+      cpSync(speech, path.join(staging, 'tools', 'speech'), { recursive: true });
+    } else {
+      console.warn('[VOICE] Local Vietnamese voice is not bundled. Prepare tools/speech before distributing voice announcements.');
+    }
   }
   removeBuildDirectory(appImage);
 

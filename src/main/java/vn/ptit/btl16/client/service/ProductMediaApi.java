@@ -43,6 +43,12 @@ public final class ProductMediaApi {
     }
 
     public String url(String relative) { return base.resolve(relative).toString(); }
+    public static JsonNode firstImage(JsonNode manifest) {
+        for (JsonNode item : manifest.path("media")) {
+            if ("IMAGE".equals(item.path("kind").asText())) { return item; }
+        }
+        return null;
+    }
     public CompletableFuture<JsonNode> manifest(long productId, long auctionId) { return request("GET", "/v1/products/" + productId + "?auctionId=" + auctionId, null); }
     public CompletableFuture<JsonNode> limits() { return request("GET", "/v1/limits", null); }
     public CompletableFuture<String> begin(long productId) { return request("POST", "/v1/drafts?productId=" + productId, Map.of()).thenApply(body -> body.path("draftId").asText()); }
@@ -88,7 +94,7 @@ public final class ProductMediaApi {
             if (error != null) { result.completeExceptionally(error); return; }
             try {
                 JsonNode data = JSON.readTree(response.body());
-                if (response.statusCode() != 200) { throw new IOException(data.path("message").asText("Khong the tai media") + " [" + data.path("errorCode").asText() + "]"); }
+                if (response.statusCode() != 200) { throw new IOException(data.path("message").asText("Không thể tải ảnh/video") + " [" + data.path("errorCode").asText() + "]"); }
                 result.complete(data);
             } catch (Exception exception) { result.completeExceptionally(exception); }
         });
@@ -96,6 +102,6 @@ public final class ProductMediaApi {
     }
     public static String message(Throwable error) {
         while (error.getCause() != null) { error = error.getCause(); }
-        return error.getMessage() == null ? "Khong the ket noi kenh media. Kiem tra cong media tren server." : error.getMessage();
+        return error.getMessage() == null ? "Không thể kết nối kênh ảnh/video. Kiểm tra cổng ảnh/video trên Server." : error.getMessage();
     }
 }

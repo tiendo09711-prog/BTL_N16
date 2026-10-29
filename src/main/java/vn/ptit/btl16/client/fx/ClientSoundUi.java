@@ -10,6 +10,7 @@ import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonBase;
 import javafx.scene.control.CheckMenuItem;
+import javafx.scene.control.CheckBox;
 import javafx.scene.control.CustomMenuItem;
 import javafx.scene.control.DialogPane;
 import javafx.scene.control.Label;
@@ -51,35 +52,80 @@ public final class ClientSoundUi implements AutoCloseable {
     }
 
     public static MenuButton controls(ClientSounds sounds) {
+        return controls(sounds, null);
+    }
+
+    public static MenuButton controls(ClientSounds sounds, ClientBidVoice voice) {
         MenuButton menu = new MenuButton();
         menu.setId("client-sound-settings");
         menu.getProperties().put("client.sound.silent", true);
-        menu.getStyleClass().add("ghost");
+        menu.getStyleClass().addAll("ghost", "sound-settings");
         menu.textProperty().bind(Bindings.createStringBinding(() -> !sounds.availableProperty().get()
                 ? "\u00c2m thanh: kh\u00f4ng kh\u1ea3 d\u1ee5ng" : sounds.isEnabled() && sounds.getVolume() > 0
                 ? "\u00c2m thanh: b\u1eadt" : "\u00c2m thanh: t\u1eaft", sounds.enabledProperty(), sounds.volumeProperty(), sounds.availableProperty()));
         CheckMenuItem enabled = new CheckMenuItem("B\u1eadt \u00e2m thanh");
         enabled.setId("client-sound-enabled");
+        enabled.getStyleClass().add("sound-menu-item");
         enabled.setSelected(sounds.isEnabled());
         enabled.setOnAction(event -> sounds.setEnabled(enabled.isSelected()));
         sounds.enabledProperty().addListener((observable, before, after) -> enabled.setSelected(after));
         Slider volume = new Slider(0, 100, sounds.getVolume() * 100);
         volume.setId("client-sound-volume");
         volume.setPrefWidth(180);
-        volume.setAccessibleText("\u00c2m l\u01b0\u1ee3ng hi\u1ec7u \u1ee9ng Client");
+        volume.setAccessibleText("Âm lượng chung của ứng dụng");
         volume.valueProperty().addListener((observable, before, after) -> sounds.setVolume(after.doubleValue() / 100));
         sounds.volumeProperty().addListener((observable, before, after) -> {
             if (Math.abs(volume.getValue() - after.doubleValue() * 100) > .01) { volume.setValue(after.doubleValue() * 100); }
         });
         Label amount = new Label();
+        amount.getStyleClass().add("sound-settings-label");
         amount.textProperty().bind(Bindings.format("\u00c2m l\u01b0\u1ee3ng: %.0f%%", volume.valueProperty()));
         Button preview = new Button("Nghe th\u1eed");
         preview.setId("client-sound-preview");
         preview.setOnAction(event -> sounds.play(ClientSounds.Cue.SUCCESS));
         preview.disableProperty().bind(sounds.enabledProperty().not().or(sounds.volumeProperty().isEqualTo(0)).or(sounds.availableProperty().not()));
-        VBox panel = new VBox(8, amount, volume, preview, new Label("Ch\u1ec9 hi\u1ec7u \u1ee9ng; kh\u00f4ng \u0111\u1ed5i \u00e2m l\u01b0\u1ee3ng video."));
+        VBox panel = new VBox(10, amount, volume, preview);
+        panel.getStyleClass().add("sound-settings-panel");
+        CheckBox music = new CheckBox("Bật nhạc nền"); music.setId("client-music-enabled");
+        music.setSelected(sounds.isMusicEnabled()); music.setOnAction(event -> sounds.setMusicEnabled(music.isSelected()));
+        sounds.musicEnabledProperty().addListener((observable, before, after) -> music.setSelected(after));
+        Slider musicVolume = new Slider(0, 100, sounds.getMusicVolume() * 100);
+        musicVolume.setId("client-music-volume"); musicVolume.setPrefWidth(180); musicVolume.setAccessibleText("Âm lượng nhạc nền");
+        musicVolume.valueProperty().addListener((observable, before, after) -> sounds.setMusicVolume(after.doubleValue() / 100));
+        sounds.musicVolumeProperty().addListener((observable, before, after) -> {
+            if (Math.abs(musicVolume.getValue() - after.doubleValue() * 100) > .01) { musicVolume.setValue(after.doubleValue() * 100); }
+        });
+        musicVolume.disableProperty().bind(sounds.musicEnabledProperty().not().or(sounds.enabledProperty().not()));
+        Label musicAmount = new Label(); musicAmount.textProperty().bind(Bindings.format("Âm lượng nhạc nền: %.0f%%", musicVolume.valueProperty()));
+        Label musicTitle = new Label("Yume to Hazakura · Phát lặp liên tục"); musicTitle.setWrapText(true); musicTitle.setMaxWidth(245);
+        panel.getChildren().addAll(new javafx.scene.control.Separator(), music, musicTitle, musicAmount, musicVolume);
+        if (voice != null) {
+            CheckBox narration = new CheckBox("Đọc thông báo đấu giá");
+            narration.setId("client-bid-voice-enabled");
+            narration.setSelected(voice.isEnabled());
+            narration.setOnAction(event -> voice.setEnabled(narration.isSelected()));
+            voice.enabledProperty().addListener((observable, before, after) -> narration.setSelected(after));
+            narration.disableProperty().bind(voice.availableProperty().not());
+            Button voicePreview = new Button("Nghe thử giọng Việt");
+            voicePreview.setId("client-bid-voice-preview");
+            voicePreview.setOnAction(event -> voice.preview());
+            voicePreview.disableProperty().bind(sounds.enabledProperty().not().or(sounds.volumeProperty().isEqualTo(0))
+                    .or(voice.enabledProperty().not()).or(voice.availableProperty().not()));
+            Label voiceHelp = new Label("Đọc lượt ra giá, nhắc 30 giây trong phòng và chúc mừng riêng người thắng.");
+            voiceHelp.setWrapText(true); voiceHelp.setMaxWidth(245);
+            Label status = new Label();
+            status.setId("client-bid-voice-status");
+            status.textProperty().bind(voice.statusProperty());
+            status.setWrapText(true); status.setMaxWidth(245);
+            panel.getChildren().addAll(new javafx.scene.control.Separator(), narration, voicePreview, voiceHelp, status);
+        }
+        Label note = new Label("Âm lượng chung áp dụng cho nhạc nền, hiệu ứng và giọng đọc. Nhạc có thể bật/tắt riêng.");
+        note.setWrapText(true); note.setMaxWidth(245);
+        panel.getChildren().add(note);
         panel.getProperties().put("client.sound.silent", true);
-        menu.getItems().setAll(enabled, new CustomMenuItem(panel, false));
+        CustomMenuItem content = new CustomMenuItem(panel, false);
+        content.getStyleClass().add("sound-menu-content");
+        menu.getItems().setAll(enabled, content);
         return menu;
     }
 

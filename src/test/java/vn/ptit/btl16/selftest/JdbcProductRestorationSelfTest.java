@@ -150,7 +150,8 @@ public final class JdbcProductRestorationSelfTest {
         fixture.management.restoreProduct(fixture.host, product.getProductId());
         repository.restoreProduct(product.getProductId(), 1L);
         ProductRestorationSelfTest.expect(ErrorCode.AUCTION_FORBIDDEN, () -> repository.restoreProduct(product.getProductId(), 2L));
-        Product sold = repository.findProductByCode("RESTORE_SOLD").orElseThrow();
+        Product sold = repository.findProductsByOwner(1L).stream()
+                .filter(value -> repository.hasSoldAuctionForProduct(value.getProductId())).findFirst().orElseThrow();
         ProductRestorationSelfTest.expect(ErrorCode.PRODUCT_ALREADY_SOLD, () -> repository.restoreProduct(sold.getProductId(), 1L));
         TestSupport.equals(productRows, rows(factory, "products", "product_id"), "idempotent and rejected restores change no product column, including image and timestamps");
         TestSupport.equals(before, history(factory), "repeated/rejected restore preserves every bid, result and ban");

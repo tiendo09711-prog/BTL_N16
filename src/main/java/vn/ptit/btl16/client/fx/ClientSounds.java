@@ -46,6 +46,8 @@ public final class ClientSounds implements AutoCloseable {
     private final SimpleBooleanProperty enabled = new SimpleBooleanProperty(true);
     private final SimpleBooleanProperty available = new SimpleBooleanProperty(true);
     private final SimpleDoubleProperty volume = new SimpleDoubleProperty(.32);
+    private final SimpleBooleanProperty musicEnabled = new SimpleBooleanProperty(true);
+    private final SimpleDoubleProperty musicVolume = new SimpleDoubleProperty(.6);
     private final EnumMap<Cue, Long> lastPlayed = new EnumMap<>(Cue.class);
     private final LinkedHashMap<String, Boolean> observed = new LinkedHashMap<>();
     private long activeUntil;
@@ -69,6 +71,8 @@ public final class ClientSounds implements AutoCloseable {
             try {
                 enabled.set(preferences.getBoolean("enabled", true));
                 volume.set(normalize(preferences.getDouble("volume", .32)));
+                musicEnabled.set(preferences.getBoolean("music.enabled", true));
+                musicVolume.set(normalize(preferences.getDouble("music.volume", .6)));
             } catch (RuntimeException ignored) { }
         }
     }
@@ -81,9 +85,23 @@ public final class ClientSounds implements AutoCloseable {
     private static double normalize(double value) { return Double.isFinite(value) ? Math.max(0, Math.min(1, value)) : .32; }
     public boolean isEnabled() { return enabled.get(); }
     public double getVolume() { return volume.get(); }
+    public boolean isSilent() { return closed || forcedSilent || !enabled.get() || volume.get() == 0; }
     public ReadOnlyBooleanProperty enabledProperty() { return enabled; }
     public ReadOnlyBooleanProperty availableProperty() { return available; }
     public ReadOnlyDoubleProperty volumeProperty() { return volume; }
+    public boolean isMusicEnabled() { return musicEnabled.get(); }
+    public double getMusicVolume() { return musicVolume.get(); }
+    public ReadOnlyBooleanProperty musicEnabledProperty() { return musicEnabled; }
+    public ReadOnlyDoubleProperty musicVolumeProperty() { return musicVolume; }
+
+    public void setMusicEnabled(boolean value) {
+        musicEnabled.set(value);
+        if (preferences != null) { try { preferences.putBoolean("music.enabled", value); } catch (RuntimeException ignored) { } }
+    }
+    public void setMusicVolume(double value) {
+        musicVolume.set(normalize(value));
+        if (preferences != null) { try { preferences.putDouble("music.volume", musicVolume.get()); } catch (RuntimeException ignored) { } }
+    }
 
     public void setEnabled(boolean value) {
         enabled.set(value);

@@ -48,11 +48,18 @@ public final class AuctionWireData {
             List<Product> products,
             Instant serverNow,
             Function<Product, ProductRestorationStatus> restorationStatus) {
+        return productList(products, serverNow, restorationStatus, product -> vn.ptit.btl16.common.protocol.ProductTransactionStatus.UNTRADED);
+    }
+
+    public static Map<String, String> productList(List<Product> products, Instant serverNow,
+            Function<Product, ProductRestorationStatus> restorationStatus,
+            Function<Product, vn.ptit.btl16.common.protocol.ProductTransactionStatus> transactionStatus) {
         Map<String, String> data = new LinkedHashMap<>();
         data.put("productCount", Integer.toString(products.size()));
         for (int i = 0; i < products.size(); i++) {
             putProduct(data, "product." + i + '.', products.get(i));
             data.put("product." + i + ".restorationStatus", restorationStatus.apply(products.get(i)).name());
+            data.put("product." + i + ".transactionStatus", transactionStatus.apply(products.get(i)).name());
         }
         data.put("serverNow", Times.wire(serverNow));
         return data;
@@ -122,7 +129,7 @@ public final class AuctionWireData {
     public static Map<String, String> cancelled(AuctionSnapshot auction, Instant serverNow) {
         Map<String, String> data = new LinkedHashMap<>();
         putAuction(data, "", auction, 0);
-        data.put("message", "Phien dau gia da bi huy");
+        data.put("message", "Phiên đấu giá đã bị hủy");
         data.put("serverNow", Times.wire(serverNow));
         return data;
     }
@@ -132,7 +139,7 @@ public final class AuctionWireData {
         data.put("auctionId", Long.toString(auction.getAuctionId()));
         data.put("productName", auction.getProduct().getName());
         data.put("status", auction.getStatus().name());
-        data.put("message", "Phien da dong va duoc an khoi san");
+        data.put("message", "Phiên đã đóng và được ẩn khỏi sàn");
         data.put("serverNow", Times.wire(serverNow));
         return data;
     }
@@ -144,7 +151,7 @@ public final class AuctionWireData {
         Map<String, String> data = new LinkedHashMap<>();
         data.put("auctionId", Long.toString(auctionId));
         data.put("username", username == null ? "" : username);
-        data.put("message", "Ban da bi chu tri moi khoi phong dau gia");
+        data.put("message", "Bạn đã bị chủ trì mời khỏi phòng đấu giá");
         data.put("serverNow", Times.wire(serverNow));
         return data;
     }
@@ -254,6 +261,7 @@ public final class AuctionWireData {
         data.put(prefix + "auctionId", Long.toString(bid.getAuctionId()));
         data.put(prefix + "userId", Long.toString(bid.getUserId()));
         data.put(prefix + "username", bid.getUsername());
+        data.put(prefix + "displayName", bid.getDisplayName());
         data.put(prefix + "amount", Money.wire(bid.getAmount()));
         data.put(prefix + "serverSequence", Long.toString(bid.getServerSequence()));
         data.put(prefix + "createdAt", Times.wire(bid.getCreatedAt()));

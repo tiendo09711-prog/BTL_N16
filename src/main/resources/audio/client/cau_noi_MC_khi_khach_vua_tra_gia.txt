@@ -1,0 +1,20 @@
+Xin ghi nhận mức giá mới từ quý khách {ten_khach}!
+Cảm ơn quý khách {ten_khach} đã đưa ra mức giá mới!
+Một lượt trả giá mới đến từ quý khách {ten_khach}!
+Quý khách {ten_khach} vừa tham gia trả giá!
+Xin cảm ơn lượt trả giá của quý khách {ten_khach}!
+Chúng ta vừa nhận được mức giá từ {ten_khach}!
+Quý khách {ten_khach} đã đưa ra một mức giá mới!
+Mức giá vừa được cập nhật bởi quý khách {ten_khach}!
+Xin ghi nhận lượt ra giá của {ten_khach}!
+Cảm ơn {ten_khach} với lượt trả giá vừa rồi!
+Một lời đề nghị mới từ quý khách {ten_khach}!
+Quý khách {ten_khach} vừa nâng mức giá lên!
+Giá vừa tăng nhờ lượt trả giá của {ten_khach}!
+Một bước giá mới từ {ten_khach}!
+Xin ghi nhận bước giá của quý khách {ten_khach}!
+{ten_khach} vừa đưa ra mức giá tiếp theo!
+Quý khách {ten_khach} đã tiếp tục cuộc đấu giá!
+Cảm ơn quý khách {ten_khach} đã tham gia đấu giá!
+Một lượt đấu giá đáng chú ý từ {ten_khach}!
+Xin cảm ơn {ten_khach} vì mức giá mới!

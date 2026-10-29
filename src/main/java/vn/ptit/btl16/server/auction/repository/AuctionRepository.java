@@ -10,6 +10,17 @@ import java.util.List;
 import java.util.Optional;
 
 public interface AuctionRepository {
+    default void deleteNotification(long user, long id) {
+        throw new vn.ptit.btl16.server.auction.service.AuctionException(vn.ptit.btl16.common.protocol.ErrorCode.AUCTION_FORBIDDEN, "Không có thông báo cá nhân này");
+    }
+    default vn.ptit.btl16.common.protocol.ProductTransactionStatus productTransactionStatus(long productId) {
+        return hasSoldAuctionForProduct(productId) ? vn.ptit.btl16.common.protocol.ProductTransactionStatus.SOLD
+                : hasOpenAuctionForProduct(productId) ? vn.ptit.btl16.common.protocol.ProductTransactionStatus.AUCTIONING
+                : vn.ptit.btl16.common.protocol.ProductTransactionStatus.UNTRADED;
+    }
+    default java.util.Map<Long, vn.ptit.btl16.server.auction.model.AuctionActivity> auctionActivity() { return java.util.Map.of(); }
+    default java.util.Map<String, String> topProducts() { return java.util.Map.of("count", "0"); }
+    default java.util.Map<String, String> topSellers() { return java.util.Map.of("count", "0"); }
     default java.util.Map<String,String> notifications(long user, long before, boolean unread, int limit) {
         return java.util.Map.of("count","0","unreadCount","0","hasMore","false","nextBeforeId","0");
     }
@@ -50,10 +61,16 @@ public interface AuctionRepository {
     Product updateProduct(UpdateProductCommit commit);
 
     Optional<Product> deactivateProduct(long productId, long ownerId);
+    default void deleteProduct(long productId, long ownerId) { throw new UnsupportedOperationException("Product deletion not supported"); }
+    default boolean isProductDeleted(long productId) { return false; }
 
     Product restoreProduct(long productId, long ownerId);
 
     List<Product> findProductsByOwner(long ownerId);
+    default List<Product> findPurchasedProducts(long userId) { return List.of(); }
+    default boolean hasPurchasedProduct(long userId, long productId) {
+        return findPurchasedProducts(userId).stream().anyMatch(product -> product.getProductId() == productId);
+    }
 
     Optional<Product> findProductById(long productId);
 

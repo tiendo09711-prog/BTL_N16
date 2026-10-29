@@ -12,20 +12,20 @@ public final class AvatarImages {
     private AvatarImages() { }
 
     public static String normalize(String encoded) {
-        if (encoded.length() > 1_024_000) { throw new IllegalArgumentException("Avatar toi da 750 KB"); }
+        if (encoded.length() > 1_024_000) { throw new IllegalArgumentException("Ảnh đại diện tối đa 750 KB"); }
         try {
             byte[] bytes = Base64.getDecoder().decode(encoded);
-            if (bytes.length == 0 || bytes.length > 750 * 1024) { throw new IllegalArgumentException("Avatar toi da 750 KB"); }
+            if (bytes.length == 0 || bytes.length > 750 * 1024) { throw new IllegalArgumentException("Ảnh đại diện tối đa 750 KB"); }
             try (var input = ImageIO.createImageInputStream(new ByteArrayInputStream(bytes))) {
                 var readers = ImageIO.getImageReaders(input);
-                if (!readers.hasNext()) { throw new IllegalArgumentException("Avatar can la anh JPEG hoac PNG hop le"); }
+                if (!readers.hasNext()) { throw new IllegalArgumentException("Ảnh đại diện cần là ảnh JPEG hoặc PNG hợp lệ"); }
                 var reader = readers.next();
                 try {
                     reader.setInput(input, true, true);
                     String format = reader.getFormatName();
-                    if (!format.equalsIgnoreCase("JPEG") && !format.equalsIgnoreCase("PNG")) { throw new IllegalArgumentException("Avatar chi nhan JPEG va PNG"); }
+                    if (!format.equalsIgnoreCase("JPEG") && !format.equalsIgnoreCase("PNG")) { throw new IllegalArgumentException("Ảnh đại diện chỉ nhận JPEG và PNG"); }
                     int width = reader.getWidth(0), height = reader.getHeight(0);
-                    if (width < 1 || height < 1 || (long) width * height > 8_000_000) { throw new IllegalArgumentException("Avatar toi da 8 trieu diem anh"); }
+                    if (width < 1 || height < 1 || (long) width * height > 8_000_000) { throw new IllegalArgumentException("Ảnh đại diện tối đa 8 triệu điểm ảnh"); }
                     BufferedImage source = reader.read(0);
                     BufferedImage result = new BufferedImage(128, 128, BufferedImage.TYPE_INT_RGB);
                     var graphics = result.createGraphics();
@@ -37,10 +37,10 @@ public final class AvatarImages {
                         graphics.drawImage(source, (128 - scaledWidth) / 2, (128 - scaledHeight) / 2, scaledWidth, scaledHeight, null);
                     } finally { graphics.dispose(); }
                     ByteArrayOutputStream output = new ByteArrayOutputStream();
-                    if (!ImageIO.write(result, "jpeg", output) || output.size() > 32768) { throw new IllegalArgumentException("Khong the chuan hoa avatar"); }
+                    if (!ImageIO.write(result, "jpeg", output) || output.size() > 32768) { throw new IllegalArgumentException("Không thể chuẩn hóa ảnh đại diện"); }
                     return Base64.getEncoder().encodeToString(output.toByteArray());
                 } finally { reader.dispose(); }
             }
-        } catch (java.io.IOException exception) { throw new IllegalArgumentException("Avatar khong hop le", exception); }
+        } catch (java.io.IOException exception) { throw new IllegalArgumentException("Ảnh đại diện không hợp lệ", exception); }
     }
 }

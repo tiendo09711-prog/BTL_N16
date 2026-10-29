@@ -10,6 +10,8 @@ public interface UserRepository {
 
     Optional<UserAccount> findById(long userId);
 
+    Optional<UserAccount> findByDisplayNameAndFriendCode(String displayName, String friendCode);
+
     boolean existsByUsername(String normalizedUsername);
 
     long createUser(

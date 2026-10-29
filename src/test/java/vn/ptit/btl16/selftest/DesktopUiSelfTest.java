@@ -3,9 +3,9 @@ package vn.ptit.btl16.selftest;
 import javafx.application.Platform;
 import javafx.scene.image.ImageView;
 import javafx.scene.Scene;
-import javafx.scene.control.TableView;
 import javafx.stage.Stage;
 import vn.ptit.btl16.client.fx.FxClientController;
+import vn.ptit.btl16.client.fx.AuctionMarketplacePane;
 import vn.ptit.btl16.client.model.ClientAppModel;
 import vn.ptit.btl16.client.model.ClientAuction;
 import vn.ptit.btl16.client.network.WebSocketClientTransport;
@@ -92,11 +92,55 @@ public final class DesktopUiSelfTest {
                     return null;
                 });
                 TestSupport.waitUntil(() -> model.auctionSnapshot().size() == 3, 10000, "client room list");
+                TestSupport.waitUntil(() -> {
+                    try { return fx(() -> currentStage.getScene().getRoot().lookupAll(".auction-product-card").size() == 3
+                            && currentStage.getScene().getRoot().lookupAll(".auction-product-card ImageView").stream().allMatch(node -> {
+                                var image = ((ImageView) node).getImage(); return image != null && image.getProgress() == 1 && !image.isError();
+                            })); }
+                    catch (Exception exception) { throw new IllegalStateException(exception); }
+                }, 15000, "marketplace loads the first uploaded photo for all product cards");
                 snapshot(clientStage, output.resolve("client-marketplace.png"));
                 fx(() -> {
-                    TableView<?> table = read(current, "auctionTable");
-                    table.getSelectionModel().selectFirst();
-                    invoke(current, "joinSelected", new Class<?>[0]);
+                    ((javafx.scene.control.ToggleButton) currentStage.getScene().lookup("#marketplace-phase-upcoming")).fire();
+                    AuctionMarketplacePane gallery = read(current, "auctionCards");
+                    TestSupport.check(gallery.getItems().isEmpty(), "upcoming tab filters out live rooms");
+                    ((javafx.scene.control.ToggleButton) currentStage.getScene().lookup("#marketplace-phase-all")).fire();
+                    TestSupport.equals(3, gallery.getItems().size(), "all-products tab restores the live rooms");
+                    javafx.scene.control.TextField search = read(current, "searchField");
+                    search.setText("STUDIO"); TestSupport.equals(3, gallery.getItems().size(), "search field finds products by their real seller");
+                    search.setText("no matching item"); TestSupport.check(gallery.getItems().isEmpty(), "search updates results without a dead search button");
+                    search.clear(); TestSupport.equals(3, gallery.getItems().size(), "clearing search restores products and their preview");
+                    return null;
+                });
+                fx(() -> { currentStage.setWidth(1186); currentStage.setHeight(790); return null; });
+                TestSupport.waitUntil(() -> {
+                    try { return fx(() -> currentStage.getScene().getRoot().lookupAll(".auction-product-card ImageView").stream().allMatch(node -> {
+                        ImageView view = (ImageView) node; return view.getImage() != null && view.getImage().getProgress() == 1 && !view.getImage().isError();
+                    })); } catch (Exception error) { throw new IllegalStateException(error); }
+                }, 10000, "filtered product covers finish loading before the reference-size screenshot");
+                Thread.sleep(350);
+                fx(() -> {
+                    currentStage.getScene().getRoot().applyCss(); currentStage.getScene().getRoot().layout();
+                    for (var node : java.util.List.of(currentStage.getScene().lookup("#marketplace-search-input"),
+                            currentStage.getScene().lookup("#marketplace-filters-toggle"), (javafx.scene.Node) read(current, "joinButton"),
+                            (javafx.scene.Node) read(current, "bidButton"))) {
+                        var bounds = node.localToScene(node.getBoundsInLocal());
+                        TestSupport.check(bounds.getMinX() >= 0 && bounds.getMaxX() <= currentStage.getScene().getWidth()
+                                && bounds.getMinY() >= 0 && bounds.getMaxY() <= currentStage.getScene().getHeight(), "reference-size marketplace keeps search and room actions visible");
+                    }
+                    return null;
+                });
+                snapshot(clientStage, output.resolve("client-marketplace-compact.png"));
+                fx(() -> { currentStage.setWidth(1420); currentStage.setHeight(880); return null; });
+                Thread.sleep(250);
+                fx(() -> {
+                    javafx.scene.control.SplitPane split = read(current, "listingSplit");
+                    TestSupport.equals(2, split.getItems().size(), "marketplace opens a product preview beside the product cards");
+                    TestSupport.check(model.getJoinedAuctionId() == null, "automatic product preview never joins a room");
+                    ((javafx.scene.control.Button) currentStage.getScene().lookup("#auction-card-1")).fire();
+                    TestSupport.equals(2, split.getItems().size(), "product click opens existing details and room actions");
+                    javafx.scene.control.Button join = read(current, "joinButton");
+                    TestSupport.check(!join.isDisabled(), "product details retain the join-room action"); join.fire();
                     return null;
                 });
                 TestSupport.waitUntil(() -> {
@@ -111,7 +155,11 @@ public final class DesktopUiSelfTest {
                     }
                     return view.getImage() != null && view.getImage().getProgress() == 1;
                 }, 10000, "room loads full-size cover image");
-                Thread.sleep(1500);
+                TestSupport.waitUntil(() -> {
+                    try { return fx(() -> ((javafx.scene.control.Label) currentStage.getScene().lookup("#room-session-status")).getText().contains("d\u1eabn \u0111\u1ea7u")); }
+                    catch (Exception exception) { throw new IllegalStateException(exception); }
+                }, 10000, "accepted buyer bid reaches the personal leading banner");
+                snapshot(clientStage, output.resolve("client-auctions.png"));
                 fx(() -> {
                     TestSupport.check((boolean) read(current, "roomMode"), "joining switches to dedicated room layout");
                     javafx.scene.control.SplitPane split = read(current, "listingSplit");
@@ -122,8 +170,20 @@ public final class DesktopUiSelfTest {
                             "joined room includes live price chart");
                     javafx.scene.Node composer = currentStage.getScene().lookup("#room-chat-input");
                     var composerBounds = composer.localToScene(composer.getBoundsInLocal());
-                    TestSupport.check(composerBounds.getMinY() >= 0 && composerBounds.getMaxY() < currentStage.getScene().getHeight(),
-                            "chat composer is immediately visible in the live room");
+                    javafx.scene.Node bidCard = (javafx.scene.Node) read(current, "roomBidScroll");
+                    javafx.scene.control.ScrollPane bidViewport = (javafx.scene.control.ScrollPane) bidCard;
+                    TestSupport.check(bidViewport.getContent().getBoundsInLocal().getHeight() <= bidViewport.getViewportBounds().getHeight() + 2,
+                            "normal room height displays the complete pinned bidding card: content="
+                                    + bidViewport.getContent().getBoundsInLocal().getHeight() + ", viewport="
+                                    + bidViewport.getViewportBounds().getHeight() + ", max=" + bidViewport.getMaxHeight());
+                    var bidBounds = bidCard.localToScene(bidCard.getBoundsInLocal());
+                    TestSupport.check(composerBounds.getMinX() >= bidBounds.getMinX() && composerBounds.getMinY() > bidBounds.getMinY(),
+                            "conversation is placed in the right column below bidding");
+                    javafx.scene.control.ScrollPane left = read(current, "roomMainScroll");
+                    TestSupport.check(left.getContent().getBoundsInLocal().getHeight() > left.getViewportBounds().getHeight(), "left column scrolls through all auction content");
+                    left.setVvalue(1); currentStage.getScene().getRoot().layout();
+                    TestSupport.equals(bidBounds.getMinY(), bidCard.localToScene(bidCard.getBoundsInLocal()).getMinY(), "scrolling left keeps the bidding card fixed");
+                    left.setVvalue(0);
                     javafx.scene.control.Label presence = (javafx.scene.control.Label) currentStage.getScene().lookup("#room-viewers");
                     TestSupport.check(!presence.getText().isBlank(), "room displays server presence count");
                     javafx.scene.control.Label role = (javafx.scene.control.Label) currentStage.getScene().lookup("#room-session-status");
@@ -133,9 +193,15 @@ public final class DesktopUiSelfTest {
                     ImageView image = read(current, "productImage");
                     TestSupport.check(image.getBoundsInParent().getWidth() > 10 && image.getBoundsInParent().getHeight() > 10,
                             "loaded room cover has visible layout bounds");
+                    TestSupport.check(image.getBoundsInParent().getWidth() > 280 && image.getBoundsInParent().getHeight() > 160,
+                            "joined room prominently displays the large product cover");
+                    TestSupport.check(currentStage.getScene().lookup("#auction-rules-navigation") != null,
+                            "auction rules have their own sidebar entry");
                     return null;
                 });
-                snapshot(clientStage, output.resolve("client-auctions.png"));
+                fx(() -> { ((javafx.scene.control.ScrollPane) read(current, "roomMainScroll")).setVvalue(1); return null; });
+                snapshot(clientStage, output.resolve("client-room-scrolled.png"));
+                fx(() -> { ((javafx.scene.control.ScrollPane) read(current, "roomMainScroll")).setVvalue(0); return null; });
                 snapshot(serverStage, output.resolve("server-dashboard.png"));
                 fx(() -> {
                     currentStage.setWidth(1100);
@@ -144,6 +210,12 @@ public final class DesktopUiSelfTest {
                 });
                 Thread.sleep(500);
                 fx(() -> {
+                    javafx.scene.control.ScrollPane right = read(current, "roomControlsScroll");
+                    javafx.scene.Node composer = currentStage.getScene().lookup("#room-chat-input");
+                    var relative = right.getContent().sceneToLocal(composer.localToScene(composer.getBoundsInLocal()));
+                    double overflow = right.getContent().getBoundsInLocal().getHeight() - right.getViewportBounds().getHeight();
+                    if (overflow > 0) { right.setVvalue(Math.max(0, Math.min(1, (relative.getMaxY() + 8 - right.getViewportBounds().getHeight()) / overflow))); }
+                    currentStage.getScene().getRoot().layout();
                     for (javafx.scene.Node node : java.util.List.of(currentStage.getScene().lookup("#room-chat-input"), (javafx.scene.Node) read(current, "bidButton"))) {
                         var bounds = node.localToScene(node.getBoundsInLocal());
                         TestSupport.check(bounds.getMinY() >= 0 && bounds.getMaxY() <= currentStage.getScene().getHeight()
@@ -157,7 +229,7 @@ public final class DesktopUiSelfTest {
                 fx(() -> {
                     TestSupport.check(!(boolean) read(current, "roomMode"), "leaving restores marketplace layout");
                     javafx.scene.control.SplitPane split = read(current, "listingSplit");
-                    TestSupport.equals(2, split.getItems().size(), "marketplace table returns after leaving");
+                    TestSupport.check(split.getItems().contains(read(current, "listingPanel")), "product gallery returns after leaving");
                     return null;
                 });
                 long closingRoom = model.auctionSnapshot().stream().filter(value -> value.getCurrentWinnerId() == null)
@@ -166,7 +238,7 @@ public final class DesktopUiSelfTest {
                 fx(() -> {
                     invoke(current, "applySnapshot", new Class<?>[]{ApiResponse.class, boolean.class}, closingJoin, true);
                     invoke(current, "renderAuctions", new Class<?>[0]);
-                    TableView<ClientAuction> table = read(current, "auctionTable");
+                    AuctionMarketplacePane table = read(current, "auctionCards");
                     table.getSelectionModel().select(model.joinedAuction());
                     return null;
                 });

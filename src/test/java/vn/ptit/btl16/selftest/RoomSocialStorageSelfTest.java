@@ -110,10 +110,15 @@ public final class RoomSocialStorageSelfTest {
             raw.put("auctionId", Long.toString(room)); raw.put("currentWinnerId", "2"); raw.put("currentWinnerUsername", "alice");
             raw.put("winnerId", "2"); raw.put("winnerUsername", "alice"); raw.put("previousWinnerId", "3"); raw.put("previousWinnerUsername", "bob");
             raw.put("bid.0.userId", "2"); raw.put("bid.0.username", "alice"); raw.put("newLeader", "alice");
+            raw.put("bid.0.displayName", "Alice");
+            raw.put("bid.userId", "2"); raw.put("bid.username", "alice"); raw.put("bid.displayName", "Alice");
             WireMessage projected = social.project("buyer", WireMessage.event(MessageType.AUCTION_ENDED, 15, raw));
             TestSupport.equals(Long.toString(-alice), projected.get("winnerId"), "final winner masked");
             TestSupport.equals(Long.toString(-bob), projected.get("previousWinnerId"), "previous leader masked");
             TestSupport.equals(Long.toString(-alice), projected.get("bid.0.userId"), "history identity masked");
+            TestSupport.equals(projected.get("bid.0.username"), projected.get("bid.0.displayName"), "history display name is replaced with anonymous alias");
+            TestSupport.equals(projected.get("bid.username"), projected.get("bid.displayName"), "live display name is replaced with anonymous alias");
+            TestSupport.check(!projected.get("bid.displayName").equals("Alice"), "voice cannot expose anonymous bidder display name");
             TestSupport.equals(Long.toString(-alice), projected.get("selfParticipantId"), "viewer identity masked");
             TestSupport.check(projected.get("newLeader").startsWith("Kh\u00e1ch #"), "outbid name masked");
             TestSupport.equals(15L, projected.getServerSequence(), "projection preserves sequence");

@@ -11,7 +11,7 @@ import java.util.List;
 
 final class AuctionTableModel extends AbstractTableModel {
     private static final String[] COLUMNS = {
-            "ID", "San pham", "Chu tri", "Gia hien tai", "Dan dau", "Con lai", "Trang thai", "Nguoi xem"
+            "ID", "Sản phẩm", "Chủ trì", "Giá hiện tại", "Dẫn đầu", "Còn lại", "Trạng thái", "Người xem"
     };
 
     private List<ClientAuction> values = new ArrayList<>();
@@ -52,7 +52,7 @@ final class AuctionTableModel extends AbstractTableModel {
             case 2 -> value.getHostUsername();
             case 3 -> Money.display(value.getCurrentPrice());
             case 4 -> value.getCurrentWinnerUsername().isBlank()
-                    ? "Chua co" : value.getCurrentWinnerUsername();
+                    ? "Chưa có" : value.getCurrentWinnerUsername();
             case 5 -> value.isOpen() ? Times.countdown(value.getEndTime(), serverNow) : "00:00";
             case 6 -> value.getStatus();
             case 7 -> value.getWatcherCount();

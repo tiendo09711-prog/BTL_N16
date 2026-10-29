@@ -55,12 +55,14 @@ public final class AuctionJourneySelfTest {
                     Path photo = data.resolve("PHONE.HEIC");
                     try (var input = AuctionJourneySelfTest.class.getResourceAsStream("/media/rainbow.heic")) { Files.copy(input, photo); }
                     JsonNode upload = media.upload(draft, photo, "IMAGE", progress -> { }).get(30, TimeUnit.SECONDS);
-                    JsonNode committed = media.commit(draft, "JOURNEY_PHONE", "Journey camera", TestMedia.DESCRIPTION,
+                    JsonNode committed = media.commit(draft, "", "Journey camera", TestMedia.DESCRIPTION,
                             List.of(upload.path("id").asText())).get(15, TimeUnit.SECONDS);
                     productId = committed.path("productId").asLong(); TestSupport.check(productId > 0, "HTTP product commit returns a real product");
                     TestSupport.equals(1, media.manifest(productId, 0).get(10, TimeUnit.SECONDS).path("media").size(), "uploaded HEIC attached to seller product");
                     error(ErrorCode.AUCTION_FORBIDDEN, rival.updateProduct(productId, "STOLEN", "Stolen", TestMedia.DESCRIPTION));
-                    error(ErrorCode.PRODUCT_CODE_EXISTS, TestMedia.create(host, "JOURNEY_PHONE", "Duplicate", TestMedia.DESCRIPTION));
+                    var nextProduct = ok(TestMedia.create(host, "", "Another product", TestMedia.DESCRIPTION));
+                    TestSupport.check(committed.path("code").asText().matches("MH[1-9][0-9]*")
+                            && !committed.path("code").asText().equals(nextProduct.get("code")), "same requested code receives distinct system codes");
                     error(ErrorCode.INVALID_INCREMENT, host.createAuction(productId, money("100"), money("0"), 1));
                     ApiResponse created = ok(host.createAuction(productId, money("100"), money("10"), 1, "PRIVATE", "room1234", anonymous));
                     room = Long.parseLong(created.get("auctionId"));

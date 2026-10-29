@@ -43,7 +43,7 @@ public final class MediaUiSelfTest {
             server.start(); ProductMediaApi api = new ProductMediaApi(URI.create("http://127.0.0.1:"+media.port()), fixture.host::getSessionToken);
             ProductMediaEditor editor = fx(() -> { ProductMediaEditor value = new ProductMediaEditor(null,api,null,()->{}); value.show(); return value; });
             waitFor(() -> field(editor,"draft") != null,"editor gets an authenticated draft");
-            fx(() -> { ((TextField)field(editor,"code")).setText("UI_MEDIA"); ((TextField)field(editor,"name")).setText("Study camera"); ((TextArea)field(editor,"description")).setText(TestMedia.DESCRIPTION); return null; });
+            fx(() -> { ((TextField)field(editor,"name")).setText("Study camera"); ((TextArea)field(editor,"description")).setText(TestMedia.DESCRIPTION); return null; });
             int before = ticks.get();
             fx(() -> { invoke(editor,"addFiles",new Class<?>[]{List.class,String.class,boolean.class},List.of(directory.resolve("large.png").toFile(),directory.resolve("fixture.webp").toFile()),"IMAGE",false); return null; });
             waitFor(() -> ready(editor,2),"multi-select images finish processing without blocking JavaFX");
@@ -63,7 +63,7 @@ public final class MediaUiSelfTest {
                 description.setText("x".repeat(2001)); TestSupport.check(save.isDisabled(), "description maximum is enforced");
                 description.setText(TestMedia.DESCRIPTION);
                 TextField code = (TextField) field(editor, "code");
-                code.setText("!"); TestSupport.check(save.isDisabled(), "invalid product code disables save"); code.setText("UI_MEDIA");
+                TestSupport.check(!code.isEditable() && code.getText().isEmpty() && !save.isDisabled(), "new product saves without entering a system-assigned code");
                 TextField name = (TextField) field(editor, "name");
                 name.setText(""); TestSupport.check(save.isDisabled(), "empty product name disables save"); name.setText("Study camera");
                 TestSupport.check(!save.isDisabled(), "valid form enables save immediately");
@@ -119,7 +119,9 @@ public final class MediaUiSelfTest {
             snapshot(fx(()->(Stage)field(editor,"stage")),"seller-video-preview.png");
             fx(() -> { invoke(editor,"save",new Class<?>[]{}); return null; });
             waitFor(() -> !((Stage)field(editor,"stage")).isShowing(),"editor commits real product and closes");
-            long productId=repository.findProductByCode("UI_MEDIA").orElseThrow().getProductId();
+            var savedProduct = repository.findProductsByOwner(1).get(0);
+            TestSupport.equals("MH1", savedProduct.getCode(), "editor receives a system-assigned product code");
+            long productId=savedProduct.getProductId();
             List<ProductMedia> stored=repository.findProductMedia(productId);TestSupport.equals(3,stored.size(),"UI saves all image/video references");
             TestSupport.equals("fixture.webp",stored.get(0).name(),"UI cover/order persisted");
             TestSupport.check(!stored.get(0).id().equals(cover),"editing creates a safe new variant reference, not overwrites published files");
@@ -135,7 +137,7 @@ public final class MediaUiSelfTest {
             MediaSystemSelfTest.tool(media.config().ffmpeg(), "-f", "lavfi", "-i", "testsrc2=size=160x100:rate=1", "-frames:v", "1", "-c:v", "libaom-av1", "-cpu-used", "8", "-still-picture", "1", avif.toString());
             ProductMediaEditor modern = fx(() -> { ProductMediaEditor value = new ProductMediaEditor(null, api, null, () -> { }); value.show(); return value; });
             waitFor(() -> field(modern, "draft") != null, "modern image editor gets draft");
-            fx(() -> { ((TextField) field(modern, "code")).setText("UI_MODERN"); ((TextField) field(modern, "name")).setText("Phone and browser images");
+            fx(() -> { ((TextField) field(modern, "name")).setText("Phone and browser images");
                 ((TextArea) field(modern, "description")).setText(TestMedia.DESCRIPTION);
                 invoke(modern, "addFiles", new Class<?>[]{List.class, String.class, boolean.class}, List.of(heic.toFile(), avif.toFile()), "IMAGE", false); return null; });
             waitFor(() -> ready(modern, 2), "HEIC grid and AVIF upload through actual editor");

@@ -11,6 +11,7 @@ import javafx.scene.control.TextField;
 import javafx.scene.layout.HBox;
 import javafx.stage.Stage;
 import vn.ptit.btl16.client.fx.FxClientController;
+import vn.ptit.btl16.client.fx.AuctionMarketplacePane;
 import vn.ptit.btl16.client.model.ClientAppModel;
 import vn.ptit.btl16.client.model.ClientAuction;
 import vn.ptit.btl16.client.model.ClientWireParser;
@@ -70,7 +71,7 @@ public final class BidExperienceUiSelfTest {
                 stage.setScene((Scene) field(controller, "mainScene"));
                 stage.setWidth(1240); stage.setHeight(760); stage.show();
                 return new View(stage, controller, model, network);
-            });
+            }, 30); // Cold JavaFX stylesheet/native initialization can exceed the action timeout.
             pendingAndErrors(view);
             watchdogAndLateReply(view);
             uncertainAndReconnect(view);
@@ -267,10 +268,13 @@ public final class BidExperienceUiSelfTest {
             TestSupport.equals(2, columns.getChildren().size(), "room keeps two columns");
             ScrollPane history = (ScrollPane) field(view.controller(), "roomControlsScroll");
             TestSupport.check(history.getHeight() >= 159, "history keeps dedicated visible viewport on laptop");
-            ((javafx.scene.control.TitledPane) field(view.controller(), "roomRules")).setExpanded(true);
+            ((Button) root.lookup("#auction-rules-navigation")).fire();
             root.applyCss(); root.layout();
-            TestSupport.check(history.getHeight() >= 159, "expanded rules do not push history out of view");
-            ((javafx.scene.control.TitledPane) field(view.controller(), "roomRules")).setExpanded(false);
+            TestSupport.check(root.lookup("#auction-rules-content") != null, "rules opens inside the main shell");
+            TestSupport.equals(6L, view.model().getJoinedAuctionId(), "reading rules keeps the current room membership");
+            ((Button) root.lookup("#account-marketplace-navigation")).fire();
+            root.applyCss(); root.layout();
+            TestSupport.check(history.getHeight() >= 159, "returning from rules preserves the room history viewport");
             root.lookupAll(".room-status-title, .room-live-notice, .room-live-bid, .price").forEach(node -> {
                 node.setOpacity(1); node.setTranslateY(0);
             });
@@ -339,7 +343,7 @@ public final class BidExperienceUiSelfTest {
     @SuppressWarnings("unchecked")
     private static List<Button> quick(View view) throws Exception { return (List<Button>) field(view.controller(), "quickBidButtons"); }
     @SuppressWarnings("unchecked")
-    private static TableView<ClientAuction> table(View view) throws Exception { return (TableView<ClientAuction>) field(view.controller(), "auctionTable"); }
+    private static AuctionMarketplacePane table(View view) throws Exception { return (AuctionMarketplacePane) field(view.controller(), "auctionCards"); }
     private static Object field(Object target, String name) throws Exception { Field field = target.getClass().getDeclaredField(name); field.setAccessible(true); return field.get(target); }
     private static void set(Object target, String name, Object value) throws Exception { Field field = target.getClass().getDeclaredField(name); field.setAccessible(true); field.set(target, value); }
     private static void invoke(Object target, String name) throws Exception { invoke(target, name, new Class<?>[0]); }
@@ -347,9 +351,12 @@ public final class BidExperienceUiSelfTest {
         Method method = target.getClass().getDeclaredMethod(name, types); method.setAccessible(true); method.invoke(target, values);
     }
     private static <Result> Result fx(Callable<Result> action) throws Exception {
+        return fx(action, 10);
+    }
+    private static <Result> Result fx(Callable<Result> action, int timeoutSeconds) throws Exception {
         CompletableFuture<Result> result = new CompletableFuture<>();
         Platform.runLater(() -> { try { result.complete(action.call()); } catch (Throwable error) { result.completeExceptionally(error); } });
-        return result.get(10, TimeUnit.SECONDS);
+        return result.get(timeoutSeconds, TimeUnit.SECONDS);
     }
     private static void drain() throws Exception { fx(() -> null); fx(() -> null); }
 

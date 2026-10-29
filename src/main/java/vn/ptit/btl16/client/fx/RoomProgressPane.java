@@ -19,6 +19,8 @@ public final class RoomProgressPane extends VBox {
     private final AuctionApi api;
     private final TreeMap<Long, Entry> entries = new TreeMap<>();
     private final ListView<Entry> list = new ListView<>();
+    private final VBox flow = new VBox(10);
+    private boolean flowLayout;
     private final Label status = new Label();
     private final Button older = new Button("Nh\u1eadt k\u00fd c\u0169 h\u01a1n");
     private final Button latest = new Button("Theo d\u00f5i m\u1edbi nh\u1ea5t");
@@ -45,12 +47,28 @@ public final class RoomProgressPane extends VBox {
     }
 
     public void onStatistics(Consumer<Map<String, String>> consumer) { statistics = consumer; }
+    public void setFlowLayout(boolean value) {
+        flowLayout = value;
+        getChildren().set(2, value ? flow : list);
+        renderEntries();
+    }
+    private void renderEntries() {
+        list.getItems().setAll(entries.values());
+        if (flowLayout) {
+            flow.getChildren().clear();
+            if (entries.isEmpty()) { flow.getChildren().add(new Label("Chưa có sự kiện được ghi nhận")); }
+            for (Entry entry : entries.values()) {
+                Label row = new Label(entry.text()); row.setWrapText(true);
+                row.getStyleClass().add("room-event-row"); flow.getChildren().add(row);
+            }
+        }
+    }
     public void setRoom(long value) {
         if (room != value) { clear(); room = value; statistics.accept(Map.of("state", "LOADING")); }
         tick();
     }
     public void invalidateRequests() { generation++; loadingEvents = false; loadingStats = false; lastEvents = 0; lastStats = 0; }
-    public void clear() { invalidateRequests(); room = 0; newestSeen = 0; browsing = false; olderAvailable = false; entries.clear(); list.getItems().clear(); status.setText(""); }
+    public void clear() { invalidateRequests(); room = 0; newestSeen = 0; browsing = false; olderAvailable = false; entries.clear(); renderEntries(); status.setText(""); }
 
     public void tick() {
         if (room == 0) { return; }
@@ -92,7 +110,7 @@ public final class RoomProgressPane extends VBox {
             }
             if (after == 0) { olderAvailable = Boolean.parseBoolean(response.get("hasMore")); }
             while (entries.size() > 200) { entries.pollFirstEntry(); olderAvailable = true; }
-            list.getItems().setAll(entries.values());
+            renderEntries();
             boolean more = Boolean.parseBoolean(response.get("hasMore"));
             older.setDisable(entries.isEmpty() || !olderAvailable);
             if (after > 0 && more) { lastEvents = 0; }

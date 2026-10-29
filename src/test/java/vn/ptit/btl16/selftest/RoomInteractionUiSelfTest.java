@@ -46,7 +46,7 @@ public final class RoomInteractionUiSelfTest {
                     await(() -> !field(pane, "loading", Boolean.class) && pane.lookup("#room-reply-" + chatId) != null, "history ready");
                     fx(() -> {
                         TestSupport.check(!pane.lookup("#room-announcement-edit").isVisible(), "guest cannot edit pin");
-                        ((TabPane) pane.lookup(".tab-pane")).getSelectionModel().select(1); return null;
+                        ((TitledPane) pane.lookup("#room-chat-members")).setExpanded(true); return null;
                     });
                     Platform.runLater(() -> ((Button) hostPane.lookup("#room-announcement-edit")).fire());
                     await(() -> Window.getWindows().stream().anyMatch(window -> window instanceof Stage dialog && dialog.getScene().getRoot().lookup("#room-announcement-body") != null), "pin editor");
@@ -62,8 +62,8 @@ public final class RoomInteractionUiSelfTest {
                     await(() -> !field(pane, "loading", Boolean.class), "delta reload");
                     fx(() -> {
                         TestSupport.equals(1, field(pane, "unreadCount", Integer.class), "event and reload do not double count");
-                        TestSupport.check(((TabPane) pane.lookup(".tab-pane")).getTabs().get(0).getText().contains("(1)"), "badge on chat tab");
-                        ((TabPane) pane.lookup(".tab-pane")).getSelectionModel().select(0); return null;
+                        TestSupport.check(((Button) field(pane, "unread", Button.class)).getText().startsWith("1 "), "unread button shows new message count");
+                        ((Button) field(pane, "unread", Button.class)).fire(); return null;
                     });
                     await(() -> field(pane, "unreadCount", Integer.class) == 0, "reading at bottom clears badge");
                     for (int index = 0; index < 3; index++) { Thread.sleep(800); ok(hostApi.send(room, "Long visible message " + index + " text ".repeat(40), "ui-scroll-message-" + index)); }
@@ -98,7 +98,7 @@ public final class RoomInteractionUiSelfTest {
                     await(() -> pane.lookup("#room-chat-input").isDisabled() && ((Label) pane.lookup("#room-chat-mute-status")).getText().contains("UI spam reason"), "mute reason/expiry shown");
                     fx(() -> { TestSupport.check(((Button) pane.lookup("#room-reaction-" + chatId + "-LIKE")).isDisabled(), "muted reaction disabled"); return null; });
                     await(() -> !pane.lookup("#room-chat-input").isDisabled(), "mute UI expires");
-                    fx(() -> { ((TabPane) hostPane.lookup(".tab-pane")).getSelectionModel().select(1); return null; });
+                    fx(() -> { ((TitledPane) hostPane.lookup("#room-chat-members")).setExpanded(true); return null; });
                     await(() -> hostPane.lookup("#room-mute-" + guestId) != null, "host mute by anonymous code");
                     Platform.runLater(() -> ((Button) hostPane.lookup("#room-mute-" + guestId)).fire());
                     await(() -> Window.getWindows().stream().anyMatch(window -> window instanceof Stage dialog && dialog.getScene().getRoot().lookup("#room-mute-reason") != null), "mute editor");

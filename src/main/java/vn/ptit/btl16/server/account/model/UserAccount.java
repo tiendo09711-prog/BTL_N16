@@ -7,6 +7,7 @@ public final class UserAccount {
     private final long userId;
     private final String username;
     private final String displayName;
+    private final String friendCode;
     private final String email;
     private final String phone;
     private final String passwordHash;
@@ -30,9 +31,17 @@ public final class UserAccount {
             Instant createdAt,
             Instant updatedAt,
             Instant lastLoginAt) {
+        this(userId, username, displayName, email, phone, passwordHash, passwordSalt,
+                passwordIterations, active, createdAt, updatedAt, lastLoginAt, "");
+    }
+
+    public UserAccount(long userId, String username, String displayName, String email, String phone,
+            String passwordHash, String passwordSalt, int passwordIterations, boolean active,
+            Instant createdAt, Instant updatedAt, Instant lastLoginAt, String friendCode) {
         this.userId = userId;
         this.username = Objects.requireNonNull(username, "username");
         this.displayName = displayName == null ? username : displayName;
+        this.friendCode = friendCode == null ? "" : friendCode;
         this.email = email == null ? "" : email;
         this.phone = phone == null ? "" : phone;
         this.passwordHash = Objects.requireNonNull(passwordHash, "passwordHash");
@@ -47,6 +56,7 @@ public final class UserAccount {
     public long getUserId() { return userId; }
     public String getUsername() { return username; }
     public String getDisplayName() { return displayName; }
+    public String getFriendCode() { return friendCode; }
     public String getEmail() { return email; }
     public String getPhone() { return phone; }
     public String getPasswordHash() { return passwordHash; }

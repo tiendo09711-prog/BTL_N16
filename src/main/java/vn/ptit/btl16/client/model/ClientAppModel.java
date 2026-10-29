@@ -15,11 +15,12 @@ import java.util.Set;
 /** Thread-safe client state. Swing renders snapshots of this model. */
 public final class ClientAppModel {
     private ConnectionState connectionState = ConnectionState.DISCONNECTED;
-    private String connectionDetail = "Chua ket noi";
+    private String connectionDetail = "Chưa kết nối";
     private String sessionToken = "";
     private long userId;
     private String username = "";
     private String displayName = "";
+    private String friendCode = "";
     private String email = "";
     private String phone = "";
     private String createdAt = "";
@@ -38,6 +39,7 @@ public final class ClientAppModel {
         userId = parseLong(response.get("userId"));
         username = response.get("username");
         displayName = response.get("displayName");
+        friendCode = response.get("friendCode");
         email = response.get("email");
         phone = response.get("phone");
         createdAt = response.get("createdAt");
@@ -53,6 +55,7 @@ public final class ClientAppModel {
         userId = 0L;
         username = "";
         displayName = "";
+        friendCode = "";
         email = "";
         phone = "";
         createdAt = "";
@@ -82,8 +85,9 @@ public final class ClientAppModel {
         }
         for (ClientAuction previous : auctions.values()) {
             Instant observed = observedAt.get(previous.getAuctionId());
-            boolean joinedResult = java.util.Objects.equals(joinedAuctionId, previous.getAuctionId()) && !previous.isOpen();
-            if (!next.containsKey(previous.getAuctionId()) && (joinedResult || (observed != null
+            boolean recentResult = previous.hasRecentResult(serverNow == null ? serverNow() : serverNow)
+                    || (java.util.Objects.equals(joinedAuctionId, previous.getAuctionId()) && !previous.isOpen());
+            if (!next.containsKey(previous.getAuctionId()) && (recentResult || (observed != null
                     && serverNow != null && observed.isAfter(serverNow)))) {
                 next.put(previous.getAuctionId(), previous);
             }
@@ -258,6 +262,7 @@ public final class ClientAppModel {
     public synchronized long getUserId() { return userId; }
     public synchronized String getUsername() { return username; }
     public synchronized String getDisplayName() { return displayName; }
+    public synchronized String getFriendCode() { return friendCode; }
     public synchronized String getEmail() { return email; }
     public synchronized String getPhone() { return phone; }
     public synchronized String getCreatedAt() { return createdAt; }

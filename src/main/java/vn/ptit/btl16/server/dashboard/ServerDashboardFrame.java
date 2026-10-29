@@ -51,7 +51,7 @@ public final class ServerDashboardFrame extends JFrame {
         setLayout(new BorderLayout(8, 8));
 
         JPanel stats = new JPanel(new GridLayout(1, 8, 6, 4));
-        stats.setBorder(BorderFactory.createTitledBorder("Trang thai server"));
+        stats.setBorder(BorderFactory.createTitledBorder("Trạng thái Server"));
         addStat(stats, "TCP port", portValue);
         addStat(stats, "WS port", webSocketPortValue);
         addStat(stats, "Repository", repositoryValue);
@@ -68,19 +68,19 @@ public final class ServerDashboardFrame extends JFrame {
         JTable table = new JTable(tableModel);
         table.setAutoCreateRowSorter(true);
         JScrollPane scroll = new JScrollPane(table);
-        scroll.setBorder(BorderFactory.createTitledBorder("Auction state tren server"));
+        scroll.setBorder(BorderFactory.createTitledBorder("Trạng thái đấu giá trên Server"));
         add(scroll, BorderLayout.CENTER);
 
         JTextArea note = new JTextArea(
-                "May nay la server trung tam. Gui dia chi LAN o tren cho cac may client. "
-                        + "Cho phep cong WebSocket trong Windows Firewall (Private). Client "
-                        + "khong ket noi truc tiep cong MySQL cua XAMPP.\n"
-                        + "DB moi khong co du lieu mau. Dang ky tai khoan tren client de bat dau.");
+                "Máy này là Server trung tâm. Gửi địa chỉ LAN ở trên cho các máy Client. "
+                        + "Cho phép cổng WebSocket trong Windows Firewall (Private). Client "
+                        + "không kết nối trực tiếp cổng MySQL của XAMPP.\n"
+                        + "Cơ sở dữ liệu mới không có dữ liệu mẫu. Đăng ký tài khoản trên Client để bắt đầu.");
         note.setEditable(false);
         note.setLineWrap(true);
         note.setWrapStyleWord(true);
 
-        JButton stopButton = new JButton("Dung server");
+        JButton stopButton = new JButton("Dừng Server");
         stopButton.addActionListener(event -> stopAndExit());
         JPanel bottom = new JPanel(new BorderLayout());
         bottom.add(note, BorderLayout.CENTER);
@@ -105,11 +105,11 @@ public final class ServerDashboardFrame extends JFrame {
 
     private JPanel buildAddressPanel() {
         JPanel panel = new JPanel(new BorderLayout(8, 8));
-        panel.setBorder(BorderFactory.createTitledBorder("SERVER DANG CHAY - DIA CHI CHO MAY CLIENT"));
+        panel.setBorder(BorderFactory.createTitledBorder("SERVER ĐANG CHẠY - ĐỊA CHỈ CHO MÁY CLIENT"));
         JComboBox<String> addresses = new JComboBox<>();
         JLabel hint = new JLabel();
-        JButton copy = new JButton("Sao chep dia chi");
-        JButton refresh = new JButton("Lam moi dia chi");
+        JButton copy = new JButton("Sao chép địa chỉ");
+        JButton refresh = new JButton("Làm mới địa chỉ");
         Runnable reload = () -> {
             addresses.removeAllItems();
             try {
@@ -118,10 +118,10 @@ public final class ServerDashboardFrame extends JFrame {
                     addresses.addItem(url);
                 }
                 hint.setText(addresses.getItemCount() == 0
-                        ? "Khong co dia chi LAN IPv4. Kiem tra Wi-Fi/Ethernet va cau hinh WebSocket bindAddress."
-                        : "Chon IP cung mang voi client, sao chep va dan vao ung dung Client. Khong mo bang trinh duyet.");
+                        ? "Không có địa chỉ LAN IPv4. Kiểm tra Wi-Fi/Ethernet và cấu hình WebSocket bindAddress."
+                        : "Chọn IP cùng mạng với Client, sao chép và dán vào ứng dụng Client. Không mở bằng trình duyệt.");
             } catch (Exception exception) {
-                hint.setText("Khong doc duoc dia chi mang: " + exception.getMessage());
+                hint.setText("Không đọc được địa chỉ mạng: " + exception.getMessage());
             }
             copy.setEnabled(addresses.getItemCount() > 0);
         };
@@ -130,9 +130,9 @@ public final class ServerDashboardFrame extends JFrame {
             if (selected != null) {
                 try {
                     Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(selected), null);
-                    hint.setText("Da sao chep: " + selected + " - Gui dia chi nay cho may client.");
+                    hint.setText("Đã sao chép: " + selected + " - Gửi địa chỉ này cho máy Client.");
                 } catch (IllegalStateException exception) {
-                    hint.setText("Clipboard dang ban. Hay thu sao chep lai.");
+                    hint.setText("Bộ nhớ tạm đang bận. Hãy thử sao chép lại.");
                 }
             }
         });
@@ -182,8 +182,8 @@ public final class ServerDashboardFrame extends JFrame {
 
     private static final class AuctionServerTableModel extends AbstractTableModel {
         private static final String[] COLUMNS = {
-                "ID", "San pham", "Chu tri", "Loai phong", "Buoc gia", "Gia hien tai",
-                "Dan dau", "End time", "Status", "Version"
+                "ID", "Sản phẩm", "Chủ trì", "Loại phòng", "Bước giá", "Giá hiện tại",
+                "Dẫn đầu", "End time", "Status", "Version"
         };
         private List<AuctionSnapshot> values = new ArrayList<>();
 
@@ -212,7 +212,7 @@ public final class ServerDashboardFrame extends JFrame {
                 case 4 -> Money.display(value.getMinBidIncrement());
                 case 5 -> Money.display(value.getCurrentPrice());
                 case 6 -> value.getCurrentWinnerUsername().isBlank()
-                        ? "Chua co" : value.getCurrentWinnerUsername();
+                        ? "Chưa có" : value.getCurrentWinnerUsername();
                 case 7 -> Times.display(value.getEndTime());
                 case 8 -> value.getStatus();
                 case 9 -> value.getVersion();

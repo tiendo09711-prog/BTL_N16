@@ -32,7 +32,7 @@ public final class MainFrame extends JFrame {
     private final LoginPanel loginPanel = new LoginPanel();
     private final AuctionPanel auctionPanel = new AuctionPanel();
     private final JLabel stateLabel = new JLabel(ConnectionState.DISCONNECTED.name());
-    private final JLabel detailLabel = new JLabel("Chua ket noi");
+    private final JLabel detailLabel = new JLabel("Chưa kết nối");
     private final JLabel latencyLabel = new JLabel("RTT: -");
 
     public MainFrame() {
@@ -83,36 +83,38 @@ public final class MainFrame extends JFrame {
     }
 
     public void showInfo(String message) {
-        JOptionPane.showMessageDialog(this, message, "Thong bao", JOptionPane.INFORMATION_MESSAGE);
+        JOptionPane.showMessageDialog(this, message, "Thông báo", JOptionPane.INFORMATION_MESSAGE);
     }
 
     public void showError(String message) {
-        JOptionPane.showMessageDialog(this, message, "Loi", JOptionPane.ERROR_MESSAGE);
+        JOptionPane.showMessageDialog(this, message, "Lỗi", JOptionPane.ERROR_MESSAGE);
     }
 
     public boolean confirm(String message) {
         return JOptionPane.showConfirmDialog(
                 this,
                 message,
-                "Xac nhan",
+                "Xác nhận",
                 JOptionPane.YES_NO_OPTION) == JOptionPane.YES_OPTION;
     }
 
     public Optional<ProductInput> promptProduct(ClientProduct current) {
         JTextField code = new JTextField(current == null ? "" : current.getCode());
+        code.setEditable(false);
+        code.setToolTipText("Hệ thống tự cấp mã MH + số thứ tự khi lưu sản phẩm");
         JTextField name = new JTextField(current == null ? "" : current.getName());
         JTextArea description = new JTextArea(
                 current == null ? "" : current.getDescription(), 5, 28);
         description.setLineWrap(true);
         description.setWrapStyleWord(true);
         JPanel panel = formPanel(
-                "Ma san pham", code,
-                "Ten san pham", name,
-                "Mo ta", new javax.swing.JScrollPane(description));
+                current == null ? "Mã sản phẩm (tự động cấp khi lưu)" : "Mã sản phẩm", code,
+                "Tên sản phẩm", name,
+                "Mô tả", new javax.swing.JScrollPane(description));
         int option = JOptionPane.showConfirmDialog(
                 this,
                 panel,
-                current == null ? "Them san pham" : "Sua san pham",
+                current == null ? "Thêm sản phẩm" : "Sửa sản phẩm",
                 JOptionPane.OK_CANCEL_OPTION);
         if (option != JOptionPane.OK_OPTION) {
             return Optional.empty();
@@ -133,8 +135,8 @@ public final class MainFrame extends JFrame {
                 .toList();
         if (choices.isEmpty()) {
             showInfo(activeOnly
-                    ? "Ban chua co san pham dang hoat dong"
-                    : "Ban chua co san pham");
+                    ? "Bạn chưa có sản phẩm đang hoạt động"
+                    : "Bạn chưa có sản phẩm");
             return Optional.empty();
         }
         JComboBox<ClientProduct> combo = new JComboBox<>(choices.toArray(ClientProduct[]::new));
@@ -149,24 +151,24 @@ public final class MainFrame extends JFrame {
     }
 
     public Optional<AuctionInput> promptAuction(List<ClientProduct> products) {
-        List<ClientProduct> active = products.stream().filter(ClientProduct::isActive).toList();
-        if (active.isEmpty()) {
-            showInfo("Can co it nhat mot san pham dang hoat dong de tao phong");
+        List<ClientProduct> eligible = products.stream().filter(ClientProduct::canAuction).toList();
+        if (eligible.isEmpty()) {
+            showInfo("Chưa có sản phẩm đủ điều kiện. Chỉ sản phẩm chưa giao dịch và chưa có phiên đang mở mới được tạo phòng đấu giá.");
             return Optional.empty();
         }
-        JComboBox<ClientProduct> product = new JComboBox<>(active.toArray(ClientProduct[]::new));
+        JComboBox<ClientProduct> product = new JComboBox<>(eligible.toArray(ClientProduct[]::new));
         JTextField startPrice = new JTextField("1000000");
         JTextField minIncrement = new JTextField("50000");
         JTextField duration = new JTextField("10");
         JPanel panel = formPanel(
-                "San pham", product,
-                "Gia khoi diem", startPrice,
-                "Buoc gia toi thieu", minIncrement,
-                "Thoi luong (phut)", duration);
+                "Sản phẩm", product,
+                "Giá khởi điểm", startPrice,
+                "Bước giá tối thiểu", minIncrement,
+                "Thời lượng (phút)", duration);
         int option = JOptionPane.showConfirmDialog(
                 this,
                 panel,
-                "Tao phong dau gia",
+                "Tạo phòng đấu giá",
                 JOptionPane.OK_CANCEL_OPTION);
         if (option != JOptionPane.OK_OPTION) {
             return Optional.empty();
@@ -192,17 +194,17 @@ public final class MainFrame extends JFrame {
 
     public void showProducts(List<ClientProduct> products) {
         String text = products.isEmpty()
-                ? "Ban chua co san pham"
+                ? "Bạn chưa có sản phẩm"
                 : products.stream()
                         .map(value -> "#" + value.getProductId() + " - " + value
-                                + " | " + (value.isActive() ? "ACTIVE" : "INACTIVE"))
+                                + " | " + value.getTransactionStatus().label())
                         .collect(Collectors.joining(System.lineSeparator()));
         JTextArea area = new JTextArea(text, 12, 48);
         area.setEditable(false);
         JOptionPane.showMessageDialog(
                 this,
                 new javax.swing.JScrollPane(area),
-                "San pham cua toi",
+                "Sản phẩm bán",
                 JOptionPane.INFORMATION_MESSAGE);
     }
 
@@ -215,15 +217,15 @@ public final class MainFrame extends JFrame {
         JTextField phone = new JTextField();
         JPanel panel = formPanel(
                 "Username", username,
-                "Mat khau", password,
-                "Nhap lai", confirm,
-                "Ten hien thi", displayName,
+                "Mật khẩu", password,
+                "Nhập lại", confirm,
+                "Tên hiển thị", displayName,
                 "Email", email,
-                "So dien thoai", phone);
+                "Số điện thoại", phone);
         int option = JOptionPane.showConfirmDialog(
                 this,
                 panel,
-                "Dang ky tai khoan",
+                "Đăng ký tài khoản",
                 JOptionPane.OK_CANCEL_OPTION,
                 JOptionPane.PLAIN_MESSAGE);
         if (option != JOptionPane.OK_OPTION) {
@@ -244,15 +246,15 @@ public final class MainFrame extends JFrame {
         JTextField phone = new JTextField(model.getPhone());
         JPanel panel = formPanel(
                 "Username", new JLabel(model.getUsername()),
-                "Ten hien thi", displayName,
+                "Tên hiển thị", displayName,
                 "Email", email,
-                "So dien thoai", phone,
-                "Tao luc", new JLabel(model.getCreatedAt()),
-                "Login gan nhat", new JLabel(model.getLastLoginAt()));
+                "Số điện thoại", phone,
+                "Tạo lúc", new JLabel(model.getCreatedAt()),
+                "Đăng nhập gần nhất", new JLabel(model.getLastLoginAt()));
         int option = JOptionPane.showConfirmDialog(
                 this,
                 panel,
-                "Ho so tai khoan",
+                "Hồ sơ tài khoản",
                 JOptionPane.OK_CANCEL_OPTION,
                 JOptionPane.PLAIN_MESSAGE);
         if (option != JOptionPane.OK_OPTION) {
@@ -269,13 +271,13 @@ public final class MainFrame extends JFrame {
         JPasswordField next = new JPasswordField();
         JPasswordField confirm = new JPasswordField();
         JPanel panel = formPanel(
-                "Mat khau hien tai", current,
-                "Mat khau moi", next,
-                "Nhap lai", confirm);
+                "Mật khẩu hiện tại", current,
+                "Mật khẩu mới", next,
+                "Nhập lại", confirm);
         int option = JOptionPane.showConfirmDialog(
                 this,
                 panel,
-                "Doi mat khau",
+                "Đổi mật khẩu",
                 JOptionPane.OK_CANCEL_OPTION,
                 JOptionPane.PLAIN_MESSAGE);
         if (option != JOptionPane.OK_OPTION) {
@@ -288,11 +290,11 @@ public final class MainFrame extends JFrame {
     }
 
     public int promptProfileAction(ClientAppModel model) {
-        Object[] options = {"Cap nhat ho so", "Doi mat khau", "Dong"};
+        Object[] options = {"Cập nhật hồ sơ", "Đổi mật khẩu", "Đóng"};
         return JOptionPane.showOptionDialog(
                 this,
-                "Tai khoan: " + model.getUsername() + "\nTen: " + model.getDisplayName(),
-                "Ho so",
+                "Tài khoản: " + model.getUsername() + "\nTên: " + model.getDisplayName(),
+                "Hồ sơ",
                 JOptionPane.DEFAULT_OPTION,
                 JOptionPane.PLAIN_MESSAGE,
                 null,

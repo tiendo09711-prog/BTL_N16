@@ -167,6 +167,8 @@ public final class ServerApplication implements AutoCloseable {
         auctionController.setSocialService(social);
         social.setAuctionRepository(auctionRepository);
         social.register(router);
+        new vn.ptit.btl16.server.social.FriendsService(
+                new vn.ptit.btl16.server.social.FriendsStore(socialStore.connectionFactory()), users, sessions, messaging).register(router);
         router.setOutboundPolicy(social::project);
         messaging.setOutboundPolicy(social::project);
 

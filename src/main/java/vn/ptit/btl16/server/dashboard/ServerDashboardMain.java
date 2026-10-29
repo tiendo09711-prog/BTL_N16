@@ -45,13 +45,13 @@ public final class ServerDashboardMain {
                     "btl16.server.config", "config/server.properties")).toAbsolutePath().toString();
             JOptionPane.showMessageDialog(
                     null,
-                    "Khong khoi dong duoc server: " + message
-                            + "\nChi tiet: " + cause.getMessage()
-                            + "\n\n1. Bat dich vu MySQL tren may server."
-                            + "\n2. Kiem tra db.host, db.port, db.user, db.password trong:"
+                    "Không khởi động được Server: " + message
+                            + "\nChi tiết: " + cause.getMessage()
+                            + "\n\n1. Bật dịch vụ MySQL trên máy Server."
+                            + "\n2. Kiểm tra db.host, db.port, db.user, db.password trong:"
                             + "\n" + configPath
-                            + "\n3. Neu cong bi chiem, dong server cu hoac doi cong trong cau hinh."
-                            + "\nSau do mo lai ung dung Server.",
+                            + "\n3. Nếu cổng bị chiếm, đóng Server cũ hoặc đổi cổng trong cấu hình."
+                            + "\nSau đó mở lại ứng dụng Server.",
                     "Server error",
                     JOptionPane.ERROR_MESSAGE);
             System.exit(1);

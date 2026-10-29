@@ -34,11 +34,11 @@ public final class ConnectionCode {
             return text;
         }
         if (!text.matches("(?i)AUC-[0-9a-f]{8}-[0-9]{1,5}")) {
-            throw new IllegalArgumentException("Ma ket noi khong hop le");
+            throw new IllegalArgumentException("Mã kết nối không hợp lệ");
         }
         int port = Integer.parseInt(text.substring(13));
         if (port < 1 || port > 65535) {
-            throw new IllegalArgumentException("Cong ket noi khong hop le");
+            throw new IllegalArgumentException("Cổng kết nối không hợp lệ");
         }
         StringBuilder host = new StringBuilder();
         for (int offset = 4; offset < 12; offset += 2) {

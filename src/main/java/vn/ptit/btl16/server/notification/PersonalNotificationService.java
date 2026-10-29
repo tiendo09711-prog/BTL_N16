@@ -11,10 +11,19 @@ public final class PersonalNotificationService {
     private final SessionManager sessions;
     public PersonalNotificationService(AuctionRepository repository, SessionManager sessions) { this.repository = repository; this.sessions = sessions; }
     public void register(MessageRouter router) {
+        router.register(MessageType.DELETE_MY_NOTIFICATION, true, context -> {
+            current(context);
+            long id = WireValues.requireLong(context.getRequest().getData(), "notificationId");
+            if (id <= 0) { throw new IllegalArgumentException("Mã thông báo không hợp lệ"); }
+            repository.deleteNotification(context.requireSession().getUserId(), id); current(context);
+            context.replySuccess(MessageType.DELETE_MY_NOTIFICATION_RESULT, java.util.Map.of("notificationId", Long.toString(id)));
+        });
         router.register(MessageType.GET_MY_NOTIFICATIONS, true, context -> {
             long before = context.value("beforeId").isBlank() ? Long.MAX_VALUE : Long.parseLong(context.value("beforeId"));
             if (before <= 0) { throw new IllegalArgumentException("Invalid cursor"); }
-            var result = repository.notifications(context.requireSession().getUserId(), before, Boolean.parseBoolean(context.value("unreadOnly")), 30);
+            int limit = context.value("limit").isBlank() ? 30 : Integer.parseInt(context.value("limit"));
+            if (limit < 1 || limit > 100) { throw new IllegalArgumentException("Invalid page size"); }
+            var result = repository.notifications(context.requireSession().getUserId(), before, Boolean.parseBoolean(context.value("unreadOnly")), limit);
             current(context); context.replySuccess(MessageType.MY_NOTIFICATIONS_RESULT, result);
         });
         router.register(MessageType.READ_MY_NOTIFICATION, true, context -> {

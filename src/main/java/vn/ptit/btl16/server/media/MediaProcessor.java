@@ -46,14 +46,14 @@ public final class MediaProcessor {
         if (!List.of("IMAGE", "VIDEO").contains(kind) || turns < 0 || turns > 3
                 || !Double.isFinite(left + top + width + height) || left < 0 || top < 0 || width <= 0 || height <= 0
                 || left + width > 1.000001 || top + height > 1.000001) {
-            fail(ErrorCode.MEDIA_INVALID, "Loai tep hoac vung cat khong hop le");
+            fail(ErrorCode.MEDIA_INVALID, "Loại tệp hoặc vùng cắt không hợp lệ");
         }
         JsonNode probe = probe(sourceUrl, cancelled);
         JsonNode stream = null;
         for (JsonNode candidate : probe.path("streams")) {
             if (candidate.path("codec_type").asText().equals("video") && stream == null) { stream = candidate; }
         }
-        if (stream == null) { fail(ErrorCode.MEDIA_INVALID, "Tep khong co hinh anh/video hop le"); }
+        if (stream == null) { fail(ErrorCode.MEDIA_INVALID, "Tệp không có hình ảnh/video hợp lệ"); }
         int inputWidth = stream.path("width").asInt();
         int inputHeight = stream.path("height").asInt();
         JsonNode grid = null;
@@ -67,9 +67,9 @@ public final class MediaProcessor {
         }
         long pixels = (long) inputWidth * inputHeight;
         boolean image = kind.equals("IMAGE");
-        if (inputWidth < 2 || inputHeight < 2) { fail(ErrorCode.MEDIA_INVALID, "Khong doc duoc kich thuoc tep hop le (toi thieu 2x2)"); }
+        if (inputWidth < 2 || inputHeight < 2) { fail(ErrorCode.MEDIA_INVALID, "Không đọc được kích thước tệp hợp lệ (tối thiểu 2x2)"); }
         if (pixels > (image ? config.imagePixels() : config.videoPixels())) {
-            fail(ErrorCode.MEDIA_LIMIT, "Vuot nguong so diem anh: " + (image ? config.imagePixels() : config.videoPixels()));
+            fail(ErrorCode.MEDIA_LIMIT, "Vượt ngưỡng số điểm ảnh: " + (image ? config.imagePixels() : config.videoPixels()));
         }
         String codec = stream.path("codec_name").asText();
         String sourceType;
@@ -86,7 +86,7 @@ public final class MediaProcessor {
             } else if (format.matches(".*(mov|mp4).*") && imageBrand(probe, "avif", "avis") && codec.equals("av1")) {
                 sourceType = "image/avif";
             } else if (sourceType == null || !format.matches(".*(image2|_pipe|gif|webp|apng|ico).*")) {
-                fail(ErrorCode.MEDIA_INVALID, "Anh ho tro " + ImageFormats.LABEL + "; tep loi, SVG/RAW hoac codec khac can chuyen doi truoc");
+                fail(ErrorCode.MEDIA_INVALID, "Ảnh hỗ trợ " + ImageFormats.LABEL + "; tệp lỗi, SVG/RAW hoặc bộ mã hóa khác cần chuyển đổi trước");
             }
             if (format.equals("ico")) { sourceType = "image/x-icon"; }
             String rotate = "transpose=clock,".repeat(turns);
@@ -100,11 +100,11 @@ public final class MediaProcessor {
         } else {
             String format = probe.path("format").path("format_name").asText();
             if (!format.matches(".*(mov|mp4|matroska|webm|avi).*")) {
-                fail(ErrorCode.MEDIA_INVALID, "Video ho tro MP4/MOV, WebM/MKV va AVI; tep khong duoc nhan dien hop le");
+                fail(ErrorCode.MEDIA_INVALID, "Video hỗ trợ MP4/MOV, WebM/MKV và AVI; tệp không được nhận diện hợp lệ");
             }
             duration = probe.path("format").path("duration").asDouble(0);
             if (!Double.isFinite(duration) || duration <= 0 || duration > config.videoSeconds()) {
-                fail(ErrorCode.MEDIA_LIMIT, "Video phai ngan hon hoac bang " + config.videoSeconds() + " giay");
+                fail(ErrorCode.MEDIA_LIMIT, "Video phai ngan hon hoac bang " + config.videoSeconds() + " giây");
             }
             sourceType = format.contains("matroska") || format.contains("webm") ? "video/webm"
                     : format.contains("avi") ? "video/x-msvideo" : "video/mp4";
@@ -129,10 +129,10 @@ public final class MediaProcessor {
         JsonNode normalized = probe(normalizedUrl, cancelled);
         JsonNode output = normalized.path("streams").get(0);
         if (!image && normalized.path("format").path("duration").asDouble() > config.videoSeconds() + 0.1) {
-            fail(ErrorCode.MEDIA_LIMIT, "Thoi luong video thuc te vuot " + config.videoSeconds() + " giay");
+            fail(ErrorCode.MEDIA_LIMIT, "Thời lượng video thực tế vượt " + config.videoSeconds() + " giây");
         }
         long bytes = content.values().stream().mapToLong(value -> value.length).sum();
-        if (bytes > config.productBytes()) { fail(ErrorCode.MEDIA_LIMIT, "Tep sau xu ly vuot ngan sach luu tru san pham"); }
+        if (bytes > config.productBytes()) { fail(ErrorCode.MEDIA_LIMIT, "Tệp sau xử lý vượt giới hạn lưu trữ sản phẩm"); }
         return new Processed(new ProductMedia(id, 0L, kind, safeName(name), sourceType, bytes, output.path("width").asInt(),
                 output.path("height").asInt(), duration, 0), Map.copyOf(content));
     }
@@ -158,7 +158,7 @@ public final class MediaProcessor {
         int left = grid.path("horizontal_offset").asInt(), top = grid.path("vertical_offset").asInt();
         if (count < 1 || count > 256 || width < 2 || height < 2 || left < 0 || top < 0
                 || (long) left + width > canvasWidth || (long) top + height > canvasHeight) {
-            fail(ErrorCode.MEDIA_INVALID, "Luoi anh HEIC/AVIF khong hop le hoac qua nhieu o");
+            fail(ErrorCode.MEDIA_INVALID, "Lưới ảnh HEIC/AVIF không hợp lệ hoặc quá nhiều ô");
         }
         StringBuilder inputs = new StringBuilder(), layout = new StringBuilder();
         for (JsonNode tile : tiles) {
@@ -170,7 +170,7 @@ public final class MediaProcessor {
             if (tileStream == null || horizontal < 0 || vertical < 0 || !tileStream.path("codec_type").asText().equals("video")
                     || (long) horizontal + tileStream.path("width").asInt() > canvasWidth
                     || (long) vertical + tileStream.path("height").asInt() > canvasHeight) {
-                fail(ErrorCode.MEDIA_INVALID, "O anh HEIC/AVIF khong hop le");
+                fail(ErrorCode.MEDIA_INVALID, "Ô ảnh HEIC/AVIF không hợp lệ");
             }
             inputs.append("[0:").append(index).append(']');
             if (!layout.isEmpty()) { layout.append('|'); }
@@ -190,9 +190,9 @@ public final class MediaProcessor {
     }
 
     private byte[] execute(List<String> arguments, BooleanSupplier cancelled, long outputLimit) throws IOException {
-        if (outputLimit <= 0) { fail(ErrorCode.MEDIA_LIMIT, "Vuot ngan sach xu ly media san pham"); }
+        if (outputLimit <= 0) { fail(ErrorCode.MEDIA_LIMIT, "Vượt giới hạn xử lý ảnh/video sản phẩm"); }
         if (!Files.isRegularFile(Path.of(arguments.get(0)))) {
-            fail(ErrorCode.MEDIA_PROCESSING_FAILED, "Chua cai bo xu ly FFmpeg/ffprobe tren may server");
+            fail(ErrorCode.MEDIA_PROCESSING_FAILED, "Chưa cài bộ xử lý FFmpeg/ffprobe trên máy Server");
         }
         Process process = new ProcessBuilder(arguments).start();
         AtomicBoolean overflow = new AtomicBoolean();
@@ -205,23 +205,23 @@ public final class MediaProcessor {
         try {
             while (!process.waitFor(50, TimeUnit.MILLISECONDS)) {
                 if (cancelled.getAsBoolean() || Thread.currentThread().isInterrupted()) {
-                    fail(ErrorCode.UPLOAD_CANCELLED, "Da huy xu ly tep");
+                    fail(ErrorCode.UPLOAD_CANCELLED, "Đã hủy xử lý tệp");
                 }
                 if (System.nanoTime() > deadline || overflow.get()) {
-                    fail(ErrorCode.MEDIA_LIMIT, "Qua thoi gian/nguong xu ly tep (" + config.timeoutSeconds() + " giay)");
+                    fail(ErrorCode.MEDIA_LIMIT, "Quá thời gian/ngưỡng xử lý tệp (" + config.timeoutSeconds() + " giây)");
                 }
             }
             byte[] standardOutput = output.get(5, TimeUnit.SECONDS);
             String standardError = new String(errors.get(5, TimeUnit.SECONDS), StandardCharsets.UTF_8);
-            if (overflow.get()) { fail(ErrorCode.MEDIA_LIMIT, "Vuot nguong thong tin xu ly tep"); }
+            if (overflow.get()) { fail(ErrorCode.MEDIA_LIMIT, "Vượt ngưỡng thông tin xử lý tệp"); }
             if (standardError.contains("max pixel")) {
-                fail(ErrorCode.MEDIA_LIMIT, "Tep vuot nguong diem anh cau hinh; can thu nho anh/video truoc khi gui");
+                fail(ErrorCode.MEDIA_LIMIT, "Tệp vượt ngưỡng điểm ảnh cấu hình; cần thu nhỏ ảnh/video trước khi gửi");
             }
-            if (process.exitValue() != 0) { fail(ErrorCode.MEDIA_INVALID, "Tep loi, khong giai ma/chuyen doi duoc"); }
+            if (process.exitValue() != 0) { fail(ErrorCode.MEDIA_INVALID, "Tệp lỗi, không giải mã/chuyển đổi được"); }
             return standardOutput;
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
-            throw new AuctionException(ErrorCode.UPLOAD_CANCELLED, "Da huy xu ly tep");
+            throw new AuctionException(ErrorCode.UPLOAD_CANCELLED, "Đã hủy xử lý tệp");
         } catch (java.util.concurrent.ExecutionException | java.util.concurrent.TimeoutException exception) {
             throw new IOException("Cannot collect media processor result", exception);
         } finally {

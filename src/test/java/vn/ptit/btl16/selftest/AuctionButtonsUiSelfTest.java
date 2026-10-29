@@ -7,6 +7,7 @@ import javafx.scene.layout.GridPane;
 import javafx.stage.Stage;
 import javafx.stage.Window;
 import vn.ptit.btl16.client.fx.FxClientController;
+import vn.ptit.btl16.client.fx.AuctionMarketplacePane;
 import vn.ptit.btl16.client.model.ClientAppModel;
 import vn.ptit.btl16.client.model.ClientAuction;
 import vn.ptit.btl16.client.network.WebSocketClientTransport;
@@ -179,7 +180,7 @@ public final class AuctionButtonsUiSelfTest {
         ButtonType type = dialog.getButtonTypes().stream().filter(value -> value.getButtonData() == ButtonBar.ButtonData.OK_DONE).findFirst().orElseThrow();
         ((Button) dialog.lookupButton(type)).fire();
     }
-    @SuppressWarnings("unchecked") private static TableView<ClientAuction> table(UserUi user) throws Exception { return (TableView<ClientAuction>) field(user.controller(), "auctionTable"); }
+    @SuppressWarnings("unchecked") private static AuctionMarketplacePane table(UserUi user) throws Exception { return (AuctionMarketplacePane) field(user.controller(), "auctionCards"); }
     private static void select(UserUi user, long room) throws Exception { fx(() -> { table(user).getSelectionModel().select(table(user).getItems().stream().filter(value -> value.getAuctionId() == room).findFirst().orElseThrow()); return null; }); }
     private static Button button(UserUi user, String name) throws Exception { return (Button) field(user.controller(), name); }
     private static Object field(Object target, String name) throws Exception { var field = target.getClass().getDeclaredField(name); field.setAccessible(true); return field.get(target); }

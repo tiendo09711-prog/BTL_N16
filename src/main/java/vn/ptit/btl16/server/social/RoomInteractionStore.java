@@ -164,7 +164,7 @@ public final class RoomInteractionStore {
         if (!previous.equals(signature)) { throw new IllegalArgumentException("Nonce already used for another interaction"); }
     }
     private static void delay(Instant last, Instant now) {
-        if (now.toEpochMilli() - last.toEpochMilli() < 400) { throw new AuctionException(ErrorCode.VALIDATION_ERROR, "Cho mot chut truoc khi tuong tac tiep"); }
+        if (now.toEpochMilli() - last.toEpochMilli() < 400) { throw new AuctionException(ErrorCode.VALIDATION_ERROR, "Chờ một chút trước khi tương tác tiếp"); }
     }
     private static AuctionRepositoryException failure(SQLException exception) { return new AuctionRepositoryException("Room interaction storage failed", exception); }
 }

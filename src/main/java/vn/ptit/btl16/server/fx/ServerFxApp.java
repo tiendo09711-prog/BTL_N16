@@ -115,7 +115,7 @@ public final class ServerFxApp extends Application {
         Button wallets = new Button("◈   Tài khoản & ví");
         wallets.setMaxWidth(Double.MAX_VALUE);
         wallets.setOnAction(event -> { if (application != null) { new ServerWalletWindow(stage, () -> application, worker).show(); } });
-        Button operations = new Button("Nhat ky van hanh"); operations.setMaxWidth(Double.MAX_VALUE);
+        Button operations = new Button("Nhật ký vận hành"); operations.setMaxWidth(Double.MAX_VALUE);
         operations.setOnAction(event -> { if (application != null) { new OperationLogWindow(stage, () -> application, worker).show(); } });
         network.setMaxWidth(Double.MAX_VALUE);
         network.setOnAction(event -> copy(addresses.getValue(), network));
@@ -326,7 +326,7 @@ public final class ServerFxApp extends Application {
             Region bar = new Region();
             bar.setPrefSize(9, 4 + 74.0 * sample / maximum);
             bar.setMinWidth(3);
-            bar.setStyle("-fx-background-color: #52a28b; -fx-background-radius: 3;");
+            bar.getStyleClass().add("connection-bar");
             HBox.setHgrow(bar, Priority.ALWAYS);
             graph.getChildren().add(bar);
         }

@@ -29,10 +29,17 @@ public final class ClientSoundsSelfTest {
         ClientSounds sounds = new ClientSounds(preferences, (cue, volume) -> { }, System::nanoTime);
         TestSupport.check(sounds.isEnabled(), "enabled by default");
         TestSupport.equals(.32, sounds.getVolume(), "quiet default volume");
+        TestSupport.check(sounds.isMusicEnabled(), "background music enabled by default");
+        TestSupport.equals(.6, sounds.getMusicVolume(), "independent background music level");
+        sounds.setMusicEnabled(false); sounds.setMusicVolume(.71);
         sounds.setVolume(.47); sounds.setEnabled(false); sounds.close();
         ClientSounds restored = new ClientSounds(preferences, (cue, volume) -> { }, System::nanoTime);
         TestSupport.check(!restored.isEnabled(), "mute persists across restart");
         TestSupport.equals(.47, restored.getVolume(), "volume persists across restart");
+        TestSupport.check(!restored.isMusicEnabled(), "music toggle persists across restart");
+        TestSupport.equals(.71, restored.getMusicVolume(), "music volume persists across restart");
+        restored.setMusicVolume(2); TestSupport.equals(1.0, restored.getMusicVolume(), "music volume upper bound");
+        restored.setMusicVolume(-1); TestSupport.equals(0.0, restored.getMusicVolume(), "music volume lower bound");
         restored.setVolume(7); TestSupport.equals(1.0, restored.getVolume(), "volume upper bound");
         restored.setVolume(-2); TestSupport.equals(0.0, restored.getVolume(), "volume lower bound");
         restored.setVolume(Double.NaN); TestSupport.equals(.32, restored.getVolume(), "NaN is safe");

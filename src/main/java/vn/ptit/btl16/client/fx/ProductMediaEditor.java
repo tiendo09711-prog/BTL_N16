@@ -40,7 +40,6 @@ public final class ProductMediaEditor {
     private final Label counts = new Label();
     private final Label characters = new Label();
     private final Label validation = new Label();
-    private final Label limits = new Label();
     private final Button save = new Button("L\u01b0u s\u1ea3n ph\u1ea9m");
     private final Button addImages = new Button("+ Ch\u1ecdn nhi\u1ec1u \u1ea3nh");
     private final Button addVideo = new Button("+ Video");
@@ -55,11 +54,12 @@ public final class ProductMediaEditor {
         this.api = api; this.product = product; this.saved = saved; preview = new MediaGalleryPane(api);
         save.getStyleClass().add("primary"); addImages.getStyleClass().add("teal");
         stage.initOwner(owner); stage.initModality(Modality.WINDOW_MODAL); stage.setTitle(product == null ? "\u0110\u0103ng s\u1ea3n ph\u1ea9m" : "Ch\u1ec9nh s\u1eeda s\u1ea3n ph\u1ea9m");
-        code.setPromptText("M\u00e3 duy nh\u1ea5t, 2-30 k\u00fd t\u1ef1"); name.setPromptText("T\u00ean s\u1ea3n ph\u1ea9m");
+        code.setPromptText("Tự động cấp MH + số thứ tự khi lưu");
+        code.setEditable(false); code.setFocusTraversable(false);
+        name.setPromptText("T\u00ean s\u1ea3n ph\u1ea9m");
         description.setPromptText("M\u00f4 t\u1ea3 \u0111\u1eb7c \u0111i\u1ec3m, t\u00ecnh tr\u1ea1ng v\u00e0 khi\u1ebfm khuy\u1ebft n\u1ebfu c\u00f3 (50-2000 k\u00fd t\u1ef1)"); description.setWrapText(true); description.setPrefRowCount(4);
         if (product != null) { code.setText(product.getCode()); name.setText(product.getName()); description.setText(product.getDescription()); }
         description.textProperty().addListener((observable, before, now) -> refresh());
-        code.textProperty().addListener((observable, before, now) -> refresh());
         name.textProperty().addListener((observable, before, now) -> refresh());
         list.setPrefWidth(310); list.setMinHeight(180); list.setCellFactory(view -> new ListCell<>() {
             @Override protected void updateItem(Entry entry, boolean empty) {
@@ -84,21 +84,23 @@ public final class ProductMediaEditor {
         FlowPane transformTools = new FlowPane(8, 8, button("Xoay 90\u00b0", this::rotate), crop, applyCrop, button("\u0110\u1eb7t l\u1ea1i \u1ea3nh g\u1ed1c", this::reset));
         HBox.setHgrow(transformTools, Priority.ALWAYS); editTools = new HBox(transformTools);
         list.setPrefHeight(180); list.getStyleClass().add("media-file-list");
-        Button descriptionTemplate = button("Mau mo ta", () -> {
+        Button descriptionTemplate = button("Mẫu mô tả", () -> {
             if (!description.getText().isBlank()) {
-                Alert confirm = new Alert(Alert.AlertType.CONFIRMATION, "Thay mo ta hien tai bang mau?", ButtonType.OK, ButtonType.CANCEL);
+                Alert confirm = new Alert(Alert.AlertType.CONFIRMATION, "Thay mô tả hiện tại bằng mẫu?", ButtonType.OK, ButtonType.CANCEL);
                 confirm.initOwner(stage); if (confirm.showAndWait().orElse(ButtonType.CANCEL) != ButtonType.OK) { return; }
             }
-            description.setText("Dac diem: \nTinh trang: \nPhu kien kem theo: \nKhiem khuyet/luu y: ");
+            description.setText("Đặc điểm: \nTình trạng: \nPhụ kiện kèm theo: \nKhiếm khuyết/lưu ý: ");
         });
+        Label descriptionHint = new Label("Điền thông tin thật vào mẫu; vẫn áp dụng kiểm tra 50-2000 ký tự hiện có.");
+        descriptionHint.setWrapText(true); descriptionHint.setMaxWidth(Double.MAX_VALUE);
+        descriptionHint.setMinHeight(Region.USE_PREF_SIZE);
         VBox information = new VBox(9, DesktopTheme.label("TH\u00d4NG TIN S\u1ea2N PH\u1ea8M", "eyebrow"),
-                new Label("M\u00e3 s\u1ea3n ph\u1ea9m *"), code, new Label("T\u00ean s\u1ea3n ph\u1ea9m *"), name,
+                new Label("Mã sản phẩm (hệ thống cấp)"), code, new Label("T\u00ean s\u1ea3n ph\u1ea9m *"), name,
                 new Label("M\u00f4 t\u1ea3 *"), descriptionTemplate, description, characters,
-                new Label("Dien thong tin that vao mau; van ap dung kiem tra 50-2000 ky tu hien co."), new Separator(),
-                new HBox(8, addImages, addVideo), counts, limits, list,
+                descriptionHint, new Separator(),
+                new HBox(8, addImages, addVideo), counts, list,
                 new FlowPane(6, 6, remove, replace, cover, left, right));
         information.setPadding(new Insets(18)); information.setPrefWidth(340);
-        limits.setWrapText(true); limits.setMaxWidth(300); limits.setMinHeight(Region.USE_PREF_SIZE);
         ScrollPane form = new ScrollPane(information); form.setFitToWidth(true); form.setMinWidth(300);
         form.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
         VBox gallery = new VBox(10, preview, editTools); VBox.setVgrow(preview, Priority.ALWAYS); gallery.setPadding(new Insets(8));
@@ -127,9 +129,6 @@ public final class ProductMediaEditor {
         api.begin(product == null ? 0 : product.getProductId()).whenComplete((id, error) -> Platform.runLater(() -> {
             if (error != null) { message.setText(ProductMediaApi.message(error)); return; }
             draft = id; if (closed) { api.cancel(id); return; }
-            api.limits().whenComplete((body, failure) -> Platform.runLater(() -> {
-                if (failure == null && !closed) { limits.setText(ImageFormats.LABEL + " \u00b7 \u1ea3nh \u2264 " + (body.path("imageBytes").asLong() >> 20) + " MiB / " + body.path("imagePixels").asLong() / 1_000_000 + " MP; video \u2264 " + (body.path("videoBytes").asLong() >> 20) + " MiB / " + body.path("videoSeconds").asInt() + " gi\u00e2y"); }
-            }));
             if (product == null) { message.setText(""); refresh(); }
             else {
                 busy = true;
@@ -235,8 +234,6 @@ public final class ProductMediaEditor {
     }
     private static Button button(String title, Runnable action) { Button button = new Button(title); button.setOnAction(event -> action.run()); return button; }
     private String validationMessage() {
-        String cleanCode = code.getText().trim().toUpperCase(java.util.Locale.ROOT);
-        if (!cleanCode.matches("[A-Z0-9_-]{2,30}")) { return "M\u00e3 s\u1ea3n ph\u1ea9m c\u1ea7n 2-30 k\u00fd t\u1ef1: ch\u1eef kh\u00f4ng d\u1ea5u, s\u1ed1, _ ho\u1eb7c -."; }
         String cleanName = name.getText().trim();
         if (cleanName.isBlank() || cleanName.length() > 150) { return "T\u00ean s\u1ea3n ph\u1ea9m c\u1ea7n 1-150 k\u00fd t\u1ef1."; }
         String text = description.getText().strip(); int length = text.codePointCount(0, text.length());
