@@ -340,6 +340,7 @@ public final class RoomSocialService {
     }
 
     public WireMessage project(String connectionId, WireMessage message) {
+        if (message.getType() == MessageType.ROOM_OCCUPANCY_CHANGED) { return message; }
         if (message.getType() == MessageType.PRIVATE_MESSAGE || message.getType() == MessageType.FRIENDS_CHANGED) {
             long target = Long.parseLong(message.get(message.getType() == MessageType.PRIVATE_MESSAGE ? "recipientId" : "recipientUserId"));
             if (sessions.findByConnection(connectionId).filter(session -> session.getUserId() == target).isEmpty()) {

@@ -28,16 +28,21 @@ public final class PersonalNotificationsUiSelfTest {
     public static void main(String[] args) throws Exception {
         Platform.startup(() -> Platform.setImplicitExit(false));
         try {
-            exerciseBell();
+            if (!List.of(args).contains("--pane-only")) { exerciseBell(); }
             var network = new Network(); var session = new AtomicBoolean(true); List<String> opened = new ArrayList<>();
             var pane = fx(() -> {
-                var view = new PersonalNotificationsPane(null, network, session::get, (kind, room) -> opened.add(kind + ":" + room)); view.show();
+                var view = new PersonalNotificationsPane(null, network, session::get, (kind, room) -> {
+                    TestSupport.check(Window.getWindows().stream().noneMatch(window -> window.isShowing()
+                            && window.getScene().getRoot() instanceof PersonalNotificationsPane), "inbox closes before navigation starts");
+                    opened.add(kind + ":" + room);
+                }); view.show();
                 var pollField = PersonalNotificationsPane.class.getDeclaredField("poll"); pollField.setAccessible(true); ((javafx.animation.Timeline) pollField.get(view)).stop(); return view;
             });
             var initial = network.take(MessageType.GET_MY_NOTIFICATIONS);
             TestSupport.equals("6", initial.data().get("limit"), "six notifications per page"); initial.reply(page(false, true, 16, 15, 14, 12, 13, 9)); drain();
             TestSupport.equals(6, fx(() -> table(pane).getItems().size()), "stored notifications rendered");
-            fire(pane, "notification-view-15");
+            checkActions(pane);
+            showDetail(pane, "15");
             var receiptRequest = network.take(MessageType.GET_PERSONAL_RECEIPT);
             TestSupport.equals("15", receiptRequest.data().get("auctionId"), "detail requests the selected personal receipt");
             receiptRequest.reply(receipt(15, "WINNER", "WON", "PAID")); drain();
@@ -57,15 +62,23 @@ public final class PersonalNotificationsUiSelfTest {
             });
             for (int attempt = 0; attempt < 40 && fx(() -> pane.getWidth() > 1000); attempt++) { Thread.sleep(25); }
             drain(); screenshot(pane, "target/personal-notifications-narrow.png");
+            checkActions(pane);
             fx(() -> {
                 TestSupport.check(pane.getWidth() < 1000, "native stage actually resized before inspecting the layout");
                 var drawer = pane.lookup("#notification-drawer");
                 TestSupport.check(drawer.localToScene(drawer.getLayoutBounds()).getMaxX() <= pane.getWidth() + 1, "drawer remains inside a narrow window");
-                var action = pane.lookup("#notification-view-15");
+                var action = pane.lookup("#notification-more-15");
                 TestSupport.check(action.localToScene(action.getLayoutBounds()).getMaxX() < drawer.localToScene(drawer.getLayoutBounds()).getMinX(), "row actions stay within the list at narrow widths");
                 ((Stage) pane.getScene().getWindow()).setWidth(1180); return null;
             }); drain();
+            checkActions(pane);
             fire(pane, "notifications-related"); TestSupport.equals(List.of("AUCTION_RESULT:15"), opened, "related action retains the existing receipt navigation");
+            TestSupport.check(!fx(() -> pane.getScene().getWindow().isShowing()), "toolbar related action closes the inbox");
+            reopen(pane, network, page(false, true, 16, 15, 14, 12, 13, 9));
+            fx(() -> { ((MenuButton) pane.lookup("#notification-more-15")).getItems().get(2).fire(); return null; }); drain();
+            TestSupport.equals(List.of("AUCTION_RESULT:15", "AUCTION_RESULT:15"), opened, "row related action opens its own receipt");
+            TestSupport.check(!fx(() -> pane.getScene().getWindow().isShowing()), "row related action closes the inbox");
+            reopen(pane, network, page(false, true, 16, 15, 14, 12, 13, 9));
             fx(() -> { ((CheckBox) pane.lookup("#notifications-select-all")).fire(); ((MenuButton) pane.lookup("#notifications-mark")).getItems().get(0).fire(); return null; });
             var markedIds = new HashSet<String>();
             for (int index = 0; index < 6; index++) {
@@ -84,33 +97,37 @@ public final class PersonalNotificationsUiSelfTest {
             TestSupport.equals(Long.toString(Long.MAX_VALUE), previous.data().get("beforeId"), "previous page restores the original cursor"); previous.reply(page(false, true, 16, 15, 14, 12, 13, 9)); drain();
             fx(() -> { ((CheckBox) pane.lookup("#notifications-unread")).fire(); return null; });
             var filtered = network.take(MessageType.GET_MY_NOTIFICATIONS); TestSupport.equals("true", filtered.data().get("unreadOnly"), "unread filtering remains on the server"); filtered.reply(page(false, true, 16, 15, 14, 12, 13, 9)); drain();
-            fire(pane, "notification-view-15"); var lateClosed = network.take(MessageType.GET_PERSONAL_RECEIPT); fire(pane, "notification-close-detail");
+            showDetail(pane, "15"); var lateClosed = network.take(MessageType.GET_PERSONAL_RECEIPT); fire(pane, "notification-close-detail");
             lateClosed.reply(receipt(15, "WINNER", "WON", "PAID")); drain();
             TestSupport.check(!fx(() -> pane.lookup("#notification-drawer").isVisible()), "late reply never reopens a closed drawer");
-            fire(pane, "notification-view-16"); var old = network.take(MessageType.GET_PERSONAL_RECEIPT);
-            fire(pane, "notification-view-14"); var latest = network.take(MessageType.GET_PERSONAL_RECEIPT);
+            showDetail(pane, "16"); var old = network.take(MessageType.GET_PERSONAL_RECEIPT);
+            showDetail(pane, "14"); var latest = network.take(MessageType.GET_PERSONAL_RECEIPT);
             old.reply(receipt(16, "WINNER", "WON", "PAID")); drain();
             TestSupport.check(fx(() -> pane.lookup("#notification-result") == null), "superseded response never shows another result");
             latest.reply(receipt(14, "NOT_WON", "WON", "RELEASED")); drain();
             TestSupport.check(fx(() -> labels(pane)).contains("Bạn không thắng"), "nonwinner has a distinct result");
-            fire(pane, "notification-view-12"); network.take(MessageType.GET_PERSONAL_RECEIPT).reply(receipt(12, "WATCHED", "NO_BIDS", "NONE")); drain();
+            showDetail(pane, "12"); network.take(MessageType.GET_PERSONAL_RECEIPT).reply(receipt(12, "WATCHED", "NO_BIDS", "NONE")); drain();
             TestSupport.check(fx(() -> labels(pane)).contains("không có lượt ra giá"), "no-bid outcome stays distinct");
-            fire(pane, "notification-view-13"); network.take(MessageType.GET_PERSONAL_RECEIPT).reply(receipt(13, "HOST", "CANCELLED", "NONE")); drain();
+            showDetail(pane, "13"); network.take(MessageType.GET_PERSONAL_RECEIPT).reply(receipt(13, "HOST", "CANCELLED", "NONE")); drain();
             TestSupport.check(fx(() -> labels(pane)).contains("Phiên bị hủy"), "cancelled outcome stays distinct");
-            fire(pane, "notification-view-15"); network.take(MessageType.GET_PERSONAL_RECEIPT).reply(receipt(15, "WINNER", "WON", "REVIEW_REQUIRED")); drain();
+            showDetail(pane, "15"); network.take(MessageType.GET_PERSONAL_RECEIPT).reply(receipt(15, "WINNER", "WON", "REVIEW_REQUIRED")); drain();
             TestSupport.check(fx(() -> ((Label) pane.lookup("#notification-wallet-status")).getText()).contains("chưa xác nhận thanh toán"), "unreconciled receipt never claims paid");
             TestSupport.check(!fx(() -> labels(pane)).contains("Người bán thực nhận"), "unconfirmed payment has no fabricated proceeds");
-            fire(pane, "notification-view-16"); network.take(MessageType.GET_PERSONAL_RECEIPT).reply(Map.of("success", "false", "message", "Không có quyền xem biên nhận")); drain();
+            showDetail(pane, "16"); network.take(MessageType.GET_PERSONAL_RECEIPT).reply(Map.of("success", "false", "message", "Không có quyền xem biên nhận")); drain();
             TestSupport.check(fx(() -> pane.lookup("#notification-detail-retry") != null && pane.lookup("#notification-result") == null), "access denial clears previous private receipt and offers retry");
             fire(pane, "notifications-refresh"); network.take(MessageType.GET_MY_NOTIFICATIONS).reply(generalPage()); drain();
-            fire(pane, "notification-view-1"); fire(pane, "notification-general-link"); TestSupport.check(opened.contains("TOPUP_REJECTED:0"), "topup notification navigates to the wallet");
-            fire(pane, "notification-view-2"); fire(pane, "notification-general-link"); TestSupport.check(opened.contains("OUTBID:15"), "outbid notification retains room access flow");
+            showDetail(pane, "1"); fire(pane, "notification-general-link"); TestSupport.check(opened.contains("TOPUP_REJECTED:0"), "topup notification navigates to the wallet");
+            TestSupport.check(!fx(() -> pane.getScene().getWindow().isShowing()), "wallet link closes the inbox");
+            reopen(pane, network, generalPage());
+            showDetail(pane, "2"); fire(pane, "notification-general-link"); TestSupport.check(opened.contains("OUTBID:15"), "outbid notification retains room access flow");
+            TestSupport.check(!fx(() -> pane.getScene().getWindow().isShowing()), "room link closes the inbox");
+            reopen(pane, network, generalPage());
             fx(() -> { deleteItem(pane, "2").fire(); return null; });
             var failedDelete = network.take(MessageType.DELETE_MY_NOTIFICATION); TestSupport.equals("2", failedDelete.data().get("notificationId"), "delete targets its own row");
             failedDelete.reply(Map.of("success", "false")); drain();
             TestSupport.equals(2, fx(() -> table(pane).getItems().size()), "failed deletion preserves visible notifications");
             fire(pane, "notifications-refresh"); network.take(MessageType.GET_MY_NOTIFICATIONS).reply(page(false, false, 16)); drain();
-            fire(pane, "notification-view-16"); var deletedDetail = network.take(MessageType.GET_PERSONAL_RECEIPT);
+            showDetail(pane, "16"); var deletedDetail = network.take(MessageType.GET_PERSONAL_RECEIPT);
             fx(() -> { deleteItem(pane, "16").fire(); deleteItem(pane, "16").fire(); return null; });
             var deletion = network.take(MessageType.DELETE_MY_NOTIFICATION);
             TestSupport.check(network.pending.stream().noneMatch(p -> p.type() == MessageType.DELETE_MY_NOTIFICATION), "duplicate deletion is suppressed");
@@ -123,7 +140,7 @@ public final class PersonalNotificationsUiSelfTest {
             TestSupport.check(fx(() -> table(pane).getItems().isEmpty()), "deleting the last notification renders the empty state");
             bulkDelete(pane, network);
             fire(pane, "notifications-refresh"); network.take(MessageType.GET_MY_NOTIFICATIONS).reply(page(false, false, 16)); drain();
-            fire(pane, "notification-view-16"); var privateReply = network.take(MessageType.GET_PERSONAL_RECEIPT); session.set(false);
+            showDetail(pane, "16"); var privateReply = network.take(MessageType.GET_PERSONAL_RECEIPT); session.set(false);
             privateReply.reply(receipt(16, "WINNER", "WON", "PAID")); drain();
             TestSupport.check(!fx(() -> pane.getScene().getWindow().isShowing()) && fx(() -> table(pane).getItems().isEmpty()), "logout closes the window and clears private data");
             System.out.println("[PASS] PersonalNotificationsUiSelfTest: bell/unread synchronization, price-change link/direct join/leave previous room, stale replies, bulk deletion, receipt image/fee, paging/filter and session guards");
@@ -245,6 +262,40 @@ public final class PersonalNotificationsUiSelfTest {
     private static Map<String, String> receipt(int room, String role, String outcome, String wallet) {
         var data = new LinkedHashMap<String, String>(); data.putAll(Map.of("auctionId", Integer.toString(room), "productName", "Đồng hồ cổ điển", "productCode", "DH15", "productDescription", "Đồng hồ cổ đã qua sử dụng, máy hoạt động tốt.", "productThumbnail", Base64.getEncoder().encodeToString(TestMedia.png()), "endedAt", "2026-10-27T07:18:30Z", "outcome", outcome, "personalRole", role, "walletStatus", wallet));
         data.putAll(Map.of("finalPrice", outcome.equals("WON") ? "130000" : "", "winnerDisplay", outcome.equals("WON") ? "Khách #7" : "", "feeRate", "0.03", "platformFee", "3900", "sellerNet", "126100", "totalBids", "12", "uniqueBidders", "3", "extensionCount", "1", "extensionsComplete", "true", "heldAmount", "0")); return data;
+    }
+    private static void showDetail(PersonalNotificationsPane pane, String id) throws Exception {
+        fx(() -> {
+            pane.applyCss(); pane.layout();
+            ((MenuButton) pane.lookup("#notification-more-" + id)).getItems().get(0).fire();
+            return null;
+        }); drain();
+    }
+    private static void reopen(PersonalNotificationsPane pane, Network network, Map<String, String> values) throws Exception {
+        fx(() -> {
+            pane.show();
+            var pollField = PersonalNotificationsPane.class.getDeclaredField("poll"); pollField.setAccessible(true);
+            ((javafx.animation.Timeline) pollField.get(pane)).stop(); return null;
+        });
+        network.take(MessageType.GET_MY_NOTIFICATIONS).reply(values); drain();
+        fx(() -> { pane.applyCss(); pane.layout(); return null; });
+    }
+    private static void checkActions(PersonalNotificationsPane pane) throws Exception {
+        fx(() -> {
+            pane.applyCss(); pane.layout();
+            ((javafx.scene.Parent) pane.lookup(".nested-column-header")).requestLayout();
+            pane.layout();
+            TestSupport.check(pane.lookupAll(".button").stream().noneMatch(node -> node.getId() != null
+                    && node.getId().startsWith("notification-view-")), "redundant eye buttons are removed");
+            var header = pane.lookupAll(".column-header").stream().filter(node -> node.lookup(".label") instanceof Label label
+                    && "THAO T\u00c1C".equals(label.getText())).findFirst().orElseThrow();
+            TestSupport.equals(javafx.geometry.Pos.CENTER, ((Label) header.lookup(".label")).getAlignment(), "action header is centered");
+            var headerBounds = header.localToScene(header.getLayoutBounds());
+            var more = pane.lookup("#notification-more-15");
+            var buttonBounds = more.localToScene(more.getLayoutBounds());
+            TestSupport.check(Math.abs(headerBounds.getCenterX() - buttonBounds.getCenterX()) <= 2,
+                    "more button is centered under the action header: " + headerBounds.getCenterX() + " vs " + buttonBounds.getCenterX());
+            return null;
+        });
     }
     private static void fire(PersonalNotificationsPane pane, String id) throws Exception { fx(() -> { pane.applyCss(); pane.layout(); ((Button) pane.lookup("#" + id)).fire(); return null; }); drain(); }
     private static MenuItem deleteItem(PersonalNotificationsPane pane, String id) {

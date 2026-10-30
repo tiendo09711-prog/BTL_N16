@@ -53,6 +53,8 @@ final class AuctionSchedulePane extends VBox {
         getChildren().setAll(mode, clock, help);
     }
 
+    javafx.beans.binding.BooleanBinding scheduledProperty() { return mode.getSelectionModel().selectedIndexProperty().isEqualTo(1); }
+
     Instant value(Instant now) {
         if (mode.getSelectionModel().getSelectedIndex() == 0) { return null; }
         try {

@@ -23,6 +23,8 @@ public final class AuctionSnapshot {
     private final long version;
     private final RoomVisibility visibility;
     private final boolean anonymousGuests;
+    private final int maxParticipants;
+    private final BigDecimal depositAmount;
     private final String roomPasswordHash;
     private final String roomPasswordSalt;
     private final int roomPasswordIterations;
@@ -124,6 +126,20 @@ public final class AuctionSnapshot {
             AuctionStatus status, Instant endedAt, long version, RoomVisibility visibility,
             String roomPasswordHash, String roomPasswordSalt, int roomPasswordIterations,
             Instant hardEndTime, boolean anonymousGuests) {
+        this(auctionId, product, hostUserId, hostUsername, startPrice, minBidIncrement, currentPrice,
+                currentWinnerId, currentWinnerUsername, startTime, endTime, status, endedAt, version,
+                visibility, roomPasswordHash, roomPasswordSalt, roomPasswordIterations, hardEndTime,
+                anonymousGuests, 100, BigDecimal.ZERO);
+    }
+
+    public AuctionSnapshot(long auctionId, Product product, long hostUserId, String hostUsername,
+            BigDecimal startPrice, BigDecimal minBidIncrement, BigDecimal currentPrice,
+            Long currentWinnerId, String currentWinnerUsername, Instant startTime, Instant endTime,
+            AuctionStatus status, Instant endedAt, long version, RoomVisibility visibility,
+            String roomPasswordHash, String roomPasswordSalt, int roomPasswordIterations,
+            Instant hardEndTime, boolean anonymousGuests, int maxParticipants, BigDecimal depositAmount) {
+        this.maxParticipants = maxParticipants;
+        this.depositAmount = Objects.requireNonNull(depositAmount, "depositAmount");
         this.anonymousGuests = anonymousGuests;
         this.auctionId = auctionId;
         this.product = Objects.requireNonNull(product, "product");
@@ -163,6 +179,8 @@ public final class AuctionSnapshot {
     public long getVersion() { return version; }
     public RoomVisibility getVisibility() { return visibility; }
     public boolean hasAnonymousGuests() { return anonymousGuests; }
+    public int getMaxParticipants() { return maxParticipants; }
+    public BigDecimal getDepositAmount() { return depositAmount; }
     public boolean requiresPassword() { return visibility == RoomVisibility.PRIVATE; }
     public String getRoomPasswordHash() { return roomPasswordHash; }
     public String getRoomPasswordSalt() { return roomPasswordSalt; }

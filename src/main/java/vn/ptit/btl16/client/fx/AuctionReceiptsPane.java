@@ -161,10 +161,8 @@ public final class AuctionReceiptsPane extends BorderPane implements AutoCloseab
         column("THAO TÁC", 96, 88, row -> {
             Button view = action("", "eye"); view.getStyleClass().add("receipt-view"); view.setId("receipt-view-" + row.get("auctionId"));
             view.setAccessibleText("Xem kết quả phiên #" + row.get("auctionId")); view.setTooltip(new Tooltip("Xem kết quả phiên"));
-            Button more = action("", "more"); more.getStyleClass().add("receipt-more"); more.setId("receipt-more-" + row.get("auctionId"));
-            more.setAccessibleText("Chi tiết giao dịch phiên #" + row.get("auctionId")); more.setTooltip(new Tooltip("Chi tiết giao dịch"));
-            for (Button button : List.of(view, more)) { button.setOnAction(event -> { history.getSelectionModel().select(row); loadReceipt(Long.parseLong(row.get("auctionId"))); }); }
-            HBox actions = new HBox(7, view, more); actions.setAlignment(Pos.CENTER_LEFT); return actions;
+            view.setOnAction(event -> { history.getSelectionModel().select(row); loadReceipt(Long.parseLong(row.get("auctionId"))); });
+            return view;
         });
         history.setPlaceholder(DesktopTheme.label("Chưa có biên nhận đã chốt theo bộ lọc.", "muted"));
     }
@@ -257,7 +255,7 @@ public final class AuctionReceiptsPane extends BorderPane implements AutoCloseab
             }
             history.getItems().setAll(rows); nextBefore = Long.parseLong(data.getOrDefault("nextBeforeId", "0")); next.setDisable(!"true".equals(data.get("hasMore")));
             for (var row : rows) { if (Long.toString(selectedRoom).equals(row.get("auctionId"))) { history.getSelectionModel().select(row); break; } }
-            message.setText(count + " biên nhận trên trang này. Nhấn nút ba chấm để xem chi tiết giao dịch.");
+            message.setText(count + " biên nhận trên trang này. Nhấn nút con mắt để xem chi tiết giao dịch.");
         }));
     }
     public void loadReceipt(long room) {

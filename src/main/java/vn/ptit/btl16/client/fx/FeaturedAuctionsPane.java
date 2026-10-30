@@ -54,6 +54,13 @@ final class FeaturedAuctionsPane extends VBox implements AutoCloseable {
         message.setVisible(cards.isEmpty()); message.setManaged(cards.isEmpty()); arrange();
     }
     void unavailable() { if (cards.isEmpty()) { message.setText("Chưa tải được phiên nổi bật. Bấm Làm mới để thử lại."); } }
+    void applyOccupancy(long auctionId, int count, long version) {
+        Card card = cards.get(auctionId);
+        if (card != null && count >= 0 && version > card.auction.getOccupancyVersion()) {
+            card.auction = card.auction.withOccupancy(count, version);
+            card.refreshPeople();
+        }
+    }
     void tick() {
         boolean removed = cards.values().removeIf(card -> {
             if (!clock.get().isBefore(card.auction.getEndTime())) { card.dispose(); return true; } return false;
@@ -102,12 +109,15 @@ final class FeaturedAuctionsPane extends VBox implements AutoCloseable {
             button.setGraphic(body); button.setOnAction(event -> { if (auction != null && clock.get().isBefore(auction.getEndTime())) { enter.accept(auction); } });
         }
         void update(ClientAuction a, int position, Map<String, String> data, String prefix) {
+            if (auction != null && auction.getAuctionId() == a.getAuctionId() && auction.getOccupancyVersion() > a.getOccupancyVersion()) {
+                a = a.withOccupancy(auction.getWatcherCount(), auction.getOccupancyVersion());
+            }
             auction = a; button.setId("featured-auction-" + a.getAuctionId()); rank.setText("TOP " + position); room.setText("PHÒNG #" + a.getAuctionId());
             button.getStyleClass().removeIf(style -> style.startsWith("featured-card-top-")); button.getStyleClass().add("featured-card-top-" + position);
             rank.setGraphic(MarketplaceIcons.icon(position == 1 ? "crown" : position <= 3 ? "trophy" : "star", 15, position == 2 ? "#445565" : "#77501c"));
             leader.setVisible(position == 1); leader.setManaged(position == 1);
             title.setText(a.getProductName()); price.setText(WalletUi.money(a.getCurrentPrice()));
-            people.setText(a.getWatcherCount() + " người"); bids.setText(data.getOrDefault(prefix + "totalBids", "0") + " lượt ra giá"); movement.setText(data.getOrDefault(prefix + "movementCount", "0") + " lượt vào");
+            refreshPeople(); bids.setText(data.getOrDefault(prefix + "totalBids", "0") + " lượt ra giá"); movement.setText(data.getOrDefault(prefix + "movementCount", "0") + " lượt vào");
             points.setText(data.getOrDefault(prefix + "featuredScore", "0") + " điểm nổi bật");
             button.setAccessibleText(rank.getText() + ", " + room.getText() + ", " + title.getText() + ", " + people.getText() + ", " + bids.getText() + ", " + movement.getText() + ", " + points.getText() + ". Vào phòng.");
             String key = a.getProductId() + ":" + a.getImageVersion() + ":" + a.hasImage(); if (imageKey.equals(key)) { return; }
@@ -115,6 +125,10 @@ final class FeaturedAuctionsPane extends VBox implements AutoCloseable {
             if (a.hasImage()) { covers.apply(a).whenComplete((value, error) -> Platform.runLater(() -> { if (token == generation && error == null && value != null && !value.isError()) { image.setImage(value); } })); }
         }
         void dispose() { generation++; image.setImage(null); }
+        void refreshPeople() {
+            people.setText(auction.getWatcherCount() + "/" + auction.getMaxParticipants() + " người" + (auction.isFull() ? " · Đầy" : ""));
+            button.setAccessibleText(rank.getText() + ", " + room.getText() + ", " + title.getText() + ", " + people.getText() + ". Xem phòng.");
+        }
     }
 
     private static Label metric(String icon) {

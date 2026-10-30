@@ -175,8 +175,9 @@ public final class AccountScreensUiSelfTest {
         waitFor(() -> owner.getScene().lookup("#receipt-personal-result") != null, "view button loads server-confirmed details in the embedded drawer");
         screenshot(owner.getScene().getRoot(), "target/account-receipt-detail.png");
         fire(owner.getScene().getRoot(), "receipt-close-detail");
-        fire(owner.getScene().getRoot(), "receipt-more-" + room);
-        waitFor(() -> owner.getScene().lookup("#receipt-personal-result") != null, "more button reopens server-confirmed details");
+        TestSupport.check(fx(() -> owner.getScene().lookup("#receipt-more-" + room) == null), "redundant more button is removed");
+        fire(owner.getScene().getRoot(), "receipt-view-" + room);
+        waitFor(() -> owner.getScene().lookup("#receipt-personal-result") != null, "view button reopens server-confirmed details");
         AuctionReceiptsPane oldReceipts = (AuctionReceiptsPane) fx(() -> owner.getScene().lookup("#account-receipts"));
         fx(() -> { oldReceipts.loadReceipt(room); ((Button) owner.getScene().lookup("#account-wallet-navigation")).fire(); return null; });
         waitFor(() -> owner.getScene().lookup("#account-wallet") != null && labels(owner.getScene().getRoot()).contains("886.858.000"), "wallet navigation replaces the embedded receipt");

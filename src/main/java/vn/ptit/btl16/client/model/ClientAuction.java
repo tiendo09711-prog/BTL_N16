@@ -31,6 +31,9 @@ public final class ClientAuction {
     private final long imageVersion;
     private final boolean anonymousGuests;
     private final long selfParticipantId;
+    private final int maxParticipants;
+    private final BigDecimal depositAmount;
+    private final long occupancyVersion;
 
     public ClientAuction(
             long auctionId,
@@ -106,6 +109,24 @@ public final class ClientAuction {
             Instant endedAt, long version, int watcherCount, String visibility, boolean requiresPassword,
             boolean hasImage, String imageMime, long imageVersion, Instant hardEndTime,
             boolean anonymousGuests, long selfParticipantId) {
+        this(auctionId, productId, productCode, productName, description, hostUserId, hostUsername,
+                startPrice, minBidIncrement, currentPrice, currentWinnerId, currentWinnerUsername,
+                startTime, endTime, status, endedAt, version, watcherCount, visibility,
+                requiresPassword, hasImage, imageMime, imageVersion, hardEndTime, anonymousGuests,
+                selfParticipantId, 100, BigDecimal.ZERO, 0);
+    }
+
+    public ClientAuction(long auctionId, long productId, String productCode, String productName,
+            String description, long hostUserId, String hostUsername, BigDecimal startPrice,
+            BigDecimal minBidIncrement, BigDecimal currentPrice, Long currentWinnerId,
+            String currentWinnerUsername, Instant startTime, Instant endTime, String status,
+            Instant endedAt, long version, int watcherCount, String visibility, boolean requiresPassword,
+            boolean hasImage, String imageMime, long imageVersion, Instant hardEndTime,
+            boolean anonymousGuests, long selfParticipantId, int maxParticipants, BigDecimal depositAmount,
+            long occupancyVersion) {
+        this.maxParticipants = maxParticipants;
+        this.depositAmount = depositAmount;
+        this.occupancyVersion = occupancyVersion;
         this.auctionId = auctionId;
         this.productId = productId;
         this.productCode = text(productCode);
@@ -163,7 +184,14 @@ public final class ClientAuction {
                 requiresPassword,
                 hasImage,
                 imageMime,
-                imageVersion, hardEndTime, anonymousGuests, selfParticipantId);
+                imageVersion, hardEndTime, anonymousGuests, selfParticipantId, maxParticipants, depositAmount, occupancyVersion);
+    }
+
+    public ClientAuction withOccupancy(int count, long revision) {
+        return new ClientAuction(auctionId, productId, productCode, productName, description, hostUserId, hostUsername,
+                startPrice, minBidIncrement, currentPrice, currentWinnerId, currentWinnerUsername, startTime, endTime,
+                status, endedAt, version, count, visibility, requiresPassword, hasImage, imageMime, imageVersion,
+                hardEndTime, anonymousGuests, selfParticipantId, maxParticipants, depositAmount, revision);
     }
 
     private String text(String value) { return value == null ? "" : value; }
@@ -187,6 +215,10 @@ public final class ClientAuction {
     public Instant getEndedAt() { return endedAt; }
     public long getVersion() { return version; }
     public int getWatcherCount() { return watcherCount; }
+    public int getMaxParticipants() { return maxParticipants; }
+    public BigDecimal getDepositAmount() { return depositAmount; }
+    public long getOccupancyVersion() { return occupancyVersion; }
+    public boolean isFull() { return watcherCount >= maxParticipants; }
     public String getVisibility() { return visibility; }
     public boolean requiresPassword() { return requiresPassword; }
     public boolean hasImage() { return hasImage; }

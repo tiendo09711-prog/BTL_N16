@@ -26,6 +26,8 @@ public final class ClientAppModel {
     private String createdAt = "";
     private String lastLoginAt = "";
     private final Map<Long, ClientAuction> auctions = new LinkedHashMap<>();
+    private record Occupancy(int count, long version) { }
+    private final Map<Long, Occupancy> occupancy = new LinkedHashMap<>();
     private final Set<Long> archivedAuctionIds = new HashSet<>();
     private final Set<Long> kickedAuctionIds = new HashSet<>();
     private final Map<Long, Instant> observedAt = new LinkedHashMap<>();
@@ -65,6 +67,7 @@ public final class ClientAppModel {
         archivedAuctionIds.clear();
         kickedAuctionIds.clear();
         auctions.clear();
+        occupancy.clear();
         observedAt.clear();
         lastListAt = Instant.MIN;
         lastServerAt = Instant.MIN;
@@ -79,7 +82,7 @@ public final class ClientAppModel {
         for (ClientAuction value : values) {
             if (!archivedAuctionIds.contains(value.getAuctionId())) {
                 ClientAuction previous = auctions.get(value.getAuctionId());
-                next.put(value.getAuctionId(), canApply(previous, value) ? value : previous);
+                next.put(value.getAuctionId(), mergeOccupancy(canApply(previous, value) ? value : previous));
                 observe(value.getAuctionId(), serverNow);
             }
         }
@@ -111,7 +114,7 @@ public final class ClientAppModel {
         ClientAuction previous = auctions.get(auction.getAuctionId());
         boolean accepted = canApply(previous, auction);
         if (accepted) {
-            auctions.put(auction.getAuctionId(), auction);
+            auctions.put(auction.getAuctionId(), mergeOccupancy(auction));
             observe(auction.getAuctionId(), serverNow);
         }
         if (markJoined && !kickedAuctionIds.contains(auction.getAuctionId())) {
@@ -135,7 +138,7 @@ public final class ClientAppModel {
         }
         ClientAuction previous = auctions.get(auction.getAuctionId());
         if (canApply(previous, auction)) {
-            auctions.put(auction.getAuctionId(), auction);
+            auctions.put(auction.getAuctionId(), mergeOccupancy(auction));
             observe(auction.getAuctionId(), serverNow);
         }
         if (joinedAuctionId != null && joinedAuctionId.longValue() == auction.getAuctionId()) {
@@ -164,7 +167,7 @@ public final class ClientAppModel {
         ClientAuction old = auctions.get(auctionId);
         if (old != null && old.isOpen() && "OPEN".equals(status) && endTime != null
                 && !endTime.isBefore(old.getEndTime()) && version == old.getVersion()) {
-            auctions.put(auctionId, old.withTiming(endTime, status, watcherCount));
+            auctions.put(auctionId, old.withTiming(endTime, status, old.getOccupancyVersion() > 0 ? old.getWatcherCount() : watcherCount));
             observe(auctionId, serverNow);
         }
     }
@@ -172,6 +175,25 @@ public final class ClientAppModel {
     private boolean canApply(ClientAuction previous, ClientAuction incoming) {
         return previous == null || (incoming.getVersion() >= previous.getVersion()
                 && (previous.isOpen() || !incoming.isOpen()));
+    }
+
+    private ClientAuction mergeOccupancy(ClientAuction incoming) {
+        Occupancy latest = occupancy.get(incoming.getAuctionId());
+        if (latest != null && latest.version() > incoming.getOccupancyVersion()) {
+            return incoming.withOccupancy(latest.count(), latest.version());
+        }
+        occupancy.put(incoming.getAuctionId(), new Occupancy(incoming.getWatcherCount(), incoming.getOccupancyVersion()));
+        return incoming;
+    }
+
+    public synchronized void applyOccupancy(long auctionId, int count, long version, Instant serverNow) {
+        if (count < 0 || version < 1 || archivedAuctionIds.contains(auctionId)) { return; }
+        Occupancy latest = occupancy.get(auctionId);
+        if (latest != null && latest.version() >= version) { return; }
+        updateServerClock(serverNow);
+        occupancy.put(auctionId, new Occupancy(count, version));
+        ClientAuction previous = auctions.get(auctionId);
+        if (previous != null) { auctions.put(auctionId, previous.withOccupancy(count, version)); }
     }
 
     private void observe(long auctionId, Instant serverNow) {

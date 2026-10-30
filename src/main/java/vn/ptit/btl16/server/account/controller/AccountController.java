@@ -68,8 +68,10 @@ public final class AccountController {
 
     public void handleLogout(RequestContext context) throws Exception {
         String connectionId = context.getConnection().getConnectionId();
-        rooms.removeConnection(connectionId);
-        accounts.logout(connectionId);
+        synchronized (rooms) {
+            accounts.logout(connectionId);
+            rooms.removeConnection(connectionId);
+        }
         context.replySuccess(
                 MessageType.LOGOUT_RESULT,
                 Map.of("message", "Đã đăng xuất"));

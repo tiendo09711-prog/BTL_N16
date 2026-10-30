@@ -139,8 +139,6 @@ public final class PersonalNotificationsPane extends BorderPane {
         column("PHIÊN", 62, 45, row -> row.get("auctionId"), row -> DesktopTheme.label(row.get("auctionId").isBlank() ? "—" : row.get("auctionId"), "notification-cell-text"));
         column("THỜI GIAN", 135, 111, row -> time(row.get("createdAt"), false), row -> DesktopTheme.label(time(row.get("createdAt"), false), "notification-cell-time"));
         column("THAO TÁC", 94, 86, row -> "", row -> {
-            Button view = action("", "eye"); view.setId("notification-view-" + row.get("id")); view.getStyleClass().add("notification-icon-button");
-            view.setAccessibleText("Xem chi tiết thông báo"); view.setTooltip(new Tooltip("Xem chi tiết")); view.setOnAction(event -> showDetail(currentRow(row)));
             MenuButton more = new MenuButton(); more.setGraphic(MarketplaceIcons.icon("more", 15, "#775631")); more.getStyleClass().addAll("notification-button", "notification-icon-button", "notification-more");
             more.setId("notification-more-" + row.get("id")); more.setAccessibleText("Thao tác thông báo");
             MenuItem detailItem = new MenuItem("Xem chi tiết"), markItem = new MenuItem(isRead(row) ? "Đánh dấu chưa đọc" : "Đánh dấu đã đọc"), relatedItem = new MenuItem("Mở nội dung liên quan");
@@ -152,8 +150,8 @@ public final class PersonalNotificationsPane extends BorderPane {
             deleteItem.setId("notification-delete-" + row.get("id"));
             deleteItem.setOnAction(event -> deleteRow(currentRow(row)));
             more.getItems().addAll(detailItem, markItem, relatedItem, new SeparatorMenuItem(), deleteItem);
-            HBox cell = new HBox(8, view, more); cell.setAlignment(Pos.CENTER); return cell;
-        });
+            return more;
+        }).getStyleClass().add("notification-actions-column");
         table.setPlaceholder(DesktopTheme.label("Chưa có thông báo phù hợp", "notification-note"));
         table.getSelectionModel().selectedItemProperty().addListener((observable, old, row) -> updateSelection());
         BorderPane.setMargin(table, new Insets(0, 18, 0, 18));
@@ -251,8 +249,10 @@ public final class PersonalNotificationsPane extends BorderPane {
     }
     private void openRelated(Map<String, String> row) {
         if (row != null && active()) {
-            open.accept(row.get("kind"), row.get("auctionId").isBlank() ? 0L : Long.parseLong(row.get("auctionId")));
-            if ("PRICE_CHANGED".equals(row.get("kind"))) { stage.close(); }
+            String kind = row.get("kind");
+            long auctionId = row.get("auctionId").isBlank() ? 0L : Long.parseLong(row.get("auctionId"));
+            stage.close();
+            open.accept(kind, auctionId);
         }
     }
 

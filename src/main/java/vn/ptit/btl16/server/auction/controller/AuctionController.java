@@ -150,6 +150,9 @@ public final class AuctionController {
             throw new AuctionException(vn.ptit.btl16.common.protocol.ErrorCode.VALIDATION_ERROR,
                     "Thời gian bắt đầu không hợp lệ");
         }
+        int maxParticipants = WireValues.requireInt(context.getRequest().getData(), "maxParticipants");
+        java.math.BigDecimal depositAmount = startTime != null || !context.value("depositAmount").isBlank()
+                ? WireValues.requireDecimal(context.getRequest().getData(), "depositAmount") : java.math.BigDecimal.ZERO;
         AuctionSnapshot snapshot = management.createAuction(
                 context.requireSession(),
                 WireValues.requireLong(context.getRequest().getData(), "productId"),
@@ -158,7 +161,7 @@ public final class AuctionController {
                 WireValues.requireInt(context.getRequest().getData(), "durationMinutes"),
                 visibility,
                 context.value("roomPassword"), Boolean.parseBoolean(context.value("anonymousGuests")),
-                startTime);
+                startTime, maxParticipants, depositAmount);
         context.replySuccess(
                 MessageType.CREATE_AUCTION_RESULT,
                 AuctionWireData.snapshot(snapshot, List.of(), 0, Instant.now()));
@@ -172,6 +175,16 @@ public final class AuctionController {
                         management.myAuctions(context.requireSession()),
                         rooms,
                         snapshotAt));
+    }
+
+    public void handlePlaceDeposit(RequestContext context) throws Exception {
+        long auctionId = auctionId(context);
+        var paid = management.placeAuctionDeposit(context.requireSession(), context.getConnection().getConnectionId(),
+                auctionId, context.value("roomPassword"));
+        context.replySuccess(MessageType.PLACE_AUCTION_DEPOSIT_RESULT, Map.of(
+                "auctionId", Long.toString(auctionId), "paidDeposit", paid.toPlainString(),
+                "message", "Đã đặt cọc đủ. Bạn có thể vào phòng khi bắt đầu và còn chỗ trống.",
+                "serverNow", Instant.now().toString()));
     }
 
     public void handleList(RequestContext context) throws Exception {
@@ -223,7 +236,7 @@ public final class AuctionController {
                 AuctionWireData.snapshot(
                         snapshot,
                         history,
-                        rooms.subscriberCount(auctionId),
+                        rooms,
                         Instant.now()));
     }
 
@@ -261,7 +274,7 @@ public final class AuctionController {
                     outcome.getPreviousWinnerUsername(),
                     outcome.isExtended(),
                     Instant.now(),
-                    rooms.subscriberCount(auctionId));
+                    rooms.participantCount(auctionId));
             data.put("message", "Lượt ra giá hợp lệ");
             context.replySuccess(MessageType.BID_ACCEPTED, data);
         } catch (AuctionException exception) {
@@ -285,7 +298,7 @@ public final class AuctionController {
                 AuctionWireData.snapshot(
                         snapshot,
                         queries.getRecentBids(auctionId),
-                        rooms.subscriberCount(auctionId),
+                        rooms,
                         Instant.now()));
     }
 
@@ -345,7 +358,7 @@ public final class AuctionController {
                 AuctionWireData.snapshot(
                         snapshot,
                         queries.getRecentBids(auctionId),
-                        rooms.subscriberCount(auctionId),
+                        rooms,
                         Instant.now()));
     }
 

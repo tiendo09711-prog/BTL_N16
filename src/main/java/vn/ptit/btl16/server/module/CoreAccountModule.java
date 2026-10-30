@@ -50,6 +50,7 @@ public final class CoreAccountModule implements ServerModule {
             Map<String, String> data = new LinkedHashMap<>();
             data.put("serverStatus", "UP");
             data.put("auctionScheduling", "true");
+            data.put("roomAdmission", "true");
             data.put("serverNow", Instant.now().toString());
             data.put("activeConnections", Integer.toString(connections.size()));
             data.put("onlineUsers", Integer.toString(sessions.activeCount()));

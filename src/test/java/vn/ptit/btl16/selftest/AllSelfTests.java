@@ -31,6 +31,7 @@ public final class AllSelfTests {
         FullNetworkAuctionSelfTest.run();
         AuctionManagementSelfTest.run();
         AuctionScheduleSelfTest.run();
+        RoomAdmissionSelfTest.run();
         RoomSocialSelfTest.run();
         RoomSocialStorageSelfTest.run();
         RoomInteractionSelfTest.run();

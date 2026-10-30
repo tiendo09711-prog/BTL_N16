@@ -168,8 +168,6 @@ public final class DesktopUiSelfTest {
                     TestSupport.check(history.getChildren().size() > 1, "room displays live bid history");
                     TestSupport.check(currentStage.getScene().lookup("#room-price-chart") != null,
                             "joined room includes live price chart");
-                    javafx.scene.Node composer = currentStage.getScene().lookup("#room-chat-input");
-                    var composerBounds = composer.localToScene(composer.getBoundsInLocal());
                     javafx.scene.Node bidCard = (javafx.scene.Node) read(current, "roomBidScroll");
                     javafx.scene.control.ScrollPane bidViewport = (javafx.scene.control.ScrollPane) bidCard;
                     TestSupport.check(bidViewport.getContent().getBoundsInLocal().getHeight() <= bidViewport.getViewportBounds().getHeight() + 2,
@@ -177,8 +175,17 @@ public final class DesktopUiSelfTest {
                                     + bidViewport.getContent().getBoundsInLocal().getHeight() + ", viewport="
                                     + bidViewport.getViewportBounds().getHeight() + ", max=" + bidViewport.getMaxHeight());
                     var bidBounds = bidCard.localToScene(bidCard.getBoundsInLocal());
-                    TestSupport.check(composerBounds.getMinX() >= bidBounds.getMinX() && composerBounds.getMinY() > bidBounds.getMinY(),
-                            "conversation is placed in the right column below bidding");
+                    javafx.scene.control.ScrollPane chatViewport = read(current, "roomControlsScroll");
+                    TestSupport.check(bidCard.isVisible() && !chatViewport.isVisible(), "only bidding is shown by default");
+                    ((javafx.scene.control.ToggleButton) currentStage.getScene().lookup("#room-tab-chat")).fire();
+                    currentStage.getScene().getRoot().applyCss(); currentStage.getScene().getRoot().layout();
+                    javafx.scene.Node composer = currentStage.getScene().lookup("#room-chat-input");
+                    var composerBounds = composer.localToScene(composer.getBoundsInLocal());
+                    TestSupport.check(chatViewport.isVisible() && !bidCard.isVisible()
+                                    && composerBounds.getMinX() >= bidBounds.getMinX(),
+                            "chat replaces bidding in the same right column");
+                    ((javafx.scene.control.ToggleButton) currentStage.getScene().lookup("#room-tab-bid")).fire();
+                    currentStage.getScene().getRoot().layout();
                     javafx.scene.control.ScrollPane left = read(current, "roomMainScroll");
                     TestSupport.check(left.getContent().getBoundsInLocal().getHeight() > left.getViewportBounds().getHeight(), "left column scrolls through all auction content");
                     left.setVvalue(1); currentStage.getScene().getRoot().layout();
@@ -210,17 +217,27 @@ public final class DesktopUiSelfTest {
                 });
                 Thread.sleep(500);
                 fx(() -> {
+                    ((javafx.scene.control.ToggleButton) currentStage.getScene().lookup("#room-tab-chat")).fire();
+                    currentStage.getScene().getRoot().applyCss(); currentStage.getScene().getRoot().layout();
                     javafx.scene.control.ScrollPane right = read(current, "roomControlsScroll");
                     javafx.scene.Node composer = currentStage.getScene().lookup("#room-chat-input");
                     var relative = right.getContent().sceneToLocal(composer.localToScene(composer.getBoundsInLocal()));
                     double overflow = right.getContent().getBoundsInLocal().getHeight() - right.getViewportBounds().getHeight();
                     if (overflow > 0) { right.setVvalue(Math.max(0, Math.min(1, (relative.getMaxY() + 8 - right.getViewportBounds().getHeight()) / overflow))); }
                     currentStage.getScene().getRoot().layout();
-                    for (javafx.scene.Node node : java.util.List.of(currentStage.getScene().lookup("#room-chat-input"), (javafx.scene.Node) read(current, "bidButton"))) {
+                    for (String tab : java.util.List.of("chat", "bid", "history")) {
+                        ((javafx.scene.control.ToggleButton) currentStage.getScene().lookup("#room-tab-" + tab)).fire();
+                        currentStage.getScene().getRoot().applyCss(); currentStage.getScene().getRoot().layout();
+                        javafx.scene.Node node = switch (tab) {
+                            case "chat" -> currentStage.getScene().lookup("#room-chat-input");
+                            case "bid" -> (javafx.scene.Node) read(current, "bidButton");
+                            default -> currentStage.getScene().lookup("#room-history-mine");
+                        };
                         var bounds = node.localToScene(node.getBoundsInLocal());
                         TestSupport.check(bounds.getMinY() >= 0 && bounds.getMaxY() <= currentStage.getScene().getHeight()
-                                && bounds.getMinX() >= 0 && bounds.getMaxX() <= currentStage.getScene().getWidth(), "compact chat input and bid button remain in scene");
+                                && bounds.getMinX() >= 0 && bounds.getMaxX() <= currentStage.getScene().getWidth(), "active compact room tab remains in scene: " + tab);
                     }
+                    ((javafx.scene.control.ToggleButton) currentStage.getScene().lookup("#room-tab-bid")).fire();
                     return null;
                 });
                 snapshot(clientStage, output.resolve("client-compact.png"));

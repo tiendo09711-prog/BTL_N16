@@ -79,6 +79,7 @@ public final class AuctionMarketplacePane extends ScrollPane implements AutoClos
         featured.configure(loader, clock, auction -> { selection.select(auction); onEnter.accept(auction); });
     }
     public void setFeatured(Map<String, String> data) { featured.setData(data); }
+    public void applyOccupancy(long auctionId, int count, long version) { featured.applyOccupancy(auctionId, count, version); }
     public void clearFeatured() { featured.close(); }
     public void featuredUnavailable() { featured.unavailable(); }
     public void showFeatured(boolean visible) { featured.setVisible(visible); featured.setManaged(visible); }
@@ -236,7 +237,7 @@ public final class AuctionMarketplacePane extends ScrollPane implements AutoClos
             if (auction == null) { return; }
             price.setText(WalletUi.money(auction.getCurrentPrice()));
             step.setText(WalletUi.money(auction.getMinBidIncrement()));
-            watchers.setText(auction.getWatcherCount() + " người tham gia");
+            watchers.setText(auction.getWatcherCount() + "/" + auction.getMaxParticipants() + " người" + (auction.isFull() ? " · Đầy" : ""));
             Instant instant = now.get();
             boolean starting = auction.getStartTime() != null && instant.isBefore(auction.getStartTime());
             long seconds = auction.getEndTime() == null ? 0 : Math.max(0, java.time.Duration.between(instant, auction.getEndTime()).getSeconds());

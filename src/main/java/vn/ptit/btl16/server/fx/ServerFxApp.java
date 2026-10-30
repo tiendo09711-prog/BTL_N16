@@ -76,7 +76,7 @@ public final class ServerFxApp extends Application {
     private final TabPane adminTabs = new TabPane();
     private final Map<Tab, Button> navigation = new LinkedHashMap<>();
     private final Map<Tab, ServerAdminPage> pages = new LinkedHashMap<>();
-    private final Label pageTitle = DesktopTheme.label("Tổng quan sàn đấu giá", "page-title");
+    private final Label pageTitle = DesktopTheme.label("Tổng quan", "page-title");
     private final Label offlineBanner = DesktopTheme.label("Đang khởi động server…", "admin-offline");
     private volatile ServerApplication application;
     private volatile boolean closing;
@@ -107,6 +107,7 @@ public final class ServerFxApp extends Application {
         });
         DesktopTheme.fitOnScreen(stage, 1300, 860);
         stage.show();
+        adminTabs.lookup(".tab-header-area").setVisible(false);
         DesktopTheme.reveal(scene.getRoot());
         timer.setCycleCount(Timeline.INDEFINITE);
         timer.play();
@@ -114,11 +115,10 @@ public final class ServerFxApp extends Application {
     }
 
     private BorderPane buildRoot() {
-        HBox header = new HBox(16, new VBox(5, DesktopTheme.label("TRUNG TÂM ĐIỀU HÀNH", "eyebrow"),
-                pageTitle), DesktopTheme.spacer(), clock, state);
+        HBox header = new HBox(16, pageTitle, DesktopTheme.spacer(), clock, state);
         header.getStyleClass().add("admin-header");
-        HBox stats = new HBox(14, stat("KẾT NỐI", clients, false), stat("NGƯỜI TRỰC TUYẾN", users, true),
-                stat("PHIÊN ĐANG MỞ", rooms, false), stat("PHIÊN ĐÃ KẾT THÚC", ended, false));
+        HBox stats = new HBox(14, stat("Kết nối", clients, false), stat("Trực tuyến", users, true),
+                stat("Phiên đang mở", rooms, false), stat("Đã kết thúc", ended, false));
 
         addresses.setMaxWidth(Double.MAX_VALUE);
         addresses.setPromptText("Chọn địa chỉ mạng");
@@ -138,31 +138,32 @@ public final class ServerFxApp extends Application {
         HBox.setHgrow(invitation, Priority.ALWAYS);
 
         graph.setAlignment(Pos.BOTTOM_CENTER);
+        graph.setFillHeight(false);
         graph.setMinHeight(82);
         VBox traffic = new VBox(11, new HBox(10, DesktopTheme.label("Nhịp kết nối", "section-title"),
-                DesktopTheme.spacer(), DesktopTheme.label("30 GIÂY GẦN NHẤT", "eyebrow")), graph,
+                DesktopTheme.spacer(), DesktopTheme.label("30 giây", "eyebrow")), graph,
                 new HBox(10, DesktopTheme.label("Lưu trữ", "muted"), DesktopTheme.spacer(), storage));
         traffic.getStyleClass().add("card");
         HBox.setHgrow(traffic, Priority.ALWAYS);
         HBox networkRow = new HBox(16, invitation, traffic);
 
-        column("PHÒNG", item -> "#" + item.getAuctionId(), 80);
-        column("SẢN PHẨM", item -> item.getProduct().getName(), 200);
-        column("CHỦ PHÒNG", item -> item.hasAnonymousGuests() ? "Ẩn danh" : item.getHostUsername(), 130);
-        column("GIÁ HIỆN TẠI", item -> money(item.getCurrentPrice()), 160);
-        column("DẪN ĐẦU", item -> item.getCurrentWinnerId() == null
+        column("Phiên", item -> "#" + item.getAuctionId(), 70);
+        column("Sản phẩm", item -> item.getProduct().getName(), 200);
+        column("Chủ phòng", item -> item.hasAnonymousGuests() ? "Ẩn danh" : item.getHostUsername(), 130);
+        column("Giá hiện tại", item -> money(item.getCurrentPrice()), 160);
+        column("Dẫn đầu", item -> item.getCurrentWinnerId() == null
                 ? "—" : item.hasAnonymousGuests() ? "Ẩn danh" : item.getCurrentWinnerUsername(), 130);
-        column("TRẠNG THÁI", item -> switch (item.getStatus().name()) {
+        column("Trạng thái", item -> switch (item.getStatus().name()) {
             case "OPEN" -> "Đang mở";
             case "CANCELLED" -> "Đã hủy";
             default -> "Kết thúc";
         }, 105);
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
-        table.setPlaceholder(new VBox(12, DesktopTheme.label("Chưa có phiên đấu giá", "section-title")));
+        table.setPlaceholder(DesktopTheme.label("Chưa có phiên đấu giá", "muted"));
         table.setPrefHeight(260);
         table.setMinHeight(200);
         VBox roomCard = new VBox(15, new HBox(10, DesktopTheme.label("Các phiên đấu giá", "section-title"),
-                DesktopTheme.spacer(), DesktopTheme.label("LIVE", "pill")), table);
+                DesktopTheme.spacer()), table);
         roomCard.getStyleClass().add("card");
         VBox.setVgrow(roomCard, Priority.ALWAYS);
         VBox.setVgrow(table, Priority.ALWAYS);
@@ -204,21 +205,20 @@ public final class ServerFxApp extends Application {
     }
 
     private VBox buildSidebar(Tab overview, Tab wallets, Tab cashFlow, Tab operations) {
-        VBox sidebar = new VBox(12, DesktopTheme.brand("SERVER"),
-                DesktopTheme.label("Không gian quản trị", "admin-sidebar-caption"), new Separator(),
-                DesktopTheme.label("ĐIỀU HÀNH", "eyebrow"),
-                navigationButton(overview, "◉   Tổng quan sàn", "server-overview-open"),
-                navigationButton(wallets, "◈   Tài khoản & ví", "server-wallet-open"),
-                navigationButton(cashFlow, "◈   Quản lý dòng tiền", "server-cash-flow-open"),
-                navigationButton(operations, "≡   Nhật ký vận hành", "server-operations-open"));
+        VBox sidebar = new VBox(8, DesktopTheme.brand("SERVER"), new Separator(),
+                navigationButton(overview, "Tổng quan", "server-overview-open", "overview"),
+                navigationButton(wallets, "Tài khoản & ví", "server-wallet-open", "wallet"),
+                navigationButton(cashFlow, "Dòng tiền", "server-cash-flow-open", "cash"),
+                navigationButton(operations, "Nhật ký", "server-operations-open", "log"));
         sidebar.getStyleClass().addAll("sidebar", "admin-sidebar");
         Region filler = new Region();
         VBox.setVgrow(filler, Priority.ALWAYS);
-        Button network = new Button("↗   Sao chép địa chỉ");
+        Button network = new Button("Sao chép địa chỉ", ServerIcons.icon("copy"));
         network.setId("server-copy-address");
         network.setMaxWidth(Double.MAX_VALUE);
         network.setOnAction(event -> copy(addresses.getValue(), network));
         toggle.setMaxWidth(Double.MAX_VALUE);
+        toggle.setGraphic(ServerIcons.icon("power"));
         toggle.setDisable(true);
         toggle.setOnAction(event -> {
             if (application == null) {
@@ -227,14 +227,13 @@ public final class ServerFxApp extends Application {
                 stopServer();
             }
         });
-        sidebar.getChildren().addAll(filler, DesktopTheme.label("KẾT NỐI NHANH", "eyebrow"), network,
-                new Separator(), DesktopTheme.label("THỜI GIAN HOẠT ĐỘNG", "eyebrow"), uptime,
-                toggle, DesktopTheme.label("AUCTION / LOCAL NETWORK", "eyebrow"));
+        sidebar.getChildren().addAll(filler, network, new Separator(),
+                DesktopTheme.label("Thời gian hoạt động", "admin-sidebar-caption"), uptime, toggle);
         return sidebar;
     }
 
-    private Button navigationButton(Tab tab, String title, String id) {
-        Button button = new Button(title);
+    private Button navigationButton(Tab tab, String title, String id, String icon) {
+        Button button = new Button(title, ServerIcons.icon(icon));
         button.setId(id);
         button.setMaxWidth(Double.MAX_VALUE);
         button.setOnAction(event -> adminTabs.getSelectionModel().select(tab));
@@ -262,15 +261,14 @@ public final class ServerFxApp extends Application {
                 button.getStyleClass().add("nav-active");
             }
         });
-        pageTitle.setText(selected.getId().equals("server-overview-tab") ? "Tổng quan sàn đấu giá" : selected.getText());
+        pageTitle.setText(selected.getId().equals("server-overview-tab") ? "Tổng quan" : selected.getText());
         updateAdminAvailability();
     }
 
     private void updateAdminAvailability() {
         boolean available = application != null && !busy && !closing;
         offlineBanner.setVisible(!available);
-        offlineBanner.setText(busy ? "Server đang chuyển trạng thái. Vui lòng chờ…"
-                : "Server đang tạm dừng. Dữ liệu đang hiển thị chưa được cập nhật; khởi động lại để tiếp tục quản trị.");
+        offlineBanner.setText(busy ? "Đang chuyển trạng thái…" : "Server tạm dừng · Khởi động lại để cập nhật dữ liệu.");
         pages.forEach((tab, page) -> {
             page.setDisable(!available);
             if (available && adminTabs.getSelectionModel().getSelectedItem() == tab) {
@@ -344,8 +342,8 @@ public final class ServerFxApp extends Application {
                 return;
             }
             startedAt = Instant.now();
-            toggle.setText("■   Tạm dừng sàn");
-            state.setText("●  ĐANG HOẠT ĐỘNG");
+            toggle.setText("Tạm dừng sàn");
+            state.setText("Đang hoạt động");
             state.getStyleClass().remove("offline");
             addActivity("Sàn đấu giá đã sẵn sàng");
             refreshAddresses();
@@ -364,8 +362,8 @@ public final class ServerFxApp extends Application {
         CompletableFuture.runAsync(running::close, worker).whenComplete((nothing, error) -> Platform.runLater(() -> {
             busy = false;
             toggle.setDisable(false);
-            toggle.setText("▶   Khởi động sàn");
-            state.setText("●  ĐÃ TẠM DỪNG");
+            toggle.setText("Khởi động sàn");
+            state.setText("Đã tạm dừng");
             state.getStyleClass().add("offline");
             clients.setText("0");
             users.setText("0");

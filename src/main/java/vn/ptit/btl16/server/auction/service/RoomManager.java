@@ -7,10 +7,35 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
-public final class RoomManager {
+public final class RoomManager implements AutoCloseable {
     @FunctionalInterface
     public interface PresenceListener { void changed(long auctionId, String type, long userId, java.time.Instant time); }
     private PresenceListener presence = (room, type, user, time) -> { };
+    @FunctionalInterface
+    public interface OccupancyListener { void changed(long auctionId, int count, long version); }
+    private OccupancyListener occupancy;
+    private final long initialOccupancyVersion = System.currentTimeMillis() * 1000L;
+    private final java.util.concurrent.ExecutorService occupancyNotifications = java.util.concurrent.Executors.newSingleThreadExecutor(task -> {
+        Thread thread = new Thread(task, "room-occupancy"); thread.setDaemon(true); return thread;
+    });
+    private final java.util.Map<Long, Long> occupancyVersions = new java.util.HashMap<>();
+    public synchronized void setOccupancyListener(OccupancyListener listener) { occupancy = listener; }
+    public synchronized long occupancyVersion(long auctionId) { return occupancyVersions.getOrDefault(auctionId, initialOccupancyVersion); }
+    private void changed(long auctionId) {
+        long version = occupancyVersion(auctionId) + 1;
+        occupancyVersions.put(auctionId, version);
+        int count = participantCount(auctionId);
+        OccupancyListener listener = occupancy;
+        if (listener != null) {
+            occupancyNotifications.execute(() -> listener.changed(auctionId, count, version));
+        }
+    }
+
+    @Override public synchronized void close() { occupancy = null; occupancyNotifications.shutdownNow(); }
+    private void departed(long auctionId, long userId) {
+        try { presence.changed(auctionId, "LEFT", userId, java.time.Instant.now()); }
+        catch (RuntimeException error) { System.err.println("[ROOM PRESENCE] Cannot record departure: " + error.getMessage()); }
+    }
     public synchronized void setPresenceListener(PresenceListener listener) { presence = listener; }
     private final ConcurrentHashMap<Long, ConcurrentHashMap<String, RoomMember>> membersByAuction =
             new ConcurrentHashMap<>();
@@ -21,7 +46,16 @@ public final class RoomManager {
             String connectionId,
             long userId,
             String username) {
+        join(auctionId, connectionId, userId, username, Integer.MAX_VALUE);
+    }
+
+    public synchronized void join(long auctionId, String connectionId, long userId, String username, int maxParticipants) {
         var existing = membersByAuction.get(auctionId);
+        boolean sameUser = membersSnapshot(auctionId).stream().anyMatch(member -> member.getUserId() == userId);
+        if (!sameUser && participantCount(auctionId) >= maxParticipants) {
+            throw new AuctionException(vn.ptit.btl16.common.protocol.ErrorCode.ROOM_FULL,
+                    "Phòng đã đủ số lượng người tham gia. Hãy chờ có người rời phòng.");
+        }
         if (existing != null && existing.containsKey(connectionId) && existing.get(connectionId).getUserId() != userId) {
             leave(auctionId, connectionId);
         }
@@ -33,14 +67,16 @@ public final class RoomManager {
         auctionsByConnection
                 .computeIfAbsent(connectionId, key -> ConcurrentHashMap.newKeySet())
                 .add(auctionId);
+        if (!alreadyPresent) { changed(auctionId); }
     }
 
     public synchronized void leave(long auctionId, String connectionId) {
+        int before = participantCount(auctionId);
         ConcurrentHashMap<String, RoomMember> room = membersByAuction.get(auctionId);
         if (room != null) {
             RoomMember member = room.get(connectionId);
             if (member != null && room.values().stream().filter(value -> value.getUserId() == member.getUserId()).count() == 1) {
-                presence.changed(auctionId, "LEFT", member.getUserId(), java.time.Instant.now());
+                departed(auctionId, member.getUserId());
             }
             room.remove(connectionId);
             if (room.isEmpty()) {
@@ -54,6 +90,7 @@ public final class RoomManager {
                 auctionsByConnection.remove(connectionId, subscriptions);
             }
         }
+        if (participantCount(auctionId) != before) { changed(auctionId); }
     }
 
     public synchronized void removeConnection(String connectionId) {
@@ -70,9 +107,10 @@ public final class RoomManager {
             return;
         }
         for (long userId : room.values().stream().mapToLong(RoomMember::getUserId).distinct().toArray()) {
-            presence.changed(auctionId, "LEFT", userId, java.time.Instant.now());
+            departed(auctionId, userId);
         }
         membersByAuction.remove(auctionId);
+        changed(auctionId);
         for (String connectionId : room.keySet()) {
             Set<Long> subscriptions = auctionsByConnection.get(connectionId);
             if (subscriptions != null) {
@@ -113,7 +151,7 @@ public final class RoomManager {
         }
         Set<String> removed = new HashSet<>();
         if (room.values().stream().anyMatch(member -> member.getUserId() == userId)) {
-            presence.changed(auctionId, "LEFT", userId, java.time.Instant.now());
+            departed(auctionId, userId);
         }
         for (RoomMember member : room.values()) {
             if (member.getUserId() == userId && room.remove(member.getConnectionId(), member)) {
@@ -130,6 +168,7 @@ public final class RoomManager {
         if (room.isEmpty()) {
             membersByAuction.remove(auctionId, room);
         }
+        if (!removed.isEmpty()) { changed(auctionId); }
         return Collections.unmodifiableSet(removed);
     }
 
@@ -142,7 +181,7 @@ public final class RoomManager {
     }
 
     public int subscriberCount(long auctionId) {
-        ConcurrentHashMap<String, RoomMember> room = membersByAuction.get(auctionId);
+        var room = membersByAuction.get(auctionId);
         return room == null ? 0 : room.size();
     }
 

@@ -20,6 +20,8 @@ public final class WalletUi {
     }
     public static String type(String type) {
         return switch (type) {
+            case "ROOM_DEPOSIT" -> "Đặt cọc phòng hẹn giờ";
+            case "DEPOSIT_RELEASE" -> "Hoàn tiền đặt cọc phòng";
             case "WITHDRAWAL" -> "Rút tiền đã duyệt";
             case "TOPUP" -> "Nạp tiền đã duyệt"; case "RESERVE" -> "Gi\u1eef ti\u1ec1n \u0111\u1eb7t gi\u00e1";
             case "RELEASE" -> "Ho\u00e0n ti\u1ec1n gi\u1eef ch\u1ed7"; case "PURCHASE" -> "Thanh to\u00e1n mua h\u00e0ng";

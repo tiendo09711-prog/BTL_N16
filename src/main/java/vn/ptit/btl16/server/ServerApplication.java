@@ -200,8 +200,10 @@ public final class ServerApplication implements AutoCloseable {
 
         ConnectionLifecycleListener lifecycle = connection -> {
             String connectionId = connection.getConnectionId();
-            rooms.removeConnection(connectionId);
-            sessions.detachByConnection(connectionId);
+            synchronized (rooms) {
+                sessions.detachByConnection(connectionId);
+                rooms.removeConnection(connectionId);
+            }
         };
         TcpServer tcpServer = new TcpServer(
                 config,
@@ -321,5 +323,6 @@ public final class ServerApplication implements AutoCloseable {
         tcpServer.close();
         auctionTimer.close();
         sessionCleanup.close();
+        rooms.close();
     }
 }

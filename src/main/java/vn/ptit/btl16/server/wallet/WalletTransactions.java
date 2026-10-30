@@ -3,6 +3,7 @@ package vn.ptit.btl16.server.wallet;
 import vn.ptit.btl16.common.protocol.ErrorCode;
 import vn.ptit.btl16.server.auction.service.AuctionException;
 import vn.ptit.btl16.common.util.AuctionFees;
+import vn.ptit.btl16.server.auction.repository.AuctionAdmissionStore;
 import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -56,10 +57,12 @@ public final class WalletTransactions {
             try (var rows = query.executeQuery()) { if (rows.next()) { previous = rows.getLong(1); previousAmount = rows.getBigDecimal(2); } }
         }
         lockUsers(connection, previous, bidder);
-        if (previousAmount.signum() > 0) {
-            change(connection, previous, ZERO, previousAmount.negate(), "RELEASE", "BID:" + sequence + ":RELEASE", time);
+        BigDecimal previousExtra = previousAmount.subtract(AuctionAdmissionStore.held(connection, auctionId, previous)).max(ZERO);
+        if (previousExtra.signum() > 0) {
+            change(connection, previous, ZERO, previousExtra.negate(), "RELEASE", "BID:" + sequence + ":RELEASE", time);
         }
-        change(connection, bidder, ZERO, amount, "RESERVE", "BID:" + sequence + ":RESERVE", time);
+        BigDecimal extra = amount.subtract(AuctionAdmissionStore.held(connection, auctionId, bidder)).max(ZERO);
+        change(connection, bidder, ZERO, extra, "RESERVE", "BID:" + sequence + ":RESERVE", time);
         try (var delete = connection.prepareStatement("DELETE FROM wallet_holds WHERE auction_id = ?")) {
             delete.setLong(1, auctionId); delete.executeUpdate();
         }
@@ -93,7 +96,11 @@ public final class WalletTransactions {
         BigDecimal discount = held ? AuctionFees.discount(rank) : ZERO;
         BigDecimal fee = held ? AuctionFees.fee(amount, rank) : ZERO;
         BigDecimal feeRate = baseRate.subtract(discount);
-        lockUsers(connection, buyer, seller);
+        long[] depositors = AuctionAdmissionStore.depositors(connection, auctionId);
+        long[] parties = Arrays.copyOf(depositors, depositors.length + 2);
+        parties[depositors.length] = buyer; parties[depositors.length + 1] = seller;
+        lockUsers(connection, parties);
+        AuctionAdmissionStore.release(connection, auctionId, buyer, amount, time);
         if (held) {
             change(connection, buyer, amount.negate(), amount.negate(), "PURCHASE", "BUY:" + auctionId, time);
             change(connection, seller, amount.subtract(fee), ZERO, "SALE", "SELL:" + auctionId, time);

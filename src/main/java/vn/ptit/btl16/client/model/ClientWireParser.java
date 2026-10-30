@@ -49,7 +49,9 @@ public final class ClientWireParser {
                 longValue(data, prefix + "imageVersion", 0L),
                 instant(data, prefix + "hardEndTime"),
                 Boolean.parseBoolean(text(data, prefix + "anonymousGuests")),
-                longValue(data, prefix + "selfParticipantId", 0L));
+                longValue(data, prefix + "selfParticipantId", 0L),
+                integer(data, prefix + "maxParticipants", 100), decimal(data, prefix + "depositAmount"),
+                longValue(data, prefix + "occupancyVersion", 0L));
     }
 
     public static List<ClientProduct> products(Map<String, String> data) {

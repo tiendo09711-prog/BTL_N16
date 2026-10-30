@@ -30,8 +30,9 @@ public final class ServerCashFlowWindow extends ServerAdminPage {
     private final Label status = new Label(), range = new Label(), review = new Label();
     private final Button next = new Button("Xem thêm"), refresh = new Button("Làm mới");
     private boolean loading, paged;
-    private final Timeline poll = new Timeline(new KeyFrame(Duration.seconds(5), event -> { if (!paged && !loading) { load(false); } }));
-    private final DateTimeFormatter time = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss").withZone(RevenuePeriod.ZONE);
+    private final Timeline poll = new Timeline(new KeyFrame(Duration.seconds(5), event -> { if (!paged && !loading) { load(false, true); } }));
+    private final DateTimeFormatter time = DateTimeFormatter.ofPattern("dd/MM/yy HH:mm").withZone(RevenuePeriod.ZONE);
+    private final DateTimeFormatter date = DateTimeFormatter.ofPattern("dd/MM/yyyy").withZone(RevenuePeriod.ZONE);
     private long generation, cursor;
     private ServerApplication loadedServer;
 
@@ -43,26 +44,35 @@ public final class ServerCashFlowWindow extends ServerAdminPage {
         refresh.setId("cash-flow-refresh"); next.setId("cash-flow-next"); next.setDisable(true);
         refresh.setOnAction(event -> load(false)); next.setOnAction(event -> load(true));
         period.setOnAction(event -> load(false));
-        Label explanation = DesktopTheme.label("Phí sàn tự động được thu khi phiên thanh toán thành công. Người mua trả đúng giá chốt; người bán nhận giá chốt trừ phí sàn. Hệ thống không xử lý thuế nhà nước.", "muted");
-        explanation.setWrapText(true);
-        TilePane cards = new TilePane(12,12,card("PHÍ SÀN ĐÃ THU / TOÀN BỘ",balance),card("PHÍ THU TRONG KỲ",fees),
-                card("TỔNG GIÁ CHỐT TRONG KỲ",gross),card("NGƯỜI BÁN NHẬN TRONG KỲ",net));
-        cards.setPrefColumns(4); cards.prefTileWidthProperty().bind(widthProperty().subtract(92).divide(4));
+        refresh.setGraphic(ServerIcons.icon("refresh"));
+        TilePane cards = new TilePane(12,12,card("Phí sàn tích lũy",balance),card("Phí thu trong kỳ",fees),
+                card("Tổng giá chốt",gross),card("Người bán nhận",net));
+        cards.setId("cash-flow-cards");
+        cards.prefColumnsProperty().bind(javafx.beans.binding.Bindings.when(widthProperty().lessThan(1000)).then(2).otherwise(4));
+        cards.prefTileWidthProperty().bind(widthProperty().subtract(56)
+                .subtract(cards.prefColumnsProperty().subtract(1).multiply(12)).divide(cards.prefColumnsProperty()));
         range.setId("cash-flow-range"); review.setId("cash-flow-review"); status.setId("cash-flow-status");
         range.setWrapText(true); review.setWrapText(true);
+        range.getStyleClass().add("admin-range"); review.getStyleClass().add("admin-review-notice");
+        review.managedProperty().bind(review.visibleProperty()); review.setVisible(false);
+        status.getStyleClass().add("muted");
         status.setWrapText(true); status.setMinWidth(0); HBox.setHgrow(status,Priority.ALWAYS);
-        VBox heading = new VBox(10,DesktopTheme.label("Thu phí & đối soát", "section-title"),explanation,cards,
-                new FlowPane(10,8,new Label("Kỳ thống kê"),period,refresh),range,review);
+        HBox toolbar = new HBox(10,period,range,DesktopTheme.spacer(),refresh);
+        toolbar.getStyleClass().add("admin-toolbar"); range.setMinWidth(0);
+        VBox heading = new VBox(16,cards,toolbar,review);
         heading.setPadding(new Insets(0,0,15,0)); setTop(heading);
-        table.setId("cash-flow-table"); table.setPlaceholder(new Label("Chưa có khoản phí sàn đã thu trong kỳ này"));
-        WalletUi.column(table,"PHIÊN",entry -> "#"+entry.auctionId(),75);
-        WalletUi.column(table,"THỜI ĐIỂM THU",entry -> time.format(entry.collectedAt()),170);
-        WalletUi.column(table,"NGƯỜI BÁN",PlatformCashFlowRepository.Entry::seller,120);
-        WalletUi.column(table,"NGƯỜI MUA",PlatformCashFlowRepository.Entry::buyer,120);
-        WalletUi.column(table,"GIÁ CHỐT",entry -> WalletUi.money(entry.saleAmount()),160);
-        WalletUi.column(table,"TỶ LỆ PHÍ",entry -> entry.feeRate().multiply(BigDecimal.valueOf(100)).stripTrailingZeros().toPlainString()+"%",85);
-        WalletUi.column(table,"SÀN ĐÃ THU",entry -> WalletUi.money(entry.feeAmount()),150);
-        WalletUi.column(table,"NGƯỜI BÁN NHẬN",entry -> WalletUi.money(entry.sellerNet()),160);
+        table.setId("cash-flow-table"); table.setPlaceholder(new Label("Chưa có giao dịch trong kỳ"));
+        WalletUi.column(table,"Phiên",entry -> "#"+entry.auctionId(),60);
+        WalletUi.column(table,"Thanh toán",entry -> time.format(entry.collectedAt()),145);
+        WalletUi.column(table,"Người bán",PlatformCashFlowRepository.Entry::seller,115);
+        WalletUi.column(table,"Người mua",PlatformCashFlowRepository.Entry::buyer,115);
+        WalletUi.column(table,"Giá chốt",entry -> WalletUi.money(entry.saleAmount()),145);
+        WalletUi.column(table,"Phí (%)",entry -> entry.feeRate().multiply(BigDecimal.valueOf(100)).stripTrailingZeros().toPlainString()+"%",70);
+        WalletUi.column(table,"Phí sàn",entry -> WalletUi.money(entry.feeAmount()),120);
+        WalletUi.column(table,"Thực nhận",entry -> WalletUi.money(entry.sellerNet()),145);
+        table.columnResizePolicyProperty().bind(javafx.beans.binding.Bindings.when(widthProperty().lessThan(950))
+                .then(TableView.UNCONSTRAINED_RESIZE_POLICY).otherwise(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN));
+        for (int index=4; index<table.getColumns().size(); index++) { table.getColumns().get(index).getStyleClass().add("money-column"); }
         setCenter(table);
         HBox footer = new HBox(12,status,DesktopTheme.spacer(),next); footer.setPadding(new Insets(12,0,0,0)); setBottom(footer);
         table.setMinHeight(100); poll.setCycleCount(Timeline.INDEFINITE);
@@ -82,36 +92,49 @@ public final class ServerCashFlowWindow extends ServerAdminPage {
         poll.stop(); generation++;
         if (loading) { loadedServer=null; }
         loading=false;
+        refresh.setDisable(false);
     }
 
     private void load(boolean following) {
+        load(following, false);
+    }
+
+    private void load(boolean following, boolean automatic) {
         if (!isActive()) { return; }
         var running=server.get();
         if (running==null) { status.setText("Server đang dừng; chưa thể tải dòng tiền."); return; }
         if (following && loading) { return; }
         long before=following ? cursor : 0, token=++generation;
-        var selected=period.getValue(); loading=true; next.setDisable(true); status.setText("Đang tải...");
+        boolean nextWasDisabled=next.isDisabled();
+        var selected=period.getValue(); loading=true; next.setDisable(true); refresh.setDisable(true);
+        if (!automatic) { status.setText("Đang tải..."); }
         CompletableFuture.supplyAsync(() -> running.wallets().cashFlow(selected,before),worker)
                 .whenComplete((snapshot,error) -> Platform.runLater(() -> {
                     if (!isActive() || token!=generation || running!=server.get()) { return; }
-                    loading=false;
-                    if (error!=null) { status.setText("Chưa tải được dữ liệu. Nhấn Làm mới để thử lại."); return; }
+                    loading=false; refresh.setDisable(false);
+                    if (error!=null) { next.setDisable(nextWasDisabled); status.setText("Chưa tải được dữ liệu. Thử làm mới."); return; }
                     loadedServer=running;
                     balance.setText(WalletUi.money(snapshot.balance())); fees.setText(WalletUi.money(snapshot.fees()));
                     gross.setText(WalletUi.money(snapshot.gross())); net.setText(WalletUi.money(snapshot.sellerNet()));
-                    range.setText("Khoảng thống kê: "+time.format(snapshot.from())+" → "+time.format(snapshot.to())+" (GMT+7) · "+snapshot.paidCount()+" phiên đã thanh toán");
-                    review.setText("Cần đối soát: "+snapshot.reviewCount()+" phiên. Phiên chưa thanh toán không ghi nhận phí sàn đã thu.");
-                    if (following) { table.getItems().addAll(snapshot.entries()); } else { table.getItems().setAll(snapshot.entries()); }
+                    range.setText(date.format(snapshot.from())+" – "+date.format(snapshot.to()));
+                    review.setText(snapshot.reviewCount()+" phiên cần đối soát"); review.setVisible(snapshot.reviewCount()>0);
+                    if (following) { table.getItems().addAll(snapshot.entries()); }
+                    else if (!table.getItems().equals(snapshot.entries())) {
+                        var chosen=table.getSelectionModel().getSelectedItem();
+                        table.getItems().setAll(snapshot.entries());
+                        if (chosen!=null) { table.getItems().stream().filter(entry -> entry.auctionId()==chosen.auctionId())
+                                .findFirst().ifPresent(entry -> table.getSelectionModel().select(entry)); }
+                    }
                     paged=following; cursor=snapshot.entries().isEmpty() ? 0 : snapshot.entries().getLast().auctionId();
                     next.setDisable(!snapshot.hasMore());
-                    status.setText("Đã ghi nhận "+table.getItems().size()+" giao dịch · Mỗi phiên thu đúng một lần · Danh tính phòng ẩn danh được che");
+                    status.setText(table.getItems().size()+" giao dịch · "+snapshot.paidCount()+" phiên đã thanh toán");
                 }));
     }
 
-    private static Label value(String id) { Label label=DesktopTheme.label("—","section-title"); label.setId(id); return label; }
+    private static Label value(String id) { Label label=DesktopTheme.label("—","stat-value"); label.setId(id); return label; }
     private static VBox card(String caption, Label amount) {
-        Label title=DesktopTheme.label(caption,"eyebrow"); title.setWrapText(true); title.setMinHeight(28);
+        Label title=DesktopTheme.label(caption,"muted"); title.setWrapText(true);
         VBox box=new VBox(8,title,amount); box.getStyleClass().add("card");
-        box.setMinWidth(0); box.setPadding(new Insets(12)); return box;
+        box.getStyleClass().add("admin-cash-card"); box.setMinWidth(0); return box;
     }
 }

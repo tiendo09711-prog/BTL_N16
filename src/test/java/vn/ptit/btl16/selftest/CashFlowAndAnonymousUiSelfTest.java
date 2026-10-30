@@ -44,6 +44,7 @@ public final class CashFlowAndAnonymousUiSelfTest {
                     TestSupport.equals(WalletUi.money(expected.balance()),((Label)cash.getScene().lookup("#cash-flow-balance")).getText(),"platform balance shown exactly");
                     TestSupport.equals(WalletUi.money(expected.fees()),((Label)cash.getScene().lookup("#cash-flow-fees")).getText(),"monthly collected fees shown exactly");
                     TestSupport.check(((Label)cash.getScene().lookup("#cash-flow-review")).getText().contains("1 phiên"),"review-required counter visible");
+                    TestSupport.check(cash.getScene().lookup("#cash-flow-review").isVisible(),"review notice remains visible when action is needed");
                     TestSupport.check(table().getItems().stream().filter(PlatformCashFlowRepository.Entry::anonymous).allMatch(entry -> !entry.seller().contains("seller9") && !entry.buyer().contains("buyer")),"anonymous identities hidden in money table");
                     screenshot(cash.getScene(),"target/server-cash-flow.png");
                     period(cash).setValue(RevenuePeriod.ONE_YEAR); return null;
@@ -51,9 +52,15 @@ public final class CashFlowAndAnonymousUiSelfTest {
                 waitFor(() -> table().getItems().size()==6,"annual cash-flow filter changes records");
                 fx(() -> { period(cash).setValue(RevenuePeriod.ONE_MONTH); period(cash).setValue(RevenuePeriod.SEVEN_DAYS); return null; });
                 waitFor(() -> table().getItems().size()==2,"rapid filter switches keep only latest result");
-                fx(() -> { ((Button)cash.getScene().lookup("#cash-flow-refresh")).fire(); return null; });
-                waitFor(() -> ((Label)cash.getScene().lookup("#cash-flow-status")).getText().contains("Đã ghi nhận"),"refresh completes");
                 fx(() -> {
+                    table().getSelectionModel().selectFirst();
+                    ((Button)cash.getScene().lookup("#cash-flow-refresh")).fire();
+                    TestSupport.check(cash.getScene().lookup("#cash-flow-refresh").isDisabled(),"refresh prevents repeated clicks while loading");
+                    return null;
+                });
+                waitFor(() -> ((Label)cash.getScene().lookup("#cash-flow-status")).getText().contains("2 giao dịch"),"refresh completes");
+                fx(() -> {
+                    TestSupport.check(table().getSelectionModel().getSelectedItem()!=null,"refresh preserves the selected transaction");
                     TestSupport.equals(WalletUi.money(expected.balance()),((Label)cash.getScene().lookup("#cash-flow-balance")).getText(),"viewing money never collects twice");
                     period(cash).setValue(RevenuePeriod.ONE_YEAR); tabs.getSelectionModel().selectFirst(); return null;
                 });

@@ -68,6 +68,12 @@ public final class ServerAdminTabsUiSelfTest {
             TabPane mainTabs = fx(() -> (TabPane) stage.getScene().lookup("#server-admin-tabs"));
             fx(() -> {
                 TestSupport.equals(4, mainTabs.getTabs().size(), "all four admin workspaces exist");
+                TestSupport.check(!mainTabs.lookup(".tab-header-area").isVisible(), "main navigation is not duplicated above the page");
+                for (String id : new String[]{"server-overview-open", "server-wallet-open", "server-cash-flow-open", "server-operations-open"}) {
+                    Button button = (Button) stage.getScene().lookup("#" + id);
+                    TestSupport.check(button.getGraphic()!=null, "navigation uses drawn icons: " + id);
+                    TestSupport.check(button.getFont().getSize()>=13, "navigation remains readable: " + id);
+                }
                 TestSupport.equals(TabPane.TabClosingPolicy.UNAVAILABLE, mainTabs.getTabClosingPolicy(), "admin sections cannot be accidentally closed");
                 return null;
             });
@@ -139,6 +145,13 @@ public final class ServerAdminTabsUiSelfTest {
             });
             waitFor(() -> !(boolean) field(cash, "loading"), "annual cash-flow filter completes");
             snapshot(stage, "cash-flow");
+            fx(() -> {
+                var cards = (javafx.scene.layout.TilePane) stage.getScene().lookup("#cash-flow-cards");
+                TestSupport.equals(4, cards.getPrefColumns(), "wide cash-flow page shows four summary cards");
+                TestSupport.check(!stage.getScene().lookup("#cash-flow-review").isManaged(), "zero review count does not consume space");
+                TestSupport.check(((Label) stage.getScene().lookup("#cash-flow-balance")).getFont().getSize()>=22, "financial totals remain readable");
+                return null;
+            });
             navigate(stage, "server-operations-open", 3);
             Object logs = fx(() -> mainTabs.getSelectionModel().getSelectedItem().getContent());
             waitFor(() -> !(boolean) field(logs, "loading"), "operation log loads");
@@ -187,6 +200,11 @@ public final class ServerAdminTabsUiSelfTest {
                 fx(() -> {
                     Node content = mainTabs.getSelectionModel().getSelectedItem().getContent();
                     TestSupport.check(content.getBoundsInParent().getWidth() > 600, "compact page remains usable");
+                    if (selected==2) {
+                        var cards = (javafx.scene.layout.TilePane) stage.getScene().lookup("#cash-flow-cards");
+                        TestSupport.equals(2, cards.getPrefColumns(), "compact cash flow wraps cards into two columns");
+                        TestSupport.check(stage.getScene().lookup("#cash-flow-table").getBoundsInParent().getHeight()>140, "compact cash flow leaves room for transactions");
+                    }
                     String[] buttons = {"server-overview-open", "server-wallet-open", "server-cash-flow-open", "server-operations-open"};
                     TestSupport.check(stage.getScene().lookup("#" + buttons[selected]).getStyleClass().contains("nav-active"), "selecting a tab updates the matching sidebar item");
                     TestSupport.equals(1L, Window.getWindows().stream().filter(Window::isShowing).count(), "compact navigation stays in one window");

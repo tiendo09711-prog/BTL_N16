@@ -46,7 +46,6 @@ public final class AuctionQueryService {
         var data = AuctionWireData.auctionList(top.stream().map(Candidate::auction).toList(), rooms, now);
         for (int i = 0; i < top.size(); i++) {
             var c = top.get(i); String prefix = "auction." + i + ".";
-            data.put(prefix + "watcherCount", Integer.toString(c.people()));
             data.put(prefix + "featuredScore", Long.toString(c.score()));
             data.put(prefix + "totalBids", Long.toString(c.stats().bidCount()));
             data.put(prefix + "movementCount", Long.toString(c.stats().movementCount()));

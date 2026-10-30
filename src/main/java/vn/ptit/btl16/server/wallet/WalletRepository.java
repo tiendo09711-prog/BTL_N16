@@ -56,7 +56,8 @@ public final class WalletRepository {
                 BigDecimal reserved = rows.getBigDecimal("wallet_reserved");
                 return Map.of("auctionId", Long.toString(auctionId),
                         "available", balance.subtract(reserved).toPlainString(),
-                        "roomHeld", rows.getBigDecimal("room_held").toPlainString(),
+                        "roomHeld", rows.getBigDecimal("room_held").max(
+                                vn.ptit.btl16.server.auction.repository.AuctionAdmissionStore.held(connection, auctionId, userId)).toPlainString(),
                         "maxBidAmount", AuctionRules.MAX_MONEY.toPlainString());
             }
         } catch (SQLException exception) { throw failure(exception); }
@@ -94,7 +95,7 @@ public final class WalletRepository {
 
     public Map<String, String> entryPage(long userId, Long room, String type, Instant from, Instant to, long before, int limit, boolean hideReservations, boolean hideLegacyReview) {
         if (before <= 0 || limit < 1 || limit > 100 || (room != null && room <= 0)
-                || (!type.isEmpty() && !java.util.Set.of("TOPUP", "WITHDRAWAL", "RESERVE", "RELEASE", "PURCHASE", "SALE", "LEGACY_REVIEW").contains(type))
+                || (!type.isEmpty() && !java.util.Set.of("TOPUP", "WITHDRAWAL", "RESERVE", "RELEASE", "PURCHASE", "SALE", "LEGACY_REVIEW", "ROOM_DEPOSIT", "DEPOSIT_RELEASE").contains(type))
                 || (from != null && to != null && !from.isBefore(to))) {
             throw new AuctionException(ErrorCode.VALIDATION_ERROR, "Bộ lọc giao dịch không hợp lệ");
         }
@@ -107,10 +108,11 @@ public final class WalletRepository {
         if (to != null) { sql.append(" AND e.created_at<?"); parameters.add(Timestamp.from(to)); }
         if (room != null) {
             sql.append("""
-                     AND (e.reference_key IN (?,?,?,?) OR EXISTS (SELECT 1 FROM bids b WHERE b.auction_id=?
+                     AND (e.reference_key IN (?,?,?,?,?,?) OR EXISTS (SELECT 1 FROM bids b WHERE b.auction_id=?
                      AND e.reference_key IN (CONCAT('BID:', b.server_sequence, ':RESERVE'), CONCAT('BID:', b.server_sequence, ':RELEASE'))))
                     """);
-            parameters.addAll(List.of("BUY:" + room, "SELL:" + room, "LEGACY:BUY:" + room, "LEGACY:SELL:" + room, room));
+            parameters.addAll(List.of("BUY:" + room, "SELL:" + room, "LEGACY:BUY:" + room, "LEGACY:SELL:" + room,
+                    "DEPOSIT:" + room + ":" + userId, "DEPOSIT_RELEASE:" + room + ":" + userId, room));
         }
         sql.append(" ORDER BY e.entry_id DESC LIMIT ?"); parameters.add(limit + 1);
         try (var connection = factory.openDatabase(); var query = connection.prepareStatement(sql.toString())) {

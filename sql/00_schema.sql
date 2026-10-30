@@ -89,6 +89,8 @@ CREATE TABLE IF NOT EXISTS auctions (
     version BIGINT NOT NULL DEFAULT 0,
     visibility VARCHAR(16) NOT NULL DEFAULT 'PUBLIC',
     anonymous_guests BOOLEAN NOT NULL DEFAULT FALSE,
+    max_participants INT NOT NULL DEFAULT 100,
+    deposit_amount DECIMAL(18,2) NOT NULL DEFAULT 0,
     room_password_hash VARCHAR(255) NULL,
     room_password_salt VARCHAR(255) NULL,
     room_password_iterations INT NULL,

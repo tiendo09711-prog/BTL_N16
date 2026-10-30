@@ -350,12 +350,16 @@ public final class ClientController implements AutoCloseable {
                 BigDecimal minIncrement = parseMoneyInput(
                         input.getMinBidIncrement(), "Bước giá tối thiểu");
                 int durationMinutes = Integer.parseInt(input.getDurationMinutes().trim());
+                int maxParticipants = Integer.parseInt(input.getMaxParticipants().trim());
+                if (maxParticipants < 1 || maxParticipants > 10000) {
+                    throw new IllegalArgumentException("Số lượng tối đa phải từ 1 đến 10000 người");
+                }
                 setAuctionBusy(true);
                 auctions.createAuction(
                                 input.getProduct().getProductId(),
                                 startPrice,
                                 minIncrement,
-                                durationMinutes)
+                                durationMinutes, "PUBLIC", "", false, null, maxParticipants, BigDecimal.ZERO)
                         .whenComplete((response, error) -> onEdt(() -> {
                             setAuctionBusy(false);
                             if (error != null) {
@@ -369,7 +373,7 @@ public final class ClientController implements AutoCloseable {
                             }
                         }));
             } catch (NumberFormatException exception) {
-                view.showError("Thời lượng phải là số nguyên");
+                view.showError("Thời lượng và số lượng tối đa là bắt buộc, phải là số nguyên");
             } catch (IllegalArgumentException exception) {
                 view.showError(exception.getMessage());
             }
@@ -764,6 +768,12 @@ public final class ClientController implements AutoCloseable {
                             source + ": auction " + id + " được gia hạn "
                                     + data.getOrDefault("extensionSeconds", "") + " giây");
                 });
+            }
+            case ROOM_OCCUPANCY_CHANGED -> {
+                model.applyOccupancy(ClientWireParser.longValue(data, "auctionId", 0),
+                        ClientWireParser.integer(data, "watcherCount", -1),
+                        ClientWireParser.longValue(data, "occupancyVersion", 0), ClientWireParser.serverNow(data));
+                onEdt(() -> view.renderAuction(model));
             }
             case AUCTION_CREATED -> {
                 ClientAuction auction = ClientWireParser.auction(data, "");

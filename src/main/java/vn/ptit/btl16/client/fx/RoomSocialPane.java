@@ -125,17 +125,21 @@ public final class RoomSocialPane extends VBox {
     }
 
     public VBox auctionContent() { return auctionContent; }
+    public void focusBid(vn.ptit.btl16.client.model.ClientBid bid) { progress.focusBid(bid); }
+    public void onEventFocus(java.util.function.Consumer<Node> action) { progress.onReveal(action); }
 
     public void setAuctionPanels(Node insights, Node details) {
+        auctionContent.setMinWidth(0);
         auctionContent.getChildren().clear();
+        if (insights != null) { auctionContent.getChildren().add(insights); }
         addPanel("Nhật ký phiên", progress);
-        if (insights != null) { addPanel("Diễn biến giá", insights); }
         if (details != null) { addPanel("Chi tiết sản phẩm", details); }
     }
 
     private void addPanel(String title, Node content) {
         VBox panel = new VBox(12, DesktopTheme.label(title, "section-title"), content);
         panel.getStyleClass().add("card"); panel.setMinHeight(Region.USE_PREF_SIZE);
+        panel.setMinWidth(0);
         auctionContent.getChildren().add(panel);
     }
 
@@ -173,6 +177,7 @@ public final class RoomSocialPane extends VBox {
 
     public void tick() {
         progress.tick();
+        if (unreadCount > 0 && viewingBottom()) { resetUnread(); }
         memberRows.setDisable(!transport.isConnected() || loading);
         if (auction != null && !transport.isConnected()) { memberStatus.setText("M\u1ea5t k\u1ebft n\u1ed1i \u00b7 Danh s\u00e1ch c\u00f3 th\u1ec3 \u0111\u00e3 c\u0169"); }
         updateInput();
@@ -550,7 +555,12 @@ public final class RoomSocialPane extends VBox {
         if (error == null && response != null && response.isSuccess()) { return true; }
         feedback.setText(error == null && response != null ? response.getMessageText() : "Kh\u00f4ng th\u1ec3 k\u1ebft n\u1ed1i. H\u00e3y th\u1eed l\u1ea1i."); return false;
     }
-    private boolean viewingBottom() { return !memberPane.isExpanded() && (scroll.getVvalue() > .95 || messages.isEmpty()); }
+    private boolean viewingBottom() {
+        for (Node ancestor = this; ancestor != null; ancestor = ancestor.getParent()) {
+            if (!ancestor.isVisible()) { return false; }
+        }
+        return !memberPane.isExpanded() && (scroll.getVvalue() > .95 || messages.isEmpty());
+    }
     private void updateUnread() { chatTitle.setText("Trò chuyện (" + memberTotal + ")"); unread.setText(unreadCount + " tin nh\u1eafn m\u1edbi \u2193"); show(unread, unreadCount > 0); }
     private void resetUnread() { unreadCount = 0; updateUnread(); }
     private static Image image(String base64) {

@@ -27,7 +27,10 @@ public final class AuctionWireData {
         data.put("serverNow", Times.wire(serverNow));
         for (int i = 0; i < auctions.size(); i++) {
             AuctionSnapshot value = auctions.get(i);
-            putAuction(data, "auction." + i + '.', value, rooms.subscriberCount(value.getAuctionId()));
+            synchronized (rooms) {
+                putAuction(data, "auction." + i + '.', value, rooms.participantCount(value.getAuctionId()));
+                data.put("auction." + i + ".occupancyVersion", Long.toString(rooms.occupancyVersion(value.getAuctionId())));
+            }
         }
         return data;
     }
@@ -86,6 +89,15 @@ public final class AuctionWireData {
         putBids(data, bids);
         data.put("serverNow", Times.wire(serverNow));
         return data;
+    }
+
+    public static Map<String, String> snapshot(AuctionSnapshot auction, List<BidRecord> bids,
+                                              RoomManager rooms, Instant serverNow) {
+        synchronized (rooms) {
+            var data = snapshot(auction, bids, rooms.participantCount(auction.getAuctionId()), serverNow);
+            data.put("occupancyVersion", Long.toString(rooms.occupancyVersion(auction.getAuctionId())));
+            return data;
+        }
     }
 
     public static Map<String, String> history(List<BidRecord> bids, Instant serverNow) {
@@ -235,6 +247,8 @@ public final class AuctionWireData {
         data.put(prefix + "endedAt", Times.wire(value.getEndedAt()));
         data.put(prefix + "version", Long.toString(value.getVersion()));
         data.put(prefix + "watcherCount", Integer.toString(watcherCount));
+        data.put(prefix + "maxParticipants", Integer.toString(value.getMaxParticipants()));
+        data.put(prefix + "depositAmount", Money.wire(value.getDepositAmount()));
         data.put(prefix + "visibility", value.getVisibility().name());
         data.put(prefix + "anonymousGuests", Boolean.toString(value.hasAnonymousGuests()));
         data.put(prefix + "requiresPassword", Boolean.toString(value.requiresPassword()));

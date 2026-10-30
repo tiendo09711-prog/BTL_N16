@@ -18,7 +18,7 @@ public final class RoomProgressUiSelfTest {
     private record Pending(MessageType type, Map<String, String> data, CompletableFuture<WireMessage> future) { }
     public static void main(String[] args) throws Exception {
         Platform.startup(() -> Platform.setImplicitExit(false));
-        try { journal(); history(); roster(); System.out.println("[PASS] RoomProgressUiSelfTest: separate bounded journal, reconnect deduplication/cursors, older pages, stale callbacks, paginated money table/mine and participant roles/kick reasons"); }
+        try { journal(); linkedJournal(); history(); roster(); System.out.println("[PASS] RoomProgressUiSelfTest: bounded journal, chart-linked selection with paging/retry/reset, reconnect deduplication/cursors, older pages, stale callbacks, money table and roles"); }
         finally { Platform.exit(); }
     }
 
@@ -52,6 +52,42 @@ public final class RoomProgressUiSelfTest {
         TestSupport.equals(0, fx(() -> list(pane).getItems().size()), "previous room response discarded");
         network.complete(MessageType.GET_ROOM_EVENTS, events(1000, 1002, false)); drain();
         TestSupport.equals(3, fx(() -> list(pane).getItems().size()), "new room independent log");
+        fx(() -> { pane.clear(); return null; });
+    }
+
+    private static void linkedJournal() throws Exception {
+        var network = new Network(); var pane = fx(() -> new RoomProgressPane(network));
+        List<javafx.scene.Node> revealed = new ArrayList<>();
+        fx(() -> { pane.setFlowLayout(true); pane.onReveal(revealed::add); pane.setRoom(1); return null; });
+        network.complete(MessageType.GET_AUCTION_STATS, Map.of());
+        network.complete(MessageType.GET_ROOM_EVENTS, events(51, 100, true)); drain();
+        var bid = new vn.ptit.btl16.client.model.ClientBid(3, 1, -1, "Guest #1",
+                new java.math.BigDecimal("130000"), 3, java.time.Instant.parse("2026-10-25T01:02:03Z"));
+        fx(() -> { pane.focusBid(bid); return null; });
+        TestSupport.equals(Long.toString(Long.MAX_VALUE), network.peek(MessageType.GET_ROOM_EVENTS).data().get("beforeId"), "selection refreshes the latest journal before searching older pages");
+        network.complete(MessageType.GET_ROOM_EVENTS, events(51, 100, true)); drain();
+        TestSupport.equals("51", network.peek(MessageType.GET_ROOM_EVENTS).data().get("beforeId"), "selection finds older events by keyset");
+        Map<String, String> olderPage = events(1, 50, false);
+        olderPage.put("event.6.type", "BID_ACCEPTED"); olderPage.put("event.6.amount", "130000");
+        network.complete(MessageType.GET_ROOM_EVENTS, olderPage); drain();
+        TestSupport.equals(1, revealed.size(), "selected old event triggers one reveal");
+        TestSupport.equals("room-event-7", revealed.getFirst().getId(), "accepted price selects the right event");
+        TestSupport.check(fx(() -> pane.lookupAll(".selected-event").size() == 1), "one card is emphasized");
+        fx(() -> { pane.focusBid(bid); return null; });
+        TestSupport.equals(2, revealed.size(), "selecting a loaded event reveals it without another request");
+        fx(() -> { ((Button) pane.lookup("#room-events-latest")).fire(); return null; });
+        network.complete(MessageType.GET_ROOM_EVENTS, events(51, 100, false)); drain();
+        var newBid = new vn.ptit.btl16.client.model.ClientBid(4, 1, -1, "Guest #1",
+                new java.math.BigDecimal("140000"), 4, java.time.Instant.parse("2026-10-25T01:02:03Z"));
+        fx(() -> { pane.focusBid(newBid); return null; });
+        Map<String, String> fresh = events(101, 102, false);
+        fresh.put("event.0.type", "BID_ACCEPTED"); fresh.put("event.0.amount", "140000");
+        network.complete(MessageType.GET_ROOM_EVENTS, fresh); drain();
+        TestSupport.equals("room-event-101", revealed.getLast().getId(), "bid arriving before journal polling is found on refresh");
+        fx(() -> { pane.focusBid(bid); pane.clear(); pane.setRoom(2); return null; });
+        network.complete(MessageType.GET_ROOM_EVENTS, olderPage); drain();
+        TestSupport.check(fx(() -> pane.lookupAll(".selected-event").isEmpty()), "old selection cannot reappear after room change");
+        network.complete(MessageType.GET_ROOM_EVENTS, events(1000, 1002, false)); drain();
         fx(() -> { pane.clear(); return null; });
     }
 

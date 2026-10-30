@@ -10,6 +10,8 @@ Biểu tượng **Bạn bè** nằm cạnh chuông thông báo: tìm bằng **t�
 
 Cho phép đăng ký tài khoản, quản lý sản phẩm có ảnh, tạo phòng đấu giá công khai/riêng tư, đặt giá và theo dõi kết quả realtime. Chủ phòng chỉ được gia hạn thủ công/kết thúc sớm/hủy khi chưa có bid, và chỉ được kick người chưa từng bid trong phiên. Tổng gia hạn thủ công + tự động không quá 600 giây so với hạn ban đầu.
 
+Mọi phòng mới bắt buộc nhập **Số lượng tối đa** (tính cả chủ phòng). Phòng **Sắp diễn ra** yêu cầu thêm **Phí đặt cọc**: chỉ người đã cọc đủ trước giờ bắt đầu mới được vào, nhưng cọc không giữ chỗ khi phòng đầy. Người rời phòng giải phóng chỗ ngay khi Server ghi nhận; sảnh cập nhật số người theo thời gian thực. Chi tiết tiền cọc, hoàn tiền và nâng cấp DB: [Đặt cọc và số chỗ](docs/39_DAT_COC_VA_SO_CHO.md).
+
 **Luật hiện hành:** [Bản Word đầy đủ](docs/LUAT_DAU_GIA_BTL16.docx), [bản Markdown để bảo trì](docs/LUAT_DAU_GIA_BTL16.md). Bộ quy tắc trình bày bằng ngôn ngữ tự nhiên để trao đổi với giảng viên: điều kiện tham gia, cách trả giá, thời hạn/gia hạn, quyền người bán, xác định người thắng, đấu giá lại và các ví dụ. Không đưa cấu trúc chương trình hoặc phụ lục kỹ thuật vào bản Word. Xuất lại bằng `python tools/export-auction-rules.py`; kiểm tra khớp source bằng `python tools/export-auction-rules.py --check`.
 
 ## 3. Server và client hoạt động thế nào? (EXE)

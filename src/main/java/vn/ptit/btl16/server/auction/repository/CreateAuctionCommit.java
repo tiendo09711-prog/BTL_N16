@@ -14,6 +14,8 @@ public final class CreateAuctionCommit {
     private final Instant endTime;
     private final RoomVisibility visibility;
     private final boolean anonymousGuests;
+    private final int maxParticipants;
+    private final BigDecimal depositAmount;
     private final String roomPasswordHash;
     private final String roomPasswordSalt;
     private final Integer roomPasswordIterations;
@@ -50,6 +52,17 @@ public final class CreateAuctionCommit {
             BigDecimal startPrice, BigDecimal minBidIncrement, Instant startTime, Instant endTime,
             RoomVisibility visibility, String roomPasswordHash, String roomPasswordSalt,
             Integer roomPasswordIterations, boolean anonymousGuests) {
+        this(hostUserId, hostUsername, productId, startPrice, minBidIncrement, startTime, endTime,
+                visibility, roomPasswordHash, roomPasswordSalt, roomPasswordIterations, anonymousGuests,
+                100, BigDecimal.ZERO);
+    }
+
+    public CreateAuctionCommit(long hostUserId, String hostUsername, long productId,
+            BigDecimal startPrice, BigDecimal minBidIncrement, Instant startTime, Instant endTime,
+            RoomVisibility visibility, String roomPasswordHash, String roomPasswordSalt,
+            Integer roomPasswordIterations, boolean anonymousGuests, int maxParticipants, BigDecimal depositAmount) {
+        this.maxParticipants = maxParticipants;
+        this.depositAmount = depositAmount;
         this.anonymousGuests = anonymousGuests;
         this.hostUserId = hostUserId;
         this.hostUsername = hostUsername;
@@ -73,6 +86,8 @@ public final class CreateAuctionCommit {
     public Instant getEndTime() { return endTime; }
     public RoomVisibility getVisibility() { return visibility; }
     public boolean hasAnonymousGuests() { return anonymousGuests; }
+    public int getMaxParticipants() { return maxParticipants; }
+    public BigDecimal getDepositAmount() { return depositAmount; }
     public String getRoomPasswordHash() { return roomPasswordHash; }
     public String getRoomPasswordSalt() { return roomPasswordSalt; }
     public Integer getRoomPasswordIterations() { return roomPasswordIterations; }

@@ -10,6 +10,10 @@ import java.util.List;
 import java.util.Optional;
 
 public interface AuctionRepository {
+    default java.math.BigDecimal auctionDeposit(long auctionId, long userId) { return java.math.BigDecimal.ZERO; }
+    default java.math.BigDecimal placeAuctionDeposit(long auctionId, long userId) {
+        throw new UnsupportedOperationException("Room deposits require persistent storage");
+    }
     default void deleteNotification(long user, long id) {
         throw new vn.ptit.btl16.server.auction.service.AuctionException(vn.ptit.btl16.common.protocol.ErrorCode.AUCTION_FORBIDDEN, "Không có thông báo cá nhân này");
     }

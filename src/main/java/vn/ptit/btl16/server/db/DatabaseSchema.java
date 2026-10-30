@@ -22,6 +22,7 @@ public final class DatabaseSchema {
         vn.ptit.btl16.server.auction.repository.ProductDeletionStore.initialize(factory);
         vn.ptit.btl16.server.media.JdbcMediaStorage.initialize(factory);
         vn.ptit.btl16.server.wallet.WalletSchema.initialize(factory);
+        vn.ptit.btl16.server.auction.repository.AuctionAdmissionStore.initialize(factory);
         vn.ptit.btl16.server.social.RoomSocialSchema.initialize(factory);
         vn.ptit.btl16.server.social.FriendsStore.initialize(factory);
         vn.ptit.btl16.server.auction.repository.RoomProgressStore.initialize(factory);

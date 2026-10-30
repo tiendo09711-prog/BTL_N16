@@ -63,6 +63,10 @@ public final class AuctionManagementService {
         this.broadcasts = broadcasts;
         this.passwordHasher = passwordHasher;
         this.sessions = sessions;
+        rooms.setOccupancyListener((auctionId, count, version) -> broadcasts.broadcastAll(
+                MessageType.ROOM_OCCUPANCY_CHANGED, java.util.Map.of(
+                        "auctionId", Long.toString(auctionId), "watcherCount", Integer.toString(count),
+                        "occupancyVersion", Long.toString(version), "serverNow", Instant.now().toString())));
     }
 
     public Product createProduct(UserSession session, String code, String name, String description) {
@@ -270,6 +274,24 @@ public final class AuctionManagementService {
     public AuctionSnapshot createAuction(UserSession session, long productId, BigDecimal rawStartPrice,
             BigDecimal rawMinIncrement, int durationMinutes, RoomVisibility visibility,
             String rawRoomPassword, boolean anonymousGuests, Instant requestedStartTime) {
+        return createAuction(session, productId, rawStartPrice, rawMinIncrement, durationMinutes,
+                visibility, rawRoomPassword, anonymousGuests, requestedStartTime, 100,
+                requestedStartTime == null ? BigDecimal.ZERO : BigDecimal.ONE);
+    }
+
+    public AuctionSnapshot createAuction(UserSession session, long productId, BigDecimal rawStartPrice,
+            BigDecimal rawMinIncrement, int durationMinutes, RoomVisibility visibility,
+            String rawRoomPassword, boolean anonymousGuests, Instant requestedStartTime,
+            int maxParticipants, BigDecimal rawDepositAmount) {
+        if (maxParticipants < 1 || maxParticipants > 10000) {
+            throw new AuctionException(ErrorCode.VALIDATION_ERROR, "Số lượng tối đa phải là số nguyên từ 1 đến 10000.");
+        }
+        BigDecimal depositAmount = BigDecimal.ZERO;
+        if (requestedStartTime != null) {
+            depositAmount = normalizeMoney(rawDepositAmount, ErrorCode.INVALID_AMOUNT);
+        } else if (rawDepositAmount != null && rawDepositAmount.signum() != 0) {
+            throw new AuctionException(ErrorCode.VALIDATION_ERROR, "Chỉ phòng hẹn giờ mới thu tiền đặt cọc.");
+        }
         Product product = requireOwnedProduct(session, productId);
         if (!product.isActive()) {
             throw new AuctionException(ErrorCode.PRODUCT_INACTIVE, "Sản phẩm đã bị vô hiệu hóa");
@@ -314,7 +336,8 @@ public final class AuctionManagementService {
                 startTime, startTime.plusSeconds(durationMinutes * 60L), safeVisibility,
                 passwordHash == null ? "" : passwordHash.getHashBase64(),
                 passwordHash == null ? "" : passwordHash.getSaltBase64(),
-                passwordHash == null ? null : passwordHash.getIterations(), anonymousGuests));
+                passwordHash == null ? null : passwordHash.getIterations(), anonymousGuests,
+                maxParticipants, depositAmount));
         auctions.addRuntime(snapshot);
         broadcasts.broadcastAll(MessageType.AUCTION_CREATED,
                 AuctionWireData.snapshot(snapshot, List.of(), 0, Instant.now()));
@@ -347,9 +370,60 @@ public final class AuctionManagementService {
         if (!snapshot.isOpenAt(Instant.now())) {
             throw new AuctionException(ErrorCode.AUCTION_NOT_OPEN, "Phiên đấu giá không còn mở");
         }
+        requireRoomPassword(session, snapshot, roomPassword);
+        runtime.getLock().lock();
+        try {
+            requireOpen(runtime);
+            requireNotBlocked(session, auctionId);
+            if (!snapshot.isHostedBy(session.getUserId()) && snapshot.getDepositAmount().signum() > 0
+                    && repository.auctionDeposit(auctionId, session.getUserId()).compareTo(snapshot.getDepositAmount()) < 0) {
+                throw new AuctionException(ErrorCode.ROOM_DEPOSIT_REQUIRED,
+                        "Phòng hẹn giờ chỉ cho phép người đã đặt cọc đủ trước giờ bắt đầu tham gia.");
+            }
+            synchronized (rooms) {
+                requireCurrentSession(session, connectionId);
+                rooms.join(auctionId, connectionId, session.getUserId(), session.getUsername(), snapshot.getMaxParticipants());
+                if (snapshot.getVisibility() == RoomVisibility.PRIVATE) { sessions.grantPrivateRoomAccess(session, auctionId); }
+            }
+            return runtime.snapshot();
+        } finally { runtime.getLock().unlock(); }
+    }
+
+    public BigDecimal placeAuctionDeposit(UserSession session, String connectionId, long auctionId, String roomPassword) {
+        AuctionRuntime runtime = auctions.requireRuntime(auctionId);
+        AuctionSnapshot snapshot = runtime.snapshot();
+        requireRoomPassword(session, snapshot, roomPassword);
+        runtime.getLock().lock();
+        try {
+            requireCurrentSession(session, connectionId);
+            requireNotBlocked(session, auctionId);
+            if (snapshot.isHostedBy(session.getUserId())) {
+                throw new AuctionException(ErrorCode.AUCTION_FORBIDDEN, "Chủ phòng không phải đặt cọc.");
+            }
+            if (runtime.getStatusUnsafe() != AuctionStatus.OPEN || snapshot.getDepositAmount().signum() <= 0) {
+                throw new AuctionException(ErrorCode.ROOM_DEPOSIT_CLOSED, "Phòng không nhận đặt cọc.");
+            }
+            if (!Instant.now().isBefore(runtime.getStartTime())
+                    && repository.auctionDeposit(auctionId, session.getUserId()).compareTo(snapshot.getDepositAmount()) < 0) {
+                throw new AuctionException(ErrorCode.ROOM_DEPOSIT_CLOSED, "Đã hết thời gian đặt cọc trước giờ bắt đầu.");
+            }
+            BigDecimal paid = repository.placeAuctionDeposit(auctionId, session.getUserId());
+            if (snapshot.requiresPassword()) { sessions.grantPrivateRoomAccess(session, auctionId); }
+            return paid;
+        } finally { runtime.getLock().unlock(); }
+    }
+
+    private void requireCurrentSession(UserSession session, String connectionId) {
+        if (sessions.findByConnection(connectionId)
+                .filter(active -> active.getSessionToken().equals(session.getSessionToken())).isEmpty()) {
+            throw new AuctionException(ErrorCode.AUTH_REQUIRED, "Phiên đăng nhập không còn hiệu lực");
+        }
+    }
+
+    private void requireRoomPassword(UserSession session, AuctionSnapshot snapshot, String roomPassword) {
         if (snapshot.getVisibility() == RoomVisibility.PRIVATE
                 && !snapshot.isHostedBy(session.getUserId())
-                && !sessions.hasPrivateRoomAccess(session, auctionId)) {
+                && !sessions.hasPrivateRoomAccess(session, snapshot.getAuctionId())) {
             if (roomPassword == null || roomPassword.isBlank()) {
                 throw new AuctionException(ErrorCode.ROOM_PASSWORD_REQUIRED,
                         "Phòng này yêu cầu mật khẩu");
@@ -372,22 +446,6 @@ public final class AuctionManagementService {
                 throw new AuctionException(ErrorCode.ROOM_PASSWORD_INVALID,
                         "Mật khẩu phòng không đúng");
             }
-        }
-        runtime.getLock().lock();
-        try {
-            requireOpen(runtime);
-            requireNotBlocked(session, auctionId);
-            if (sessions.findByConnection(connectionId)
-                    .filter(active -> active.getSessionToken().equals(session.getSessionToken())).isEmpty()) {
-                throw new AuctionException(ErrorCode.AUTH_REQUIRED, "Phiên đăng nhập không còn hiệu lực");
-            }
-            if (snapshot.getVisibility() == RoomVisibility.PRIVATE) {
-                sessions.grantPrivateRoomAccess(session, auctionId);
-            }
-            rooms.join(auctionId, connectionId, session.getUserId(), session.getUsername());
-            return runtime.snapshot();
-        } finally {
-            runtime.getLock().unlock();
         }
     }
 
@@ -509,7 +567,9 @@ public final class AuctionManagementService {
         runtime.getLock().lock();
         try {
             requireHost(session, runtime);
-            requireOpen(runtime);
+            if (runtime.getStatusUnsafe() != AuctionStatus.OPEN || !Instant.now().isBefore(runtime.getEndTimeUnsafe())) {
+                throw new AuctionException(ErrorCode.AUCTION_NOT_OPEN, "Phiên đấu giá không còn mở");
+            }
             if (repository.hasBids(auctionId)) {
                 throw new AuctionException(
                         ErrorCode.AUCTION_HAS_BIDS,

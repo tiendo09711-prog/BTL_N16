@@ -66,6 +66,8 @@ if (packaged && !existsSync(java)) throw new Error('Build the Windows distributi
 await check('packaging-unit', 'node', ['--test', 'tools/package-layout.test.mjs', 'tools/package-windows-bundle.test.mjs']);
 await check('AllSelfTests', java, ['-Dbtl16.test.allowEmbedded=true', '-Dbtl16.client.sound.disabled=true', '-cp', classpath, 'vn.ptit.btl16.selftest.AllSelfTests'], 600_000);
 if (flags.has('--ui')) {
+  await check('RoomCenterTabsUiSelfTest', java, ['-Dbtl16.test.allowEmbedded=true', '-Dbtl16.client.sound.disabled=true', '--module-path', javafxModules, '--add-modules', 'javafx.controls,javafx.media',
+    '-cp', classpath, 'vn.ptit.btl16.selftest.RoomCenterTabsUiSelfTest']);
   await check('ServerAdminTabsUiSelfTest', java, ['-Dbtl16.test.allowEmbedded=true', '-Dbtl16.client.sound.disabled=true', '--module-path', javafxModules, '--add-modules', 'javafx.controls,javafx.media',
     '-cp', classpath, 'vn.ptit.btl16.selftest.ServerAdminTabsUiSelfTest']);
   for (const test of ['ClientViewportUiSelfTest', 'BidLeadingBannerUiSelfTest', 'AuctionEndingUiSelfTest', 'RevenueRankingUiSelfTest', 'CashFlowAndAnonymousUiSelfTest', 'MarketplaceUiSelfTest', 'ClientSoundsUiSelfTest', 'CompletionUiSelfTest', 'AuctionReceiptUiSelfTest', 'FriendsUiSelfTest', 'FriendsSessionUiSelfTest', 'PersonalNotificationsUiSelfTest', 'AccountScreensUiSelfTest', 'RoomInteractionUiSelfTest', 'RoomProgressUiSelfTest', 'BidExperienceUiSelfTest', 'RoomSocialUiSelfTest', 'LiveAuctionRoomUiSelfTest', 'AuctionButtonsUiSelfTest', 'ServerButtonsUiSelfTest', 'DesktopUiSelfTest', 'ProductCodesUiSelfTest', 'MediaUiSelfTest', 'ProductDeletionUiSelfTest', 'WalletUiSelfTest']) {

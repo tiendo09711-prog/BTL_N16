@@ -8,10 +8,12 @@ import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextField;
+import javafx.scene.control.ToggleButton;
 import javafx.scene.layout.HBox;
 import javafx.stage.Stage;
 import vn.ptit.btl16.client.fx.FxClientController;
 import vn.ptit.btl16.client.fx.AuctionMarketplacePane;
+import vn.ptit.btl16.client.fx.RoomSocialPane;
 import vn.ptit.btl16.client.model.ClientAppModel;
 import vn.ptit.btl16.client.model.ClientAuction;
 import vn.ptit.btl16.client.model.ClientWireParser;
@@ -72,6 +74,11 @@ public final class BidExperienceUiSelfTest {
                 stage.setWidth(1240); stage.setHeight(760); stage.show();
                 return new View(stage, controller, model, network);
             }, 30); // Cold JavaFX stylesheet/native initialization can exceed the action timeout.
+            if (List.of(args).contains("--room-tabs")) {
+                anonymousAndLayout(view);
+                System.out.println("[PASS] Room tabs: default bidding, exclusive panels, repeated clicks, preserved draft, reentry, laptop layout");
+                return;
+            }
             pendingAndErrors(view);
             watchdogAndLateReply(view);
             uncertainAndReconnect(view);
@@ -266,15 +273,46 @@ public final class BidExperienceUiSelfTest {
             var root = view.stage().getScene().getRoot(); root.applyCss(); root.layout();
             HBox columns = (HBox) field(view.controller(), "roomColumns");
             TestSupport.equals(2, columns.getChildren().size(), "room keeps two columns");
-            ScrollPane history = (ScrollPane) field(view.controller(), "roomControlsScroll");
-            TestSupport.check(history.getHeight() >= 159, "history keeps dedicated visible viewport on laptop");
+            ScrollPane bidViewport = (ScrollPane) field(view.controller(), "roomBidScroll");
+            ScrollPane chatViewport = (ScrollPane) field(view.controller(), "roomControlsScroll");
+            ScrollPane historyViewport = (ScrollPane) field(view.controller(), "roomHistoryScroll");
+            List<ScrollPane> viewports = List.of(bidViewport, chatViewport, historyViewport);
+            List<ToggleButton> tabs = List.of((ToggleButton) root.lookup("#room-tab-bid"),
+                    (ToggleButton) root.lookup("#room-tab-chat"), (ToggleButton) root.lookup("#room-tab-history"));
+            TestSupport.check(tabs.getFirst().isSelected() && bidViewport.isVisible(), "room defaults to bidding tab");
+            RoomSocialPane social = (RoomSocialPane) field(view.controller(), "socialRoom");
+            social.onMessage(Map.of("auctionId", "6", "chat.id", "100", "chat.participantId", "3",
+                    "chat.name", "guest", "chat.body", "Message while bidding", "chat.sentAt", NOW.toString()));
+            social.tick();
+            TestSupport.equals(1, field(social, "unreadCount"), "hidden chat does not mark incoming messages as read");
+            input(view).setText("150");
+            for (int index = 0; index < tabs.size(); index++) {
+                tabs.get(index).fire(); root.applyCss(); root.layout();
+                TestSupport.check(tabs.get(index).isSelected(), "clicked tab stays selected, including a repeated click");
+                TestSupport.equals(1L, viewports.stream().filter(javafx.scene.Node::isVisible).count(), "exactly one room panel is visible");
+                TestSupport.equals(1L, viewports.stream().filter(javafx.scene.Node::isManaged).count(), "hidden room panels take no space");
+                TestSupport.check(viewports.get(index).getHeight() >= 300, "active tab uses the available column height");
+                if (index == 1) {
+                    ((ScrollPane) field(social, "scroll")).setVvalue(1); social.tick();
+                    TestSupport.equals(0, field(social, "unreadCount"), "viewing the chat bottom clears unread messages");
+                }
+                tabs.get(index).fire();
+                TestSupport.check(tabs.get(index).isSelected(), "clicking the active tab cannot close all panels");
+            }
+            tabs.getFirst().fire();
+            TestSupport.equals("150", input(view).getText(), "switching tabs preserves the bid draft");
+            tabs.getLast().fire();
+            invoke(view.controller(), "updateRoomLayout", new Class<?>[]{boolean.class}, false);
+            invoke(view.controller(), "updateRoomLayout", new Class<?>[]{boolean.class}, true);
+            root.applyCss(); root.layout();
+            TestSupport.check(tabs.getFirst().isSelected() && bidViewport.isVisible() && !historyViewport.isVisible(), "reentering the room restores bidding by default");
             ((Button) root.lookup("#auction-rules-navigation")).fire();
             root.applyCss(); root.layout();
             TestSupport.check(root.lookup("#auction-rules-content") != null, "rules opens inside the main shell");
             TestSupport.equals(6L, view.model().getJoinedAuctionId(), "reading rules keeps the current room membership");
             ((Button) root.lookup("#account-marketplace-navigation")).fire();
             root.applyCss(); root.layout();
-            TestSupport.check(history.getHeight() >= 159, "returning from rules preserves the room history viewport");
+            TestSupport.check(bidViewport.isVisible() && bidViewport.getHeight() >= 300, "returning from rules preserves the active room tab");
             root.lookupAll(".room-status-title, .room-live-notice, .room-live-bid, .price").forEach(node -> {
                 node.setOpacity(1); node.setTranslateY(0);
             });

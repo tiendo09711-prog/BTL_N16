@@ -116,11 +116,7 @@ public final class AuctionApi {
             BigDecimal startPrice,
             BigDecimal minBidIncrement,
             int durationMinutes) {
-        return request(MessageType.CREATE_AUCTION, Map.of(
-                "productId", Long.toString(productId),
-                "startPrice", Money.wire(startPrice),
-                "minBidIncrement", Money.wire(minBidIncrement),
-                "durationMinutes", Integer.toString(durationMinutes)));
+        return createAuction(productId, startPrice, minBidIncrement, durationMinutes, "PUBLIC", "");
     }
 
     public CompletableFuture<ApiResponse> createAuction(
@@ -143,6 +139,20 @@ public final class AuctionApi {
     public CompletableFuture<ApiResponse> createAuction(long productId, BigDecimal startPrice,
             BigDecimal minBidIncrement, int durationMinutes, String visibility, String roomPassword,
             boolean anonymousGuests, Instant startTime) {
+        return createAuctionRequest(productId, startPrice, minBidIncrement, durationMinutes, visibility,
+                roomPassword, anonymousGuests, startTime, 100, startTime == null ? BigDecimal.ZERO : BigDecimal.ONE, false);
+    }
+
+    public CompletableFuture<ApiResponse> createAuction(long productId, BigDecimal startPrice,
+            BigDecimal minBidIncrement, int durationMinutes, String visibility, String roomPassword,
+            boolean anonymousGuests, Instant startTime, int maxParticipants, BigDecimal depositAmount) {
+        return createAuctionRequest(productId, startPrice, minBidIncrement, durationMinutes, visibility,
+                roomPassword, anonymousGuests, startTime, maxParticipants, depositAmount, true);
+    }
+
+    private CompletableFuture<ApiResponse> createAuctionRequest(long productId, BigDecimal startPrice,
+            BigDecimal minBidIncrement, int durationMinutes, String visibility, String roomPassword,
+            boolean anonymousGuests, Instant startTime, int maxParticipants, BigDecimal depositAmount, boolean checkAdmission) {
         Map<String, String> data = new LinkedHashMap<>();
         data.put("productId", Long.toString(productId));
         data.put("startPrice", Money.wire(startPrice));
@@ -151,16 +161,18 @@ public final class AuctionApi {
         data.put("visibility", visibility == null ? "PUBLIC" : visibility);
         data.put("roomPassword", roomPassword == null ? "" : roomPassword);
         data.put("anonymousGuests", Boolean.toString(anonymousGuests));
+        data.put("maxParticipants", Integer.toString(maxParticipants));
+        data.put("depositAmount", Money.wire(depositAmount));
         if (startTime != null) { data.put("startTime", startTime.toString()); }
-        if (startTime == null) { return request(MessageType.CREATE_AUCTION, data); }
-        // Older servers ignore unknown fields, which would silently start a scheduled room immediately.
+        if (startTime == null && !checkAdmission) { return request(MessageType.CREATE_AUCTION, data); }
         return request(MessageType.PING, Map.of()).thenCompose(server -> {
             if (!server.isSuccess()) { return CompletableFuture.completedFuture(server); }
-            if (!"true".equals(server.get("auctionScheduling"))) {
+            if ((startTime != null && !"true".equals(server.get("auctionScheduling")))
+                    || (checkAdmission && !"true".equals(server.get("roomAdmission")))) {
                 return CompletableFuture.completedFuture(new ApiResponse(
                         vn.ptit.btl16.common.protocol.WireMessage.response(MessageType.CREATE_AUCTION_RESULT, null, 0,
                                 Map.of("success", "false", "errorCode", "VALIDATION_ERROR", "message",
-                                        "Server đang chạy bản cũ chưa hỗ trợ hẹn giờ. Hãy cập nhật và khởi động lại Server, sau đó tạo phòng lại."))));
+                                        "Server chưa hỗ trợ đầy đủ hẹn giờ, đặt cọc và giới hạn người. Hãy cập nhật và khởi động lại Server."))));
             }
             return request(MessageType.CREATE_AUCTION, data);
         });
@@ -168,6 +180,11 @@ public final class AuctionApi {
 
     public CompletableFuture<ApiResponse> myAuctions() {
         return request(MessageType.MY_AUCTIONS, Map.of());
+    }
+
+    public CompletableFuture<ApiResponse> placeDeposit(long auctionId, String roomPassword) {
+        return request(MessageType.PLACE_AUCTION_DEPOSIT, Map.of("auctionId", Long.toString(auctionId),
+                "roomPassword", roomPassword == null ? "" : roomPassword));
     }
 
     public CompletableFuture<ApiResponse> join(long auctionId) {

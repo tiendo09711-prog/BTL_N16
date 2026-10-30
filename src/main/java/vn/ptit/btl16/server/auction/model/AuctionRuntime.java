@@ -14,6 +14,8 @@ public final class AuctionRuntime {
     private final Instant startTime;
     private final RoomVisibility visibility;
     private final boolean anonymousGuests;
+    private final int maxParticipants;
+    private final BigDecimal depositAmount;
     private final String roomPasswordHash;
     private final String roomPasswordSalt;
     private final int roomPasswordIterations;
@@ -41,6 +43,8 @@ public final class AuctionRuntime {
         this.startTime = snapshot.getStartTime();
         this.visibility = snapshot.getVisibility();
         this.anonymousGuests = snapshot.hasAnonymousGuests();
+        this.maxParticipants = snapshot.getMaxParticipants();
+        this.depositAmount = snapshot.getDepositAmount();
         this.roomPasswordHash = snapshot.getRoomPasswordHash();
         this.roomPasswordSalt = snapshot.getRoomPasswordSalt();
         this.roomPasswordIterations = snapshot.getRoomPasswordIterations();
@@ -121,7 +125,7 @@ public final class AuctionRuntime {
                     visibility,
                     roomPasswordHash,
                     roomPasswordSalt,
-                    roomPasswordIterations, hardEndTime, anonymousGuests);
+                    roomPasswordIterations, hardEndTime, anonymousGuests, maxParticipants, depositAmount);
         } finally {
             lock.unlock();
         }

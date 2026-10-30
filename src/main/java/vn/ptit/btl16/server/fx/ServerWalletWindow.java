@@ -29,14 +29,14 @@ public final class ServerWalletWindow extends ServerAdminPage {
     private final Label profile = DesktopTheme.label("Ch\u1ecdn t\u00e0i kho\u1ea3n \u0111\u1ec3 xem chi ti\u1ebft.", "muted");
     private final Label message = DesktopTheme.label("", "muted");
     private final Label pendingCount = DesktopTheme.label("", "pill");
-    private final Button approve = new Button("Ch\u1ea5p nh\u1eadn & c\u1ed9ng ti\u1ec1n");
+    private final Button approve = new Button("Duyệt nạp");
     private final Button reject = new Button("T\u1eeb ch\u1ed1i");
     private final TextField rejectionReason = new TextField("Yêu cầu nạp mô phỏng chưa được xác nhận");
     private final Timeline poll = new Timeline(new KeyFrame(Duration.seconds(3), event -> refresh()));
     private boolean loading, reviewing, replacing;
     private final TableView<WithdrawalRequest> pendingWithdrawals = WalletUi.withdrawals(true);
     private final TableView<WithdrawalRequest> userWithdrawals = WalletUi.withdrawals(false);
-    private final Button approveWithdrawal = new Button("Duyệt & trừ tiền");
+    private final Button approveWithdrawal = new Button("Duyệt rút");
     private final Button rejectWithdrawal = new Button("Từ chối");
     private final TextField withdrawalRejectionReason = new TextField("Yêu cầu rút mô phỏng chưa được xác nhận");
     private long refreshGeneration;
@@ -94,28 +94,31 @@ public final class ServerWalletWindow extends ServerAdminPage {
         VBox accountContent = new VBox(accountScroll);
         accountContent.getStyleClass().add("admin-account-content");
         VBox.setVgrow(accountScroll, Priority.ALWAYS);
-        Label topUpHelp = DesktopTheme.label("Số tiền được cộng đúng theo yêu cầu, không chỉnh sửa. Duyệt lại không cộng trùng. Từ chối không làm thay đổi số dư.", "muted");
-        topUpHelp.setWrapText(true);
-        VBox pendingContent = new VBox(14, DesktopTheme.label("Ch\u1ec9 duy\u1ec7t y\u00eau c\u1ea7u demo \u0111\u00e3 g\u1eedi t\u1eeb client", "section-title"),
-                topUpHelp,
-                pending, new Label("Lý do từ chối (1-300 ký tự)"), rejectionReason, new HBox(10, approve, reject));
+        rejectionReason.setPromptText("Lý do từ chối"); withdrawalRejectionReason.setPromptText("Lý do từ chối");
+        VBox pendingContent = new VBox(14, DesktopTheme.label("Yêu cầu nạp · Mô phỏng", "section-title"),
+                pending, new Label("Lý do từ chối"), rejectionReason, new HBox(10, approve, reject));
         pendingContent.getStyleClass().add("admin-review"); pending.setMinHeight(80); VBox.setVgrow(pending, Priority.ALWAYS);
         Tab accountTab = new Tab("T\u00e0i kho\u1ea3n & giao d\u1ecbch", accountContent); accountTab.setId("server-accounts-tab");
         Tab pendingTab = new Tab("Duy\u1ec7t n\u1ea1p demo", pendingContent); accountTab.setClosable(false); pendingTab.setClosable(false);
         pendingTab.setId("server-topup-tab");
-        Label withdrawalHelp = DesktopTheme.label("Chỉ trừ số tiền đã yêu cầu khi được duyệt và còn đủ khả dụng. Tiền giữ chỗ đấu giá được giữ nguyên. Duyệt lại không trừ trùng; từ chối không trừ tiền.", "muted");
-        withdrawalHelp.setWrapText(true);
-        VBox withdrawalContent = new VBox(14, DesktopTheme.label("Duyệt yêu cầu rút tiền từ Client", "section-title"),
-                withdrawalHelp,
-                pendingWithdrawals, new Label("Lý do từ chối (1-300 ký tự)"), withdrawalRejectionReason, new HBox(10, approveWithdrawal, rejectWithdrawal));
+        VBox withdrawalContent = new VBox(14, DesktopTheme.label("Yêu cầu rút · Mô phỏng", "section-title"),
+                pendingWithdrawals, new Label("Lý do từ chối"), withdrawalRejectionReason, new HBox(10, approveWithdrawal, rejectWithdrawal));
         withdrawalContent.getStyleClass().add("admin-review"); pendingWithdrawals.setMinHeight(80); VBox.setVgrow(pendingWithdrawals, Priority.ALWAYS);
         Tab withdrawalTab = new Tab("Duyệt rút tiền", withdrawalContent); withdrawalTab.setId("server-withdrawal-tab"); withdrawalTab.setClosable(false);
         TabPane tabs = new TabPane(accountTab, pendingTab, withdrawalTab); setCenter(tabs);
         tabs.setId("server-wallet-tabs"); tabs.getStyleClass().addAll("admin-tabs", "admin-subtabs");
         tabs.setMinSize(0, 0);
+        accountTab.setText("Tài khoản"); pendingTab.setText("Duyệt nạp"); withdrawalTab.setText("Duyệt rút");
+        for (TableView<?> queue : java.util.List.of(pending, pendingWithdrawals)) {
+            queue.getColumns().get(2).setVisible(false);
+            queue.getColumns().get(5).setVisible(false);
+            queue.getColumns().get(4).setPrefWidth(230);
+            queue.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        }
         Button refresh = new Button("L\u00e0m m\u1edbi"); refresh.setOnAction(event -> refresh());
         refresh.setId("server-wallet-refresh"); pendingCount.setWrapText(true); pendingCount.setMinWidth(0);
-        HBox heading = new HBox(14, DesktopTheme.label("Quản lý tài khoản", "section-title"), DesktopTheme.spacer(), pendingCount, refresh);
+        refresh.setGraphic(ServerIcons.icon("refresh"));
+        HBox heading = new HBox(14, pendingCount, DesktopTheme.spacer(), refresh);
         heading.getStyleClass().add("admin-page-heading"); setTop(heading);
         message.getStyleClass().add("admin-status"); message.setWrapText(true); setBottom(message);
         message.visibleProperty().bind(message.textProperty().isNotEmpty()); message.managedProperty().bind(message.visibleProperty());
@@ -130,9 +133,9 @@ public final class ServerWalletWindow extends ServerAdminPage {
     private void renderProfile(WalletAccount value) {
         profile.setText(value == null ? "Ch\u1ecdn t\u00e0i kho\u1ea3n \u0111\u1ec3 xem chi ti\u1ebft."
                 : "#" + value.userId() + "  " + value.username() + " | " + value.displayName()
-                + "\nEmail: " + empty(value.email()) + " | \u0110i\u1ec7n tho\u1ea1i: " + empty(value.phone())
-                + "\nT\u1ea1o: " + WalletUi.time(value.createdAt()) + " | \u0110\u0103ng nh\u1eadp: " + WalletUi.time(value.lastLoginAt())
-                + "\nS\u1ed1 d\u01b0: " + WalletUi.money(value.balance()) + " | Gi\u1eef ch\u1ed7: " + WalletUi.money(value.reserved()) + " | Kh\u1ea3 d\u1ee5ng: " + WalletUi.money(value.available()));
+                + "\nEmail: " + empty(value.email()) + " | \u0110i\u1ec7n tho\u1ea1i: " + empty(value.phone()));
+        profile.setTooltip(value == null ? null : new Tooltip("Tạo: " + WalletUi.time(value.createdAt())
+                + "\nĐăng nhập: " + WalletUi.time(value.lastLoginAt())));
     }
     private String empty(String text) { return text == null || text.isBlank() ? "-" : text; }
     private void refresh() {
@@ -154,18 +157,19 @@ public final class ServerWalletWindow extends ServerAdminPage {
             if (error != null) { message.setText(root(error)); return; }
             replacing = true;
             try {
-                accounts.getItems().setAll(snapshot.accounts());
+                if (!accounts.getItems().equals(snapshot.accounts())) { accounts.getItems().setAll(snapshot.accounts()); }
                 accounts.getItems().stream().filter(value -> value.userId() == selectedId).findFirst().ifPresent(value -> accounts.getSelectionModel().select(value));
                 TopUpRequest chosen = pending.getSelectionModel().getSelectedItem();
-                pending.getItems().setAll(snapshot.pending());
+                if (!pending.getItems().equals(snapshot.pending())) { pending.getItems().setAll(snapshot.pending()); }
                 if (chosen != null) { pending.getItems().stream().filter(value -> value.id().equals(chosen.id())).findFirst().ifPresent(value -> pending.getSelectionModel().select(value)); }
                 WithdrawalRequest chosenWithdrawal = pendingWithdrawals.getSelectionModel().getSelectedItem();
-                pendingWithdrawals.getItems().setAll(snapshot.pendingWithdrawals());
+                if (!pendingWithdrawals.getItems().equals(snapshot.pendingWithdrawals())) { pendingWithdrawals.getItems().setAll(snapshot.pendingWithdrawals()); }
                 if (chosenWithdrawal != null) { pendingWithdrawals.getItems().stream().filter(value -> value.id().equals(chosenWithdrawal.id())).findFirst().ifPresent(value -> pendingWithdrawals.getSelectionModel().select(value)); }
                 WalletAccount now = accounts.getSelectionModel().getSelectedItem(); renderProfile(now);
-                entries.getItems().setAll(snapshot.entries()); userRequests.getItems().setAll(snapshot.requests());
-                userWithdrawals.getItems().setAll(snapshot.withdrawals());
-                pendingCount.setText(snapshot.pending().size() + " yêu cầu nạp · " + snapshot.pendingWithdrawals().size() + " yêu cầu rút chờ duyệt");
+                if (!entries.getItems().equals(snapshot.entries())) { entries.getItems().setAll(snapshot.entries()); }
+                if (!userRequests.getItems().equals(snapshot.requests())) { userRequests.getItems().setAll(snapshot.requests()); }
+                if (!userWithdrawals.getItems().equals(snapshot.withdrawals())) { userWithdrawals.getItems().setAll(snapshot.withdrawals()); }
+                pendingCount.setText(snapshot.pending().size() + " nạp · " + snapshot.pendingWithdrawals().size() + " rút chờ duyệt");
             } finally { replacing = false; controls(); }
         }));
     }

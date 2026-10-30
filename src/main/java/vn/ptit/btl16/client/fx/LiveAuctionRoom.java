@@ -1,5 +1,6 @@
 package vn.ptit.btl16.client.fx;
 
+import javafx.application.Platform;
 import javafx.geometry.Pos;
 import javafx.scene.chart.AreaChart;
 import javafx.scene.chart.NumberAxis;
@@ -50,6 +51,10 @@ public final class LiveAuctionRoom {
     private final Label extensions = DesktopTheme.label("...", "room-metric-value");
     private final Label statisticsNote = DesktopTheme.label("\u0110ang t\u1ea3i th\u1ed1ng k\u00ea to\u00e0n phi\u00ean...", "muted");
     private final Label chartNote = DesktopTheme.label("", "muted");
+    private final Label chartValue = DesktopTheme.label("", "room-chart-value");
+    private final Label chartLive = DesktopTheme.label("", "room-chart-live");
+    private java.util.function.Consumer<ClientBid> onBidSelected = bid -> { };
+    private long selectedBidId;
     private final Label notice = DesktopTheme.label("", "room-live-notice");
     private final Label deadline = DesktopTheme.label("", "muted");
     private final ProgressBar timeProgress = new ProgressBar();
@@ -69,6 +74,7 @@ public final class LiveAuctionRoom {
     private java.util.function.LongConsumer onProfile = id -> { };
 
     public void onProfile(java.util.function.LongConsumer action) { onProfile = action; }
+    public void onBidSelected(java.util.function.Consumer<ClientBid> action) { onBidSelected = action; }
 
     public LiveAuctionRoom() {
         insights.setMinWidth(0);
@@ -95,7 +101,16 @@ public final class LiveAuctionRoom {
         timeProgress.setMaxWidth(Double.MAX_VALUE);
         timeProgress.getStyleClass().add("room-time-progress");
         NumberAxis horizontal = new NumberAxis();
-        horizontal.setTickLabelsVisible(false);
+        horizontal.setTickLabelFormatter(new StringConverter<>() {
+            @Override public String toString(Number value) {
+                int index = value.intValue();
+                if (index < 0 || index >= plotted.size() || auction == null) { return ""; }
+                ClientBid bid = plotted.get(index).bid();
+                Instant time = bid == null ? index == 0 ? auction.getStartTime() : null : bid.getCreatedAt();
+                return time == null ? "" : TIME.format(time);
+            }
+            @Override public Number fromString(String value) { return 0; }
+        });
         horizontal.setTickMarkVisible(false);
         horizontal.setMinorTickVisible(false);
         NumberAxis vertical = new NumberAxis();
@@ -110,22 +125,24 @@ public final class LiveAuctionRoom {
         chart.setAnimated(false);
         chart.setLegendVisible(false);
         chart.setVerticalGridLinesVisible(false);
-        chart.setMinHeight(145);
+        chart.setMinHeight(220);
         chart.setMinWidth(0);
-        chart.setPrefHeight(165);
-        chart.setMaxHeight(185);
+        chart.maxWidthProperty().bind(javafx.beans.binding.Bindings.max(0, insights.widthProperty().subtract(40)));
+        chart.setPrefHeight(260);
+        chart.setMaxHeight(260);
         chart.getStyleClass().add("room-price-chart");
-        FlowPane metrics = new FlowPane(18, 8,
-                metric("T\u1ed4NG BID H\u1ee2P L\u1ec6", recentCount),
-                metric("T\u00c0I KHO\u1ea2N \u0110\u00c3 BID", bidders),
-                metric("S\u1ed0 L\u1ea6N GIA H\u1ea0N", extensions),
-                metric("T\u0102NG T\u1eea KH\u1edeI \u0110I\u1ec2M", growth));
-        HBox chartHeading = new HBox(8, DesktopTheme.label("Di\u1ec5n bi\u1ebfn gi\u00e1", "section-title"),
-                DesktopTheme.spacer(), DesktopTheme.label("VND", "eyebrow"));
+        FlowPane metrics = new FlowPane(26, 8, metric("L\u01b0\u1ee3t gi\u00e1", recentCount),
+                metric("Ng\u01b0\u1eddi tham gia", bidders), metric("Gia h\u1ea1n", extensions));
+        metrics.getStyleClass().add("room-chart-metrics");
+        HBox chartHeading = new HBox(8, new VBox(6, DesktopTheme.label("Di\u1ec5n bi\u1ebfn gi\u00e1", "section-title"), chartValue),
+                DesktopTheme.spacer(), chartLive);
         chartHeading.setAlignment(Pos.CENTER_LEFT);
         insights.getStyleClass().add("room-insights");
         statisticsNote.setWrapText(true); statisticsNote.setId("room-statistics-status"); extensions.setId("room-extensions");
-        insights.getChildren().setAll(metrics, statisticsNote, chartHeading, chart, chartNote, timeProgress, deadline, notice);
+        VBox metadata = new VBox(chartNote, timeProgress, deadline, notice, growth);
+        metadata.setVisible(false); metadata.setManaged(false);
+        insights.getChildren().setAll(chartHeading, chart, metrics, statisticsNote, metadata);
+        statisticsNote.setVisible(false); statisticsNote.setManaged(false);
         mine.setId("room-history-mine");
         mine.getStyleClass().add("ghost");
         mine.setOnAction(event -> renderHistory(true));
@@ -156,6 +173,7 @@ public final class LiveAuctionRoom {
         userId = currentUserId;
         bids = values.stream().filter(bid -> bid.getAuctionId() == value.getAuctionId()).sorted(BID_ORDER).toList();
         if (changedRoom) {
+            selectedBidId = 0;
             mine.setSelected(false);
             plotted = List.of();
             historyKey = "";
@@ -225,6 +243,7 @@ public final class LiveAuctionRoom {
         live.setText(!connected ? "RECONNECTING".equals(dataState) ? "KẾT NỐI LẠI" : "OFFLINE"
                 : !"READY".equals(dataState) ? "SYNCING".equals(dataState) ? "ĐỒNG BỘ" : "DỮ LIỆU CŨ" : !auction.isOpen() ? "K\u1ebeT QU\u1ea2" : expired ? "CH\u1edc CH\u1ed0T" : "LIVE");
         long remaining = auction.getEndTime() == null ? 0 : Math.max(0, Duration.between(now, auction.getEndTime()).toMillis());
+        chartLive.setText(live.getText());
         long total = auction.getStartTime() == null || auction.getEndTime() == null ? 0
                 : Duration.between(auction.getStartTime(), auction.getEndTime()).toMillis();
         timeProgress.setProgress(!auction.isOpen() || total <= 0 ? 0 : Math.min(1, (double) remaining / total));
@@ -238,11 +257,13 @@ public final class LiveAuctionRoom {
     }
 
     public void setStatistics(java.util.Map<String, String> data) {
+        statisticsNote.setVisible("ERROR".equals(data.get("state")));
+        statisticsNote.setManaged(statisticsNote.isVisible());
         if (data.containsKey("state")) {
             if ("LOADING".equals(data.get("state"))) {
                 for (Label metric : List.of(recentCount, bidders, extensions, growth)) { metric.setText("..."); }
             }
-            statisticsNote.setText("ERROR".equals(data.get("state")) ? "L\u1ed7i t\u1ea3i th\u1ed1ng k\u00ea; s\u1ed1 li\u1ec7u hi\u1ec7n c\u00f3 c\u00f3 th\u1ec3 \u0111\u00e3 c\u0169. \u0110ang th\u1eed l\u1ea1i..."
+            statisticsNote.setText("ERROR".equals(data.get("state")) ? "Ch\u01b0a c\u1eadp nh\u1eadt \u0111\u01b0\u1ee3c th\u1ed1ng k\u00ea."
                     : "\u0110ang t\u1ea3i th\u1ed1ng k\u00ea to\u00e0n phi\u00ean..."); return;
         }
         recentCount.setText(data.getOrDefault("totalBids", "...")); bidders.setText(data.getOrDefault("uniqueBidders", "..."));
@@ -260,6 +281,7 @@ public final class LiveAuctionRoom {
         bids = List.of();
         plotted = List.of();
         historyKey = "";
+        selectedBidId = 0;
         mine.setSelected(false);
         chart.getData().clear();
         bidRows.getChildren().clear();
@@ -267,12 +289,13 @@ public final class LiveAuctionRoom {
 
     private void renderChart() {
         List<PricePoint> points = new ArrayList<>();
-        points.add(new PricePoint(auction.getStartPrice(), "Gi\u00e1 kh\u1edfi \u0111i\u1ec3m"));
+        chartValue.setText(WalletUi.money(auction.getCurrentPrice()));
+        points.add(new PricePoint(auction.getStartPrice(), "Gi\u00e1 kh\u1edfi \u0111i\u1ec3m", null));
         for (ClientBid bid : bids) {
-            points.add(new PricePoint(bid.getAmount(), bid.getUsername() + " \u00b7 " + TIME.format(bid.getCreatedAt())));
+            points.add(new PricePoint(bid.getAmount(), bidderName(bid), bid));
         }
         if (points.get(points.size() - 1).amount().compareTo(auction.getCurrentPrice()) != 0) {
-            points.add(new PricePoint(auction.getCurrentPrice(), "Gi\u00e1 hi\u1ec7n t\u1ea1i do server x\u00e1c nh\u1eadn"));
+            points.add(new PricePoint(auction.getCurrentPrice(), "Gi\u00e1 hi\u1ec7n t\u1ea1i", null));
         }
         chartNote.setText("Gi\u00e1 kh\u1edfi \u0111i\u1ec3m + " + bids.size()
                 + " l\u01b0\u1ee3t g\u1ea7n nh\u1ea5t \u0111\u00e3 t\u1ea3i; kh\u00f4ng ph\u1ea3i to\u00e0n b\u1ed9 l\u1ecbch s\u1eed.");
@@ -282,18 +305,18 @@ public final class LiveAuctionRoom {
         for (int index = 0; index < points.size(); index++) {
             PricePoint point = points.get(index);
             XYChart.Data<Number, Number> sample = new XYChart.Data<>(index, point.amount());
-            Label marker = new Label();
-            marker.getStyleClass().add("room-chart-dot");
-            marker.setMinSize(7, 7);
-            marker.setPrefSize(7, 7);
-            marker.setMaxSize(7, 7);
-            String description = point.label() + "\n" + WalletUi.money(point.amount());
-            marker.setAccessibleText(description);
-            Tooltip.install(marker, new Tooltip(description));
-            sample.setNode(marker);
             series.getData().add(sample);
         }
         chart.getData().setAll(List.of(series));
+        NumberAxis horizontal = (NumberAxis) chart.getXAxis(); horizontal.setAutoRanging(false);
+        horizontal.setLowerBound(-.25); horizontal.setUpperBound(Math.max(1, points.size() - .75));
+        horizontal.setTickUnit(Math.max(1, Math.ceil(points.size() / 4.0)));
+        Platform.runLater(() -> {
+            if (auction == null || !points.equals(plotted) || chart.getData().isEmpty() || chart.getData().getFirst() != series) { return; }
+            for (int index = 0; index < points.size(); index++) {
+                installMarker(series.getData().get(index), points.get(index));
+            }
+        });
         chart.setAccessibleText("Di\u1ec5n bi\u1ebfn gi\u00e1. Kh\u1edfi \u0111i\u1ec3m " + WalletUi.money(auction.getStartPrice())
                 + ", hi\u1ec7n t\u1ea1i " + WalletUi.money(auction.getCurrentPrice()) + ", " + bids.size() + " l\u01b0\u1ee3t \u0111\u00e3 t\u1ea3i.");
     }
@@ -325,7 +348,7 @@ public final class LiveAuctionRoom {
                     && bid.getAmount().compareTo(auction.getCurrentPrice()) == 0;
             Label avatar = DesktopTheme.label(auction.hasAnonymousGuests() ? "" : bid.getUsername().isBlank() ? "?" : bid.getUsername().substring(0, 1).toUpperCase(Locale.ROOT), "room-avatar");
             if (!auction.hasAnonymousGuests()) { avatar.setOnMouseClicked(event -> onProfile.accept(bid.getUserId())); avatar.setStyle("-fx-cursor: hand;"); }
-            Label name = new Label(bid.getUsername() + (own ? " (b\u1ea1n)" : ""));
+            Label name = new Label(bidderName(bid) + (own ? " (b\u1ea1n)" : ""));
             name.setWrapText(true);
             Label time = DesktopTheme.label(TIME.format(bid.getCreatedAt()) + (leader
                     ? auction.isOpen() ? " \u00b7 \u0110ang d\u1eabn \u0111\u1ea7u" : " \u00b7 Gi\u00e1 th\u1eafng" : " \u00b7 \u0110\u00e3 ch\u1ea5p nh\u1eadn"), "muted");
@@ -364,5 +387,44 @@ public final class LiveAuctionRoom {
         return value.setScale(0, RoundingMode.HALF_UP).toPlainString();
     }
 
-    private record PricePoint(BigDecimal amount, String label) { }
+    private String bidderName(ClientBid bid) {
+        return auction.hasAnonymousGuests() ? bid.getUserId() < 0 ? bid.getUsername() : "Kh\u00e1ch \u1ea9n danh" : bid.getDisplayName();
+    }
+
+    private void selectBid(ClientBid bid) {
+        selectedBidId = bid.getBidId();
+        for (var series : chart.getData()) {
+            for (var sample : series.getData()) {
+                sample.getNode().getStyleClass().remove("selected");
+                if (Objects.equals(sample.getNode().getId(), "room-chart-bid-" + selectedBidId)) {
+                    sample.getNode().getStyleClass().add("selected");
+                }
+            }
+        }
+        onBidSelected.accept(bid);
+    }
+
+    private void installMarker(XYChart.Data<Number, Number> sample, PricePoint point) {
+        javafx.scene.Node marker = sample.getNode();
+        if (marker == null) { return; }
+        marker.getStyleClass().add("room-chart-dot");
+        if (marker instanceof javafx.scene.layout.Region region) {
+            region.setMinSize(12, 12); region.setPrefSize(12, 12); region.setMaxSize(12, 12);
+        }
+        String description = point.label() + "\n" + WalletUi.money(point.amount());
+        marker.getProperties().put("room-chart-tooltip", description);
+        Tooltip tooltip = new Tooltip(description);
+        tooltip.setShowDelay(javafx.util.Duration.ZERO); tooltip.setHideDelay(javafx.util.Duration.millis(80));
+        tooltip.setShowDuration(javafx.util.Duration.seconds(20));
+        tooltip.getStyleClass().add("room-chart-tooltip"); Tooltip.install(marker, tooltip);
+        if (point.bid() != null) {
+            marker.setId("room-chart-bid-" + point.bid().getBidId());
+            marker.setStyle("-fx-cursor: hand;");
+            if (point.bid().getBidId() == selectedBidId) { marker.getStyleClass().add("selected"); }
+            marker.setOnMouseClicked(event -> { selectBid(point.bid()); event.consume(); });
+        }
+        sample.setNode(marker);
+    }
+
+    private record PricePoint(BigDecimal amount, String label, ClientBid bid) { }
 }

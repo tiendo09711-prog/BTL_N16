@@ -104,6 +104,10 @@ public final class CompletionUiSelfTest {
             fx(() -> {
                 var scene = dialogButton(ButtonBar.ButtonData.OK_DONE).getScene();
                 var mode = (ComboBox<?>) scene.lookup("#auction-start-mode");
+                TestSupport.check(!scene.lookup("#auction-create-deposit").isVisible() || !scene.lookup("#auction-create-deposit").getParent().getParent().isVisible(), "immediate rooms do not show deposit");
+                dialogButton(ButtonBar.ButtonData.OK_DONE).fire();
+                TestSupport.check(scene.lookup("#auction-create-error").isVisible(), "capacity is required before review");
+                ((TextField) scene.lookup("#auction-create-max-participants")).setText("12");
                 TestSupport.equals(0, mode.getSelectionModel().getSelectedIndex(), "immediate start remains default");
                 TestSupport.check(scene.lookup("#auction-start-date").isDisabled(), "date disabled for immediate start");
                 TestSupport.equals(4, scene.getRoot().lookupAll(".auction-create-section").size(), "creation fields are grouped into four sections");
@@ -150,6 +154,8 @@ public final class CompletionUiSelfTest {
             fx(() -> {
                 var scene = dialogButton(ButtonBar.ButtonData.OK_DONE).getScene();
                 ((ComboBox<?>) scene.lookup("#auction-start-mode")).getSelectionModel().select(1);
+                ((TextField) scene.lookup("#auction-create-max-participants")).setText("25");
+                ((TextField) scene.lookup("#auction-create-deposit")).setText("50000");
                 ((DatePicker) scene.lookup("#auction-start-date")).setValue(java.time.LocalDate.now().minusDays(1));
                 dialogButton(ButtonBar.ButtonData.OK_DONE).fire();
                 TestSupport.check(scene.lookup("#auction-create-error").isVisible(), "past start rejected inline and form stays open");
@@ -164,6 +170,8 @@ public final class CompletionUiSelfTest {
             fx(() -> { dialogButton(ButtonBar.ButtonData.OK_DONE).fire(); return null; }); drain();
             TestSupport.equals(1, network.count(MessageType.CREATE_AUCTION), "review confirmation sends exactly one request");
             var sent = network.requests.stream().filter(value -> value.type() == MessageType.CREATE_AUCTION).findFirst().orElseThrow();
+            TestSupport.equals("25", sent.data().get("maxParticipants"), "form submits mandatory capacity");
+            TestSupport.equals("50000", sent.data().get("depositAmount"), "scheduled form submits deposit");
             TestSupport.equals(java.time.LocalDate.now().plusDays(1).atTime(14, 30).atZone(java.time.ZoneId.systemDefault()).toInstant().toString(),
                     sent.data().get("startTime"), "scheduled form sends exact local date and time as UTC");
             fx(() -> { invoke(controller, "showCreateAuction", new Class<?>[0]); return null; });
@@ -274,7 +282,7 @@ public final class CompletionUiSelfTest {
         synchronized Pending take(MessageType type) { var value = requests.stream().filter(item -> item.type() == type).findFirst().orElseThrow(() -> new AssertionError("Missing " + type)); requests.remove(value); return value; }
         @Override public synchronized CompletableFuture<WireMessage> sendRequest(MessageType type, Map<String,String> data) {
             if (type == MessageType.PING) { return CompletableFuture.completedFuture(WireMessage.response(MessageType.PONG, null, 1,
-                    Map.of("success", "true", "auctionScheduling", Boolean.toString(supportsScheduling)))); }
+                    Map.of("success", "true", "auctionScheduling", Boolean.toString(supportsScheduling), "roomAdmission", "true"))); }
             if (Set.of(MessageType.GET_MY_NOTIFICATIONS, MessageType.GET_WALLET_ENTRIES, MessageType.MY_PRODUCTS, MessageType.CREATE_AUCTION).contains(type)) { var future = new CompletableFuture<WireMessage>(); requests.add(new Pending(type, Map.copyOf(data), future)); return future; }
             return CompletableFuture.completedFuture(WireMessage.response(type, null, 1, Map.of("success", "true", "userId", "2", "balance", "1000", "reserved", "0", "available", "1000", "requestCount", "0", "entryCount", "0", "memberCount", "0", "chatCount", "0")));
         }

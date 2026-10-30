@@ -33,13 +33,16 @@ import java.util.function.Supplier;
 /** A single modal keeps the seller's draft intact between editing and confirmation. */
 final class AuctionCreationDialog extends Dialog<AuctionCreationDialog.Draft> {
     record Draft(ClientProduct product, BigDecimal startPrice, BigDecimal increment, int durationMinutes,
-                 String visibility, String roomPassword, boolean anonymousGuests, Instant startTime) { }
+                 String visibility, String roomPassword, boolean anonymousGuests, Instant startTime,
+                 int maxParticipants, BigDecimal depositAmount) { }
 
     private final Supplier<Instant> now;
     private final ComboBox<ClientProduct> product = new ComboBox<>();
     private final TextField price = input("auction-create-price", "100000");
     private final TextField increment = input("auction-create-increment", "10000");
     private final TextField duration = input("auction-create-duration", "5");
+    private final TextField maxParticipants = input("auction-create-max-participants", "");
+    private final TextField depositAmount = input("auction-create-deposit", "");
     private final PasswordField password = new PasswordField(), repeatedPassword = new PasswordField();
     private final RadioButton publicRoom = new RadioButton("Công khai"), privateRoom = new RadioButton("Riêng tư");
     private final ComboBox<String> identity = new ComboBox<>();
@@ -86,9 +89,18 @@ final class AuctionCreationDialog extends Dialog<AuctionCreationDialog.Draft> {
         password.disableProperty().bind(privateRoom.selectedProperty().not());
         repeatedPassword.disableProperty().bind(privateRoom.selectedProperty().not());
         HBox roomTypes = new HBox(20, publicRoom, privateRoom); roomTypes.setAlignment(Pos.CENTER_LEFT);
+        maxParticipants.setPromptText("Bắt buộc: số nguyên từ 1 đến 10000");
+        depositAmount.setPromptText("Bắt buộc với phòng hẹn giờ");
+        HBox depositRow = field("coins", "Phí đặt cọc", unit(depositAmount, "VND"));
+        HBox depositNote = note("Phải đặt cọc đủ trước giờ bắt đầu mới được vào phòng. Cọc không giữ chỗ; được tính vào tiền đấu giá và hoàn khi phiên kết thúc/hủy nếu không thắng.");
+        depositRow.visibleProperty().bind(schedule.scheduledProperty()); depositRow.managedProperty().bind(depositRow.visibleProperty());
+        depositNote.visibleProperty().bind(schedule.scheduledProperty()); depositNote.managedProperty().bind(depositNote.visibleProperty());
         VBox settings = section("Thiết lập đấu giá", "Cài đặt giá khởi điểm, bước giá và thời gian đấu giá", "gavel",
                 field("coins", "Giá khởi điểm", unit(price, "VND")), field("chart", "Bước giá", unit(increment, "VND")),
-                field("clock", "Thời lượng (phút)", unit(duration, "phút")), field("calendar", "Thời gian bắt đầu", schedule));
+                field("clock", "Thời lượng (phút)", unit(duration, "phút")), field("calendar", "Thời gian bắt đầu", schedule),
+                field("users", "Số lượng tối đa", unit(maxParticipants, "người")),
+                label("Tính cả chủ phòng và người xem. Rời phòng sẽ nhường chỗ, kể cả đã đặt giá.", "auction-create-note"),
+                depositRow, depositNote);
         VBox privacy = section("Quyền riêng tư phòng", "Chọn chế độ hiển thị và thiết lập mật khẩu cho phòng riêng tư", "shield",
                 field("users", "Loại phòng", roomTypes), field("lock", "Mật khẩu", password), field("lock", "Xác nhận", repeatedPassword));
         HBox privacyNote = note("Phòng ẩn danh che danh tính người bán và người mua; không xem hồ sơ và không tính vào Top doanh thu. Vẫn thanh toán và thu phí sàn bình thường. Không thể đổi chế độ sau khi tạo.");
@@ -142,6 +154,8 @@ final class AuctionCreationDialog extends Dialog<AuctionCreationDialog.Draft> {
                 summary("chart", "Bước giá", WalletUi.money(draft.increment())),
                 summary("play", "Bắt đầu", draft.startTime() == null ? "Ngay sau khi tạo" : Times.display(draft.startTime())),
                 summary("clock", "Thời lượng", draft.durationMinutes() + " phút"),
+                summary("users", "Số lượng tối đa", draft.maxParticipants() + " người (tính cả chủ phòng)"),
+                summary("coins", "Phí đặt cọc", draft.startTime() == null ? "Không áp dụng" : WalletUi.money(draft.depositAmount())),
                 summary("users", "Loại phòng", draft.visibility().equals("PRIVATE") ? "Riêng tư" : "Công khai"),
                 summary("shield", "Danh tính", draft.anonymousGuests() ? "Người bán và người mua ẩn danh" : "Tài khoản thường"));
         VBox body = new VBox(11, rows, note("Không thể đổi sản phẩm, loại phòng và danh tính sau khi tạo."));
@@ -175,8 +189,15 @@ final class AuctionCreationDialog extends Dialog<AuctionCreationDialog.Draft> {
             if (password.getText().length() < 4 || password.getText().length() > 100) { throw new IllegalArgumentException("Mật khẩu phòng riêng phải có 4–100 ký tự."); }
             if (!password.getText().equals(repeatedPassword.getText())) { throw new IllegalArgumentException("Mật khẩu phòng xác nhận không khớp."); }
         }
+        int capacity;
+        try { capacity = Integer.parseInt(maxParticipants.getText().strip()); }
+        catch (NumberFormatException invalid) { throw new IllegalArgumentException("Bắt buộc nhập số lượng tối đa: số nguyên từ 1 đến 10000."); }
+        if (capacity < 1 || capacity > 10000) { throw new IllegalArgumentException("Số lượng tối đa phải từ 1 đến 10000 người."); }
+        Instant startTime = schedule.value(now.get());
+        BigDecimal deposit = startTime == null ? BigDecimal.ZERO : money(depositAmount, "Phí đặt cọc");
         return new Draft(product.getValue(), start, step, minutes, privateRoom.isSelected() ? "PRIVATE" : "PUBLIC",
-                privateRoom.isSelected() ? password.getText() : "", identity.getSelectionModel().getSelectedIndex() == 1, schedule.value(now.get()));
+                privateRoom.isSelected() ? password.getText() : "", identity.getSelectionModel().getSelectedIndex() == 1,
+                startTime, capacity, deposit);
     }
 
     private static BigDecimal money(TextField field, String caption) {
@@ -280,7 +301,9 @@ final class AuctionCreationDialog extends Dialog<AuctionCreationDialog.Draft> {
     }
 
     private static HBox note(String text) {
-        HBox note = new HBox(9, MarketplaceIcons.icon("info", 17, "#c58b2f"), label("Lưu ý: " + text, "auction-create-note")); note.setAlignment(Pos.CENTER_LEFT); note.getStyleClass().add("auction-create-hint"); return note;
+        Label message = label("Lưu ý: " + text, "auction-create-note");
+        message.setWrapText(true); message.setMinWidth(0); HBox.setHgrow(message, Priority.ALWAYS);
+        HBox note = new HBox(9, MarketplaceIcons.icon("info", 17, "#c58b2f"), message); note.setAlignment(Pos.CENTER_LEFT); note.getStyleClass().add("auction-create-hint"); return note;
     }
 
     private static TextField input(String id, String text) { TextField field = new TextField(text); field.setId(id); return field; }

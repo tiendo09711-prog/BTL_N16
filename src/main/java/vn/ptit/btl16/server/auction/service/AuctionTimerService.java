@@ -122,7 +122,7 @@ public final class AuctionTimerService implements AutoCloseable {
                         AuctionWireData.tick(
                                 snapshot,
                                 now,
-                                rooms.subscriberCount(snapshot.getAuctionId())));
+                                rooms.participantCount(snapshot.getAuctionId())));
             }
         }
     }

@@ -40,7 +40,7 @@ public final class TransactionsPane extends BorderPane implements AutoCloseable 
         VBox heading = new VBox(10, AccountUi.heading("Giao dịch", "Lịch sử cộng, trừ tiền của " + username + " từ nạp, rút và mua bán", "exchange", null), balances);
         heading.setPadding(new javafx.geometry.Insets(16)); setTop(heading);
         room.setId("transactions-room"); room.setPromptText("Mã phiên"); room.setPrefWidth(155); room.setPrefColumnCount(8);
-        type.setId("transactions-type"); type.getItems().setAll("", "TOPUP", "WITHDRAWAL", "PURCHASE", "SALE"); type.setValue(""); type.setPrefWidth(230);
+        type.setId("transactions-type"); type.getItems().setAll("", "TOPUP", "WITHDRAWAL", "PURCHASE", "SALE", "ROOM_DEPOSIT", "DEPOSIT_RELEASE"); type.setValue(""); type.setPrefWidth(230);
         type.setConverter(new javafx.util.StringConverter<>() {
             @Override public String toString(String value) { return value == null || value.isEmpty() ? "Tất cả loại giao dịch" : WalletUi.type(value); }
             @Override public String fromString(String value) { return value; }

@@ -135,7 +135,7 @@ public final class JdbcAuctionRepository implements AuctionRepository {
                    a.current_winner_id, winner.username AS current_winner_username,
                    a.start_time, a.end_time, a.hard_end_time, a.status, a.ended_at, a.version,
                    a.visibility, a.room_password_hash, a.room_password_salt,
-                   a.room_password_iterations, a.anonymous_guests
+                   a.room_password_iterations, a.anonymous_guests, a.max_participants, a.deposit_amount
             FROM auctions a
             JOIN products p ON p.product_id = a.product_id
             JOIN users owner ON owner.user_id = p.created_by
@@ -619,8 +619,9 @@ public final class JdbcAuctionRepository implements AuctionRepository {
                     host_user_id, product_id, start_price, min_bid_increment,
                     current_price, current_winner_id, start_time, end_time,
                     status, ended_at, version, visibility, room_password_hash,
-                    room_password_salt, room_password_iterations, hard_end_time, wallet_required, anonymous_guests)
-                VALUES(?, ?, ?, ?, ?, NULL, ?, ?, 'OPEN', NULL, 0, ?, ?, ?, ?, ?, TRUE, ?)
+                    room_password_salt, room_password_iterations, hard_end_time, wallet_required, anonymous_guests,
+                    max_participants, deposit_amount)
+                VALUES(?, ?, ?, ?, ?, NULL, ?, ?, 'OPEN', NULL, 0, ?, ?, ?, ?, ?, TRUE, ?, ?, ?)
                 """;
         long createdId = productTransaction(commit.getProductId(), commit.getHostUserId(), (connection, active) -> {
             if (!active) {
@@ -670,6 +671,8 @@ public final class JdbcAuctionRepository implements AuctionRepository {
                 statement.setTimestamp(12, Timestamp.from(commit.getEndTime()
                         .plusSeconds(AuctionRules.MAX_AUTO_EXTENSION_SECONDS)));
                 statement.setBoolean(13, commit.hasAnonymousGuests());
+                statement.setInt(14, commit.getMaxParticipants());
+                statement.setBigDecimal(15, commit.getDepositAmount());
                 statement.executeUpdate();
                 try (ResultSet keys = statement.getGeneratedKeys()) {
                     if (!keys.next()) {
@@ -683,6 +686,18 @@ public final class JdbcAuctionRepository implements AuctionRepository {
         });
         return findAuctionById(createdId)
                 .orElseThrow(() -> new AuctionRepositoryException("Created auction could not be loaded"));
+    }
+
+    @Override
+    public BigDecimal auctionDeposit(long auctionId, long userId) {
+        try (var connection = connectionFactory.openDatabase()) {
+            return AuctionAdmissionStore.held(connection, auctionId, userId);
+        } catch (SQLException error) { throw new AuctionRepositoryException("Cannot read room deposit", error); }
+    }
+
+    @Override
+    public BigDecimal placeAuctionDeposit(long auctionId, long userId) {
+        return transaction(connection -> AuctionAdmissionStore.place(connection, auctionId, userId));
     }
 
     @Override
@@ -766,7 +781,7 @@ public final class JdbcAuctionRepository implements AuctionRepository {
     public BidRecord commitAcceptedBid(BidCommit commit) {
         String lockSql = """
                 SELECT current_price, current_winner_id, host_user_id, min_bid_increment,
-                       start_time, end_time, hard_end_time, status
+                       start_time, end_time, hard_end_time, status, deposit_amount
                 FROM auctions WHERE auction_id = ? FOR UPDATE
                 """;
         String insertBid = """
@@ -801,6 +816,10 @@ public final class JdbcAuctionRepository implements AuctionRepository {
                             throw new AuctionConflictException("Bid arrived after end time");
                         }
                         BigDecimal amount = AuctionRules.money(commit.getAmount(), ErrorCode.INVALID_AMOUNT);
+                        if (AuctionAdmissionStore.held(connection, commit.getAuctionId(), commit.getBidderId())
+                                .compareTo(resultSet.getBigDecimal("deposit_amount")) < 0) {
+                            throw new AuctionException(ErrorCode.ROOM_DEPOSIT_REQUIRED, "Chưa đặt cọc đủ cho phòng hẹn giờ.");
+                        }
                         if (commit.getCreatedAt().isBefore(resultSet.getTimestamp("start_time").toInstant())
                                 || resultSet.getLong("host_user_id") == commit.getBidderId()
                                 || resultSet.getLong("current_winner_id") == commit.getBidderId()
@@ -961,6 +980,8 @@ public final class JdbcAuctionRepository implements AuctionRepository {
                             WalletTransactions.settle(connection, commit.getAuctionId(), winnerId,
                                     resultSet.getLong("host_user_id"), commit.getFinalPrice(), commit.getEndedAt(),
                                     resultSet.getBoolean("wallet_required"));
+                        } else {
+                            AuctionAdmissionStore.release(connection, commit.getAuctionId(), null, BigDecimal.ZERO, commit.getEndedAt());
                         }
                     }
                 }
@@ -1014,6 +1035,7 @@ public final class JdbcAuctionRepository implements AuctionRepository {
                 statement.setTimestamp(1, Timestamp.from(commit.getCancelledAt()));
                 statement.setLong(2, commit.getAuctionId());
                 if (statement.executeUpdate() != 1) { return false; }
+                AuctionAdmissionStore.release(connection, commit.getAuctionId(), null, BigDecimal.ZERO, commit.getCancelledAt());
                 RoomProgressStore.append(connection, commit.getAuctionId(), "CANCELLED", null, null, "", commit.getCancelledAt());
                 AuctionReceiptStore.capture(connection, commit.getAuctionId());
                 vn.ptit.btl16.server.notification.PersonalNotificationStore.result(connection, commit.getAuctionId(), commit.getCancelledAt());
@@ -1147,6 +1169,7 @@ public final class JdbcAuctionRepository implements AuctionRepository {
                     statement.setTimestamp(4, Timestamp.from(commit.getBlockedAt()));
                     statement.executeUpdate();
                 }
+                AuctionAdmissionStore.releaseUser(connection, commit.getAuctionId(), commit.getUserId(), BigDecimal.ZERO, commit.getBlockedAt());
                 connection.commit();
             } catch (SQLException | RuntimeException exception) {
                 connection.rollback();
@@ -1240,6 +1263,7 @@ public final class JdbcAuctionRepository implements AuctionRepository {
                 resultSet.getString("room_password_hash"),
                 resultSet.getString("room_password_salt"),
                 resultSet.getInt("room_password_iterations"),
-                resultSet.getTimestamp("hard_end_time").toInstant(), resultSet.getBoolean("anonymous_guests"));
+                resultSet.getTimestamp("hard_end_time").toInstant(), resultSet.getBoolean("anonymous_guests"),
+                resultSet.getInt("max_participants"), resultSet.getBigDecimal("deposit_amount"));
     }
 }

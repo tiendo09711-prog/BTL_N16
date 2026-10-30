@@ -55,6 +55,7 @@ public final class AuctionScheduleSelfTest {
                     long soonProduct = product(api, "SOON"); Instant soon = Instant.now().plusSeconds(3).truncatedTo(ChronoUnit.MILLIS);
                     long soonId = Long.parseLong(ok(api.createAuction(soonProduct, money("100"), money("10"), 1, "PUBLIC", "", false, soon)).get("auctionId"));
                     failure(guest.join(soonId), "AUCTION_NOT_OPEN");
+                    ok(guest.placeDeposit(soonId, ""));
                     TestSupport.waitUntil(() -> !Instant.now().isBefore(soon), 6000, "scheduled start reached");
                     ok(guest.join(soonId)); ok(guest.bid(soonId, money("110")));
                     var stored = new JdbcAuctionRepository(new JdbcConnectionFactory(config)).findAuctionById(scheduledId).orElseThrow();

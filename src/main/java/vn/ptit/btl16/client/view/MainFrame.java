@@ -163,11 +163,13 @@ public final class MainFrame extends JFrame {
         JTextField startPrice = new JTextField("1000000");
         JTextField minIncrement = new JTextField("50000");
         JTextField duration = new JTextField("10");
+        JTextField maxParticipants = new JTextField();
         JPanel panel = formPanel(
                 "Sản phẩm", product,
                 "Giá khởi điểm", startPrice,
                 "Bước giá tối thiểu", minIncrement,
-                "Thời lượng (phút)", duration);
+                "Thời lượng (phút)", duration,
+                "Số lượng tối đa (1-10000, tính cả chủ phòng)", maxParticipants);
         int option = JOptionPane.showConfirmDialog(
                 this,
                 panel,
@@ -180,7 +182,8 @@ public final class MainFrame extends JFrame {
                 (ClientProduct) product.getSelectedItem(),
                 startPrice.getText(),
                 minIncrement.getText(),
-                duration.getText()));
+                duration.getText(),
+                maxParticipants.getText()));
     }
 
     public Optional<String> promptText(String title, String message, String initialValue) {
@@ -418,21 +421,25 @@ public final class MainFrame extends JFrame {
         private final String startPrice;
         private final String minBidIncrement;
         private final String durationMinutes;
+        private final String maxParticipants;
 
         private AuctionInput(
                 ClientProduct product,
                 String startPrice,
                 String minBidIncrement,
-                String durationMinutes) {
+                String durationMinutes,
+                String maxParticipants) {
             this.product = product;
             this.startPrice = startPrice;
             this.minBidIncrement = minBidIncrement;
             this.durationMinutes = durationMinutes;
+            this.maxParticipants = maxParticipants;
         }
 
         public ClientProduct getProduct() { return product; }
         public String getStartPrice() { return startPrice; }
         public String getMinBidIncrement() { return minBidIncrement; }
         public String getDurationMinutes() { return durationMinutes; }
+        public String getMaxParticipants() { return maxParticipants; }
     }
 }

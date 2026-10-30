@@ -143,7 +143,7 @@ public final class BidService {
     private void publish(BidOutcome outcome) {
         Instant now = Instant.now();
         AuctionSnapshot auction = outcome.getAuction();
-        int watchers = rooms.subscriberCount(auction.getAuctionId());
+        int watchers = rooms.participantCount(auction.getAuctionId());
         broadcasts.broadcastToRoom(
                 auction.getAuctionId(),
                 MessageType.BID_UPDATE,

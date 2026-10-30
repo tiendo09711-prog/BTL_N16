@@ -214,7 +214,14 @@ public final class FxClientController implements AutoCloseable {
     private final RoomSocialPane socialRoom;
     private final VBox roomMain = new VBox(12);
     private final ScrollPane roomMainScroll = new ScrollPane(roomMain);
+    private final ToggleButton roomProductTab = new ToggleButton("S\u1ea3n ph\u1ea9m");
+    private final ToggleButton roomActivityTab = new ToggleButton("Di\u1ec5n bi\u1ebfn");
+    private final VBox roomProductContent = new VBox(14);
+    private final RoomProductDetails roomProductInformation = new RoomProductDetails();
+    private Timeline roomEventScroll;
     private final VBox roomHistory = liveRoom.history();
+    private final ScrollPane roomHistoryScroll = new ScrollPane(roomHistory);
+    private final ToggleButton roomBidTab = new ToggleButton("\u0110\u1ea5u gi\u00e1 ngay");
     private final VBox priceBlock = new VBox(6);
     private final Label priceCaption = DesktopTheme.label("GI\u00c1 HI\u1ec6N T\u1ea0I", "eyebrow");
     private final HBox roomColumns = new HBox(16);
@@ -584,10 +591,7 @@ public final class FxClientController implements AutoCloseable {
         bidding = new VBox(6, membership, syncRow, bidInput, bidActions, bidFeedback, bidSuggestions, bidHint, roomFunds, roomFeeHint);
         roomBidScroll = new ScrollPane(); roomBidScroll.setFitToWidth(true);
         roomBidScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-        roomBidScroll.maxHeightProperty().bind(javafx.beans.binding.Bindings.max(220, roomColumns.heightProperty().subtract(168)));
-        roomBidScroll.minHeightProperty().bind(javafx.beans.binding.Bindings.min(roomBidScroll.maxHeightProperty(),
-                javafx.beans.binding.Bindings.max(180, bidding.heightProperty().add(2))));
-        roomBidScroll.prefHeightProperty().bind(roomBidScroll.minHeightProperty());
+        roomBidScroll.setMinHeight(0);
         roomBidScroll.getStyleClass().add("room-bid-scroll");
         bidding.getStyleClass().add("market-lobby-bidding"); bidding.setPadding(new Insets(6, 9, 8, 9));
         roomFeeHint.setVisible(false); roomFeeHint.setManaged(false);
@@ -601,17 +605,48 @@ public final class FxClientController implements AutoCloseable {
         detailPanel.getStyleClass().add("market-detail-panel");
         liveRoom.onHistory(this::showHistory);
         liveRoom.onProfile(socialRoom::openProfile);
-        roomSide = new VBox(8);
-        roomControlsScroll = new ScrollPane(new VBox(12, socialRoom, roomHistory)); roomControlsScroll.setFitToWidth(true);
-        roomControlsScroll.setMinHeight(160); VBox.setVgrow(roomControlsScroll, Priority.ALWAYS);
-        roomSide.getChildren().add(roomControlsScroll);
+        liveRoom.onBidSelected(socialRoom::focusBid);
+        socialRoom.onEventFocus(this::revealRoomEvent);
+        roomControlsScroll = new ScrollPane(socialRoom); roomControlsScroll.setFitToWidth(true);
+        roomControlsScroll.setMinHeight(0);
+        roomHistoryScroll.setFitToWidth(true); roomHistoryScroll.setMinHeight(0);
+        roomHistoryScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        roomHistoryScroll.getStyleClass().add("room-bid-scroll");
+        roomControlsScroll.getStyleClass().add("room-bid-scroll");
+        ToggleGroup roomTabs = new ToggleGroup();
+        ToggleButton chatTab = new ToggleButton("Khung tr\u00f2 chuy\u1ec7n");
+        ToggleButton historyTab = new ToggleButton("L\u1ecbch s\u1eed");
+        configureRoomTab(roomTabs, roomBidTab, "room-tab-bid", roomBidScroll);
+        configureRoomTab(roomTabs, chatTab, "room-tab-chat", roomControlsScroll);
+        configureRoomTab(roomTabs, historyTab, "room-tab-history", roomHistoryScroll);
+        roomTabs.selectedToggleProperty().addListener((observable, previous, selected) -> {
+            if (selected == null && previous != null) { roomTabs.selectToggle(previous); }
+        });
+        roomBidTab.setSelected(true);
+        HBox tabButtons = new HBox(4, roomBidTab, chatTab, historyTab);
+        tabButtons.setId("room-side-tabs"); tabButtons.getStyleClass().add("room-side-tabs");
+        tabButtons.setMinHeight(Region.USE_PREF_SIZE);
+        StackPane tabContent = new StackPane(roomBidScroll, roomControlsScroll, roomHistoryScroll);
+        tabContent.setMinSize(0, 0); VBox.setVgrow(tabContent, Priority.ALWAYS);
+        roomSide = new VBox(8, tabButtons, tabContent);
         roomSide.setMinWidth(340); roomSide.setPrefWidth(400); roomSide.setMaxWidth(430);
         roomControlsScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-        roomControlsScroll.setMinWidth(340); roomControlsScroll.setPrefWidth(390); roomControlsScroll.setMaxWidth(430);
+        roomControlsScroll.setMinWidth(0);
         roomMain.setMinWidth(300); roomMain.setMinHeight(Region.USE_PREF_SIZE);
         roomMainScroll.setId("room-main-scroll"); roomMainScroll.setFitToWidth(true);
         roomMainScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
         roomMainScroll.setMinWidth(300); HBox.setHgrow(roomMainScroll, Priority.ALWAYS);
+        ToggleGroup mainTabs = new ToggleGroup();
+        configureRoomTab(mainTabs, roomProductTab, "room-tab-product", roomProductContent);
+        configureRoomTab(mainTabs, roomActivityTab, "room-tab-activity", socialRoom.auctionContent());
+        roomProductTab.setSelected(true);
+        mainTabs.selectedToggleProperty().addListener((observable, previous, selected) -> {
+            if (selected == null && previous != null) { mainTabs.selectToggle(previous); }
+            else if (selected != null) {
+                if (roomEventScroll != null) { roomEventScroll.stop(); }
+                roomMainScroll.setVvalue(0);
+            }
+        });
         roomColumns.heightProperty().addListener((observable, before, after) -> updateRoomImageSize());
         roomProductSummary.getStyleClass().addAll("card", "room-product");
         HBox.setHgrow(detailsScroll, Priority.ALWAYS); HBox.setHgrow(roomSide, Priority.ALWAYS);
@@ -690,6 +725,31 @@ public final class FxClientController implements AutoCloseable {
         StackPane.setAlignment(friendsPane, Pos.BOTTOM_RIGHT); StackPane.setMargin(friendsPane, new Insets(0, 12, 12, 0));
         StackPane shell = new StackPane(root, friendsPane, animationBackdrop, bidLeadingBanner, winnerCelebration);
         shell.getStyleClass().add("client-shell"); return shell;
+    }
+
+    private void configureRoomTab(ToggleGroup group, ToggleButton tab, String id, javafx.scene.Node content) {
+        tab.setToggleGroup(group); tab.setId(id);
+        tab.setMinWidth(0); tab.setPrefWidth(0); tab.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(tab, Priority.ALWAYS);
+        content.visibleProperty().bind(tab.selectedProperty());
+        content.managedProperty().bind(tab.selectedProperty());
+    }
+
+    private void revealRoomEvent(javafx.scene.Node row) {
+        if (!roomMode) { return; }
+        roomActivityTab.setSelected(true);
+        long generation = roomGeneration;
+        Platform.runLater(() -> {
+            if (!roomMode || !roomActivityTab.isSelected() || generation != roomGeneration || row.getScene() == null) { return; }
+            roomMain.applyCss(); roomMain.layout();
+            var bounds = roomMain.sceneToLocal(row.localToScene(row.getLayoutBounds()));
+            double overflow = roomMain.getHeight() - roomMainScroll.getViewportBounds().getHeight();
+            double position = overflow <= 0 ? 0 : Math.max(0, Math.min(1, (bounds.getMinY() - 14) / overflow));
+            if (roomEventScroll != null) { roomEventScroll.stop(); }
+            roomEventScroll = new Timeline(new KeyFrame(Duration.millis(280),
+                    new javafx.animation.KeyValue(roomMainScroll.vvalueProperty(), position, javafx.animation.Interpolator.EASE_BOTH)));
+            roomEventScroll.play();
+        });
     }
 
     private HBox statCard(String title, Label value, String subtitle, String icon, boolean accent) {
@@ -781,6 +841,16 @@ public final class FxClientController implements AutoCloseable {
         previewOverlay.setPickOnBounds(false); previewOverlay.getChildren().setAll(arrows, topOverlay);
         StackPane.setAlignment(topOverlay, Pos.TOP_CENTER); StackPane.setMargin(topOverlay, new Insets(9)); StackPane.setMargin(arrows, new Insets(8));
         roomImage.getChildren().addAll(placeholder, productImage, previewOverlay);
+        Button zoom = new Button("Ph\u00f3ng to", MarketplaceIcons.icon("expand", 15, "#fff3df"));
+        zoom.setId("room-image-zoom"); zoom.getStyleClass().add("room-image-zoom");
+        zoom.visibleProperty().bind(previewOverlay.visibleProperty().not().and(roomImage.hoverProperty().or(zoom.focusedProperty())));
+        zoom.managedProperty().bind(zoom.visibleProperty());
+        zoom.setOnAction(event -> {
+            ClientAuction selected = model.joinedAuction();
+            if (selected != null) { showMediaGallery(selected.getProductId(), selected.getAuctionId(), selected.getProductName()); }
+        });
+        StackPane.setAlignment(zoom, Pos.BOTTOM_RIGHT); StackPane.setMargin(zoom, new Insets(16));
+        roomImage.getChildren().add(zoom);
         roomImage.getStyleClass().addAll("room-image", "market-preview-image");
         javafx.scene.shape.Rectangle crop = new javafx.scene.shape.Rectangle(); crop.widthProperty().bind(roomImage.widthProperty()); crop.heightProperty().bind(roomImage.heightProperty()); crop.setArcWidth(15); crop.setArcHeight(15); roomImage.setClip(crop);
         roomImage.setMinSize(0, 150); roomImage.setPrefHeight(152); roomImage.setMaxHeight(152);
@@ -1119,7 +1189,35 @@ public final class FxClientController implements AutoCloseable {
             }
             password = result.get();
         }
-        joinAuction(selected.getAuctionId(), password);
+        if (phaseMatches(selected, "UPCOMING") && selected.getDepositAmount().signum() > 0) { placeRoomDeposit(selected, password); }
+        else if (phaseMatches(selected, "UPCOMING")) { showInfo("Phòng này sẽ mở lúc " + Times.display(selected.getStartTime()) + "."); }
+        else { joinAuction(selected.getAuctionId(), password); }
+    }
+
+    private boolean placingDeposit;
+    private String depositSession = "";
+    private final java.util.Set<Long> depositedRooms = new java.util.HashSet<>();
+
+    private void placeRoomDeposit(ClientAuction room, String password) {
+        if (placingDeposit || room.isHostedBy(model.getUserId()) || room.getDepositAmount().signum() <= 0) { return; }
+        Alert confirmation = new Alert(Alert.AlertType.CONFIRMATION,
+                "Đặt cọc " + money(room.getDepositAmount()) + " cho phòng #" + room.getAuctionId() + "?\n"
+                        + "Tiền được giữ trong ví, tính vào tiền đấu giá; nếu không thắng sẽ hoàn khi phiên kết thúc/hủy. "
+                        + "Cọc phải hoàn tất trước " + Times.display(room.getStartTime()) + ". Cọc không giữ chỗ trong phòng.",
+                ButtonType.OK, ButtonType.CANCEL);
+        confirmation.setTitle("Xác nhận đặt cọc"); confirmation.setHeaderText(room.getProductName());
+        if (showDialog(confirmation).orElse(ButtonType.CANCEL) != ButtonType.OK) { return; }
+        placingDeposit = true; RoomRequest request = roomRequest(room.getAuctionId()); refreshBidControls();
+        auctions.placeDeposit(room.getAuctionId(), password).whenComplete((response, error) -> Platform.runLater(() -> {
+            placingDeposit = false;
+            if (!current(request, false)) { return; }
+            if (success(response, error)) {
+                depositedRooms.add(room.getAuctionId());
+                appendEvent("Đã đặt cọc " + money(room.getDepositAmount()) + " cho phòng #" + room.getAuctionId() + ". Chờ đến giờ bắt đầu và còn chỗ để vào.");
+                refreshWallet();
+            }
+            refreshBidControls();
+        }));
     }
 
     private Optional<String> roomPassword() {
@@ -1783,7 +1881,8 @@ public final class FxClientController implements AutoCloseable {
             var data = chosen.get();
             auctions.createAuction(
                             data.product().getProductId(), data.startPrice(), data.increment(), data.durationMinutes(),
-                            data.visibility(), data.roomPassword(), data.anonymousGuests(), data.startTime())
+                            data.visibility(), data.roomPassword(), data.anonymousGuests(), data.startTime(),
+                            data.maxParticipants(), data.depositAmount())
                     .whenComplete((created, createError) -> Platform.runLater(() -> {
                         finishCreatingAuction();
                         if (!current(request, false)) { return; }
@@ -1948,6 +2047,14 @@ public final class FxClientController implements AutoCloseable {
             case ROOM_CHAT_MESSAGE -> socialRoom.onMessage(data);
             case ROOM_INTERACTION_CHANGED -> socialRoom.onInteraction(data);
             case CONNECTION_WELCOME -> appendEvent("Đã kết nối vào sàn");
+            case ROOM_OCCUPANCY_CHANGED -> {
+                auctionCards.applyOccupancy(ClientWireParser.longValue(data, "auctionId", 0),
+                        ClientWireParser.integer(data, "watcherCount", -1), ClientWireParser.longValue(data, "occupancyVersion", 0));
+                model.applyOccupancy(ClientWireParser.longValue(data, "auctionId", 0),
+                        ClientWireParser.integer(data, "watcherCount", -1),
+                        ClientWireParser.longValue(data, "occupancyVersion", 0), ClientWireParser.serverNow(data));
+                renderAuctions();
+            }
             case AUCTION_CREATED -> {
                 ClientAuction auction = ClientWireParser.auction(data, "");
                 model.applySnapshot(auction, List.of(), ClientWireParser.serverNow(data), false);
@@ -2190,7 +2297,10 @@ public final class FxClientController implements AutoCloseable {
         detailVisibility.setText((!auction.isOpen() ? "ĐÃ KẾT THÚC" :
                 auction.requiresPassword() ? "PHÒNG RIÊNG TƯ" : "PHÒNG CÔNG KHAI")
                 + (auction.hasAnonymousGuests() ? " \u00b7 KH\u00c1CH \u1ea8N DANH" : ""));
-        detailDescription.setText(auction.getDescription());
+        detailDescription.setText(auction.getWatcherCount() + "/" + auction.getMaxParticipants() + " người đang trong phòng"
+                + (auction.isFull() ? " · Đã đầy" : " · Còn " + (auction.getMaxParticipants() - auction.getWatcherCount()) + " chỗ")
+                + (auction.getDepositAmount().signum() > 0 ? "\nĐặt cọc trước giờ bắt đầu: " + money(auction.getDepositAmount()) : "")
+                + "\n\n" + auction.getDescription());
         updateHostButtons(auction);
         if (!roomMode) {
             ((Label) ((VBox) lobbyTimeRow.getChildren().get(1)).getChildren().get(0)).setText(
@@ -2322,7 +2432,14 @@ public final class FxClientController implements AutoCloseable {
                 && auction.getEndTime() != null && model.serverNow().isBefore(auction.getEndTime())
                 && auction.getStartTime() != null && !model.serverNow().isBefore(auction.getStartTime());
         boolean hosted = auction != null && auction.isHostedBy(model.getUserId());
-        joinButton.setDisable(!available || joined || roomChanging);
+        if (!depositSession.equals(model.getSessionToken())) { depositedRooms.clear(); depositSession = model.getSessionToken(); }
+        boolean upcoming = auction != null && auction.isOpen() && phaseMatches(auction, "UPCOMING");
+        boolean paid = auction != null && depositedRooms.contains(auction.getAuctionId());
+        joinButton.setText(placingDeposit ? "Đang đặt cọc..." : upcoming
+                ? hosted || auction.getDepositAmount().signum() <= 0 ? "Chờ bắt đầu" : paid ? "Đã đặt cọc · Chờ bắt đầu" : "Đặt cọc " + money(auction.getDepositAmount())
+                : auction != null && auction.isFull() && !joined ? "Phòng đã đầy" : "Vào phòng");
+        joinButton.setDisable(joined || roomChanging || placingDeposit || !transport.isConnected()
+                || (upcoming ? hosted || paid || auction.getDepositAmount().signum() <= 0 : !available || auction.isFull()));
         leaveButton.setDisable(model.getJoinedAuctionId() == null || roomChanging || !transport.isConnected());
         if (pageBack != null) { pageBack.setDisable(!accountPageVisible && leaveButton.isDisabled()); }
         boolean leading = auction != null && java.util.Objects.equals(auction.getCurrentWinnerId(), auction.viewerId(model.getUserId()));
@@ -2394,17 +2511,17 @@ public final class FxClientController implements AutoCloseable {
             roomProductIdentity.getChildren().setAll(detailName, detailHost);
             HBox.setHgrow(roomProductIdentity, Priority.ALWAYS);
             roomProductIdentity.setMinWidth(0);
-            HBox productHeading = new HBox(10, roomProductIdentity, productHeader);
-            productHeading.setAlignment(Pos.CENTER_LEFT);
-            roomProductSummary.getChildren().setAll(productHeading, roomImage);
+            roomProductSummary.getChildren().setAll(roomProductIdentity, productHeader, roomImage);
             ClientAuction receiptAuction = model.joinedAuction();
             if (receiptAuction != null && !receiptAuction.isOpen()) {
                 Button receipt = new Button("Xem bi\u00ean nh\u1eadn c\u1ee7a t\u00f4i");
                 receipt.setId("room-personal-receipt"); receipt.setOnAction(event -> showPersonalReceipt(receiptAuction.getAuctionId()));
                 roomProductSummary.getChildren().add(receipt);
             }
-            socialRoom.setAuctionPanels(liveRoom.insights(), new VBox(12, productDescription, managementPane));
-            roomMain.getChildren().setAll(roomProductSummary, socialRoom.auctionContent());
+            socialRoom.setAuctionPanels(liveRoom.insights(), null);
+            roomProductContent.getChildren().setAll(roomProductSummary, roomProductInformation, managementPane);
+            roomMain.getChildren().setAll(roomProductContent, socialRoom.auctionContent());
+            roomProductTab.setSelected(true);
             priceBlock.getChildren().clear();
             GridPane compactPrice = new GridPane(); compactPrice.setHgap(8); compactPrice.setVgap(4);
             javafx.scene.layout.ColumnConstraints priceColumn = new javafx.scene.layout.ColumnConstraints(); priceColumn.setPercentWidth(52);
@@ -2420,13 +2537,22 @@ public final class FxClientController implements AutoCloseable {
             bidding.getStyleClass().setAll("bid-card"); bidding.setPadding(new Insets(12));
             productDetails.getStyleClass().add("room-product");
             roomBidScroll.setContent(bidding);
-            roomSide.getChildren().add(0, roomBidScroll);
-            roomColumns.getChildren().setAll(roomMainScroll, roomSide);
+            roomBidTab.setSelected(true); roomBidScroll.setVvalue(0); roomHistoryScroll.setVvalue(0);
+            HBox mainTabButtons = new HBox(4, roomProductTab, roomActivityTab);
+            mainTabButtons.getStyleClass().addAll("room-side-tabs", "room-main-tabs");
+            mainTabButtons.setMinHeight(Region.USE_PREF_SIZE);
+            VBox mainColumn = new VBox(10, mainTabButtons, roomMainScroll);
+            mainColumn.setMinSize(300, 0); HBox.setHgrow(mainColumn, Priority.ALWAYS);
+            VBox.setVgrow(roomMainScroll, Priority.ALWAYS);
+            roomColumns.getChildren().setAll(mainColumn, roomSide);
             detailPanel.setCenter(roomColumns);
             detailsScroll.setVvalue(0); roomMainScroll.setVvalue(0); roomControlsScroll.setVvalue(0);
         } else {
+            if (roomEventScroll != null) { roomEventScroll.stop(); }
+            roomProductContent.getChildren().clear();
+            if (roomMainScroll.getParent() instanceof VBox mainColumn) { mainColumn.getChildren().clear(); }
             roomMain.getChildren().clear(); socialRoom.setAuctionPanels(null, null);
-            roomColumns.getChildren().clear(); roomSide.getChildren().remove(roomBidScroll);
+            roomColumns.getChildren().clear();
             roomBidScroll.setContent(null);
             bidding.getChildren().remove(priceBlock);
             priceBlock.getChildren().clear();
@@ -2450,6 +2576,7 @@ public final class FxClientController implements AutoCloseable {
         roomFunds.setVisible(joined); roomFunds.setManaged(joined);
         roomConnection.getParent().setVisible(joined); roomConnection.getParent().setManaged(joined);
         if (!joined || auction == null) { return; }
+        roomProductInformation.update(auction);
         pageTitle.setText("Ph\u00f2ng \u0111\u1ea5u gi\u00e1 #" + auction.getAuctionId());
         pageEyebrow.setText(hosted ? "KH\u00d4NG GIAN CH\u1ee6 PH\u00d2NG" : "PHI\u00caN \u0110\u1ea4U GI\u00c1 C\u1ee6A B\u1ea0N");
         BigDecimal minimum = auction.getCurrentPrice().add(auction.getMinBidIncrement());
@@ -2486,7 +2613,7 @@ public final class FxClientController implements AutoCloseable {
     }
 
     private void updateRoomImageSize() {
-        double height = roomMode ? Math.max(150, Math.min(380, roomColumns.getHeight() - 300)) : 152;
+        double height = roomMode ? Math.max(240, Math.min(420, roomColumns.getHeight() * .6)) : 152;
         roomImage.setMinHeight(roomMode ? height : 150);
         roomImage.setMinWidth(0);
         roomImage.setPrefWidth(300);
@@ -2596,6 +2723,7 @@ public final class FxClientController implements AutoCloseable {
         closeAccountPages();
         invalidateRoom(true);
         clock.stop();
+        if (roomEventScroll != null) { roomEventScroll.stop(); }
         clearNotificationCount();
         if (soundUi != null) { soundUi.close(); }
         congratulations.close();
