@@ -11,6 +11,8 @@ import vn.ptit.btl16.client.network.*;
 import vn.ptit.btl16.common.protocol.*;
 import vn.ptit.btl16.common.fx.DesktopTheme;
 import vn.ptit.btl16.common.util.AuctionFees;
+import vn.ptit.btl16.common.util.RevenuePeriod;
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -26,6 +28,28 @@ public final class RevenueRankingUiSelfTest {
             fx(() -> { new AuctionRankingWindow(owner, network, session::get).show(); return null; }); drain();
             Stage board = fx(() -> board());
             fx(() -> {
+                TestSupport.equals(RevenuePeriod.DEFAULT,period(board).getValue(),"ranking opens in one-month view");
+                TestSupport.equals("1m",network.lastPeriod,"default period reaches server");
+                TestSupport.equals(5,period(board).getItems().size(),"all five periods offered");
+                return null;
+            });
+            for (var selected:RevenuePeriod.values()) {
+                fx(() -> { period(board).setValue(selected); return null; }); drain();
+                fx(() -> { TestSupport.equals(selected.code(),network.lastPeriod,"filter sent to API"); TestSupport.check(((Label)board.getScene().lookup("#revenue-ranking-range")).getText().contains("GMT+7"),"actual period range visible"); return null; });
+            }
+            fx(() -> { period(board).setValue(RevenuePeriod.DEFAULT); return null; }); drain();
+            var stale=new CompletableFuture<WireMessage>();
+            WireMessage staleReply=network.reply();
+            fx(() -> {
+                network.pending=stale; ((Button)board.getScene().lookup("#revenue-ranking-refresh")).fire();
+                network.pending=null; network.count=2; period(board).setValue(RevenuePeriod.SEVEN_DAYS); return null;
+            }); drain();
+            stale.complete(staleReply); drain();
+            fx(() -> {
+                TestSupport.check(board.getScene().lookup("#revenue-ranking-3")==null,"late old-period response cannot replace new filter");
+                network.count=10; period(board).setValue(RevenuePeriod.DEFAULT); return null;
+            }); drain();
+            fx(() -> {
                 Scene scene = board.getScene(); scene.getRoot().applyCss(); scene.getRoot().layout();
                 TestSupport.equals(StageStyle.UNDECORATED, board.getStyle(), "ranking uses custom rounded window");
                 TestSupport.equals(10, scene.lookup("#revenue-ranking-rows").lookupAll(".revenue-row").size(), "ten sellers rendered");
@@ -35,7 +59,7 @@ public final class RevenueRankingUiSelfTest {
                 TestSupport.check(scene.lookup("#revenue-ranking-4").getStyleClass().size() == 1, "remaining cards compact");
                 TestSupport.check(((Label) scene.lookup("#revenue-ranking-amount-1")).getText().contains("2.500.000.000,25"), "revenue formats billion and cents exactly");
                 TestSupport.check(scene.lookup("#revenue-ranking-1").lookupAll(".revenue-avatar").stream().anyMatch(n -> ((StackPane)n).getChildren().stream().anyMatch(c -> c instanceof ImageView view && !view.getImage().isError())), "public avatar renders");
-                TestSupport.check(labels(scene.getRoot()).contains("Top 4–5 −2"), "nonoverlapping tax bands shown");
+                TestSupport.check(labels(scene.getRoot()).contains("Top 4–5 −2"), "nonoverlapping fee bands shown");
                 screenshot(scene, "target/revenue-ranking.png");
                 board.setWidth(780); board.setHeight(620); return null;
             }); drain();
@@ -54,11 +78,12 @@ public final class RevenueRankingUiSelfTest {
             fx(() -> { TestSupport.check(labels(board.getScene().getRoot()).contains("Chưa tải được"), "failed request offers retry"); network.failure=false; network.connected=false; ((Button) board.getScene().lookup("#revenue-ranking-refresh")).fire(); TestSupport.check(labels(board.getScene().getRoot()).contains("Mất kết nối"), "disconnect explains stale board"); network.connected=true; ((Button) board.getScene().lookup("#revenue-ranking-refresh")).fire(); return null; }); drain();
             fx(() -> { TestSupport.check(board.getScene().lookup("#revenue-ranking-10") != null, "refresh recovers rows"); network.pending = new CompletableFuture<>(); ((Button) board.getScene().lookup("#revenue-ranking-refresh")).fire(); ((Button) board.getScene().lookup("#revenue-ranking-close")).fire(); network.pending.complete(network.reply()); return null; }); drain();
             fx(() -> { TestSupport.equals(0, board.getScene().lookup("#revenue-ranking-rows").lookupAll(".revenue-row").size(), "late response after close cannot restore private view"); network.pending=null; new AuctionRankingWindow(owner, network, session::get).show(); return null; }); drain();
-            fx(() -> { session.set(false); ((Button) board().getScene().lookup("#revenue-ranking-refresh")).fire(); TestSupport.check(Window.getWindows().stream().noneMatch(w -> w instanceof Stage stage && "Top 10 doanh thu".equals(stage.getTitle()) && stage.isShowing()), "session change closes board"); return null; });
+            fx(() -> { session.set(false); ((Button) board().getScene().lookup("#revenue-ranking-refresh")).fire(); TestSupport.check(Window.getWindows().stream().noneMatch(w -> w instanceof Stage stage && "Top doanh thu".equals(stage.getTitle()) && stage.isShowing()), "session change closes board"); return null; });
             System.out.println("[PASS] RevenueRankingUiSelfTest: gold/silver/bronze, ten seller totals, real avatar, compact sizing, empty/error/disconnect/retry, closed/session invalidation and screenshots");
         } finally { fx(() -> { for (Window window : List.copyOf(Window.getWindows())) { window.hide(); } return null; }); Platform.exit(); }
     }
-    private static Stage board() { return Window.getWindows().stream().filter(w -> w instanceof Stage s && "Top 10 doanh thu".equals(s.getTitle()) && s.isShowing()).map(w -> (Stage)w).findFirst().orElseThrow(); }
+    private static Stage board() { return Window.getWindows().stream().filter(w -> w instanceof Stage s && "Top doanh thu".equals(s.getTitle()) && s.isShowing()).map(w -> (Stage)w).findFirst().orElseThrow(); }
+    @SuppressWarnings("unchecked") private static ComboBox<RevenuePeriod> period(Stage board) { return (ComboBox<RevenuePeriod>)board.getScene().lookup("#revenue-ranking-period"); }
     private static String labels(Node root) { StringBuilder result = new StringBuilder(); if (root instanceof Label label) { result.append(label.getText()); } if (root instanceof Parent parent) { for (Node child : parent.getChildrenUnmodifiable()) { result.append('\n').append(labels(child)); } } return result.toString(); }
     private static <T> T fx(Callable<T> task) throws Exception { FutureTask<T> future = new FutureTask<>(task); Platform.runLater(future); return future.get(15, TimeUnit.SECONDS); }
     private static void drain() throws Exception { fx(() -> null); Thread.sleep(150); fx(() -> null); }
@@ -68,9 +93,10 @@ public final class RevenueRankingUiSelfTest {
         javax.imageio.ImageIO.write(output,"png",new java.io.File(path));
     }
     private static final class Network implements ClientTransport {
-        int count=10; boolean connected=true, failure; CompletableFuture<WireMessage> pending;
+        int count=10; boolean connected=true, failure; CompletableFuture<WireMessage> pending; String lastPeriod="1m";
         WireMessage reply() {
             Map<String,String> data = new HashMap<>(); data.put("success", Boolean.toString(!failure)); data.put("count", Integer.toString(count));
+            Instant at=Instant.now();data.put("periodStart",RevenuePeriod.parse(lastPeriod).startAt(at).toString());data.put("periodEnd",at.toString());data.put("period",lastPeriod);
             String[] names = {"ngocphuoc", "minhanh", "hoangnam", "thanhtruc", "nguyenkhang", "baotran", "quocbao", "tuananh", "linhchi", "haiphong"};
             String[] display = {"Trần Ngọc Phước", "Nguyễn Minh Anh", "Lê Hoàng Nam", "Đỗ Thanh Trúc", "Nguyễn Khang", "Phạm Bảo Trân", "Ngô Quốc Bảo", "Trần Tuấn Anh", "Nguyễn Linh Chi", "Lê Hải Phong"};
             for (int index=0; index<count; index++) {
@@ -81,7 +107,7 @@ public final class RevenueRankingUiSelfTest {
             }
             return WireMessage.response(MessageType.REVENUE_RANKING_RESULT, null, 1, data);
         }
-        public CompletableFuture<WireMessage> sendRequest(MessageType type, Map<String,String> data) { TestSupport.equals(MessageType.GET_REVENUE_RANKING,type,"uses seller revenue API"); return pending==null ? CompletableFuture.completedFuture(reply()) : pending; }
+        public CompletableFuture<WireMessage> sendRequest(MessageType type, Map<String,String> data) { TestSupport.equals(MessageType.GET_REVENUE_RANKING,type,"uses seller revenue API"); lastPeriod=data.getOrDefault("period","1m"); return pending==null ? CompletableFuture.completedFuture(reply()) : pending; }
         public CompletableFuture<Void> connect() { return CompletableFuture.completedFuture(null); }
         public void disconnect() { connected=false; }
         public boolean isConnected() { return connected; }

@@ -5,6 +5,7 @@ import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.beans.property.ReadOnlyObjectWrapper;
 import javafx.geometry.Pos;
+import javafx.scene.Cursor;
 import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.image.Image;
@@ -15,6 +16,7 @@ import javafx.util.StringConverter;
 import javafx.util.Duration;
 import vn.ptit.btl16.client.model.ClientProduct;
 import vn.ptit.btl16.common.fx.DesktopTheme;
+import vn.ptit.btl16.common.protocol.ProductTransactionStatus;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -97,8 +99,10 @@ final class SellerProductsPane extends BorderPane implements AutoCloseable {
         table.getItems().setAll(visible); cards.getChildren().clear();
         for (ClientProduct product : visible) {
             Label name = DesktopTheme.label(product.getName(), "seller-grid-title");
-            HBox cardActions = new HBox(8, badge(product), DesktopTheme.spacer(), actions(product)); cardActions.setAlignment(Pos.CENTER_LEFT);
-            VBox card = new VBox(8, cover(product, 150), name, cardActions); card.getStyleClass().add("seller-grid-card"); card.setOnMouseClicked(event -> table.getSelectionModel().select(product)); cards.getChildren().add(card);
+            HBox cardActions = new HBox(8, badge(product), DesktopTheme.spacer()); cardActions.setAlignment(Pos.CENTER_LEFT);
+            MenuButton more = actions(product); if (more != null) { cardActions.getChildren().add(more); }
+            VBox card = new VBox(8, cover(product, 150), name, cardActions); card.getStyleClass().add("seller-grid-card");
+            card.setOnMouseClicked(event -> { table.getSelectionModel().select(product); if (event.getClickCount() == 2) { media.fire(); } }); cards.getChildren().add(card);
         }
         if (selected != null) { visible.stream().filter(p -> p.getProductId() == selected.getProductId()).findFirst().ifPresent(p -> table.getSelectionModel().select(p)); }
         if (table.getSelectionModel().isEmpty() && !visible.isEmpty()) { table.getSelectionModel().selectFirst(); }
@@ -112,11 +116,14 @@ final class SellerProductsPane extends BorderPane implements AutoCloseable {
         column("Thao tác", 66, 53, this::actions); table.setPlaceholder(DesktopTheme.label("Chưa có sản phẩm bán phù hợp", "account-note"));
     }
     private MenuButton actions(ClientProduct product) {
+        ProductTransactionStatus transactionStatus = product.getTransactionStatus();
+        if (transactionStatus != ProductTransactionStatus.UNTRADED && transactionStatus != ProductTransactionStatus.SOLD) { return null; }
+        List<Button> available = transactionStatus == ProductTransactionStatus.UNTRADED ? List.of(edit, delete) : List.of(delete);
         MenuButton more = new MenuButton(); more.setGraphic(MarketplaceIcons.icon("more", 15, "#8b612d")); more.getStyleClass().addAll("account-button", "account-more"); more.setAccessibleText("Thao tác sản phẩm " + product.getName());
-        for (Button action : List.of(edit, media, delete)) {
+        for (Button action : available) {
             MenuItem item = new MenuItem(action.getText()); item.setOnAction(event -> { table.getSelectionModel().select(product); action.fire(); }); more.getItems().add(item);
         }
-        more.setOnShowing(event -> { table.getSelectionModel().select(product); for (int i = 0; i < 3; i++) { more.getItems().get(i).setDisable(List.of(edit, media, delete).get(i).isDisabled()); } }); return more;
+        more.setOnShowing(event -> { table.getSelectionModel().select(product); for (int index = 0; index < available.size(); index++) { more.getItems().get(index).setDisable(available.get(index).isDisabled()); } }); return more;
     }
     private void column(String title, double width, double min, Function<ClientProduct, Node> graphic) {
         TableColumn<ClientProduct, ClientProduct> column = new TableColumn<>(title); column.setPrefWidth(width); column.setMinWidth(min); column.setSortable(false); column.setReorderable(false);
@@ -138,8 +145,11 @@ final class SellerProductsPane extends BorderPane implements AutoCloseable {
         long token = ++detailGeneration; detail.getChildren().clear(); selectedCount.setText(product == null ? "Chưa chọn sản phẩm" : "✓ Đã chọn 1 sản phẩm");
         if (product == null) { detail.getChildren().add(DesktopTheme.label("Chọn sản phẩm để xem chi tiết.", "account-note")); return; }
         VBox identity = new VBox(5, DesktopTheme.label("Mã sản phẩm", "account-note"), DesktopTheme.label(product.getCode(), "account-section-title"), DesktopTheme.label("Tên sản phẩm", "account-note"), DesktopTheme.label(product.getName(), "account-section-title"), badge(product));
-        identity.setMinWidth(0); HBox.setHgrow(identity, Priority.ALWAYS); HBox productHeader = new HBox(13, cover(product, 106), identity); productHeader.setAlignment(Pos.CENTER_LEFT);
+        Node image = cover(product, 106); image.setId("seller-detail-image"); image.setCursor(Cursor.HAND); image.setOnMouseClicked(event -> media.fire());
+        Tooltip.install(image, new Tooltip("Xem toàn bộ ảnh / video"));
+        identity.setMinWidth(0); HBox.setHgrow(identity, Priority.ALWAYS); HBox productHeader = new HBox(13, image, identity); productHeader.setAlignment(Pos.CENTER_LEFT);
         Label count = text(product.hasImage() ? "Đang tải…" : "Chưa có ảnh"); count.setId("seller-media-count");
+        count.setCursor(Cursor.HAND); count.setOnMouseClicked(event -> media.fire()); count.setTooltip(new Tooltip("Xem toàn bộ ảnh / video"));
         detail.getChildren().addAll(productHeader, new Separator(), field("calendar", "Cập nhật lần cuối", date(product.getUpdatedAt())), field("image", "Ảnh / video", count), field("rules", "Mô tả", product.getDescription().isBlank() ? "Chưa có mô tả" : product.getDescription()), new Separator(),
                 AccountUi.hint("Chỉ được sửa thông tin và ảnh/video trước khi tạo phiên đầu tiên. Tạo phiên sẽ khóa nội dung để giữ nguyên lịch sử."));
         preview(product).whenComplete((value, error) -> Platform.runLater(() -> {

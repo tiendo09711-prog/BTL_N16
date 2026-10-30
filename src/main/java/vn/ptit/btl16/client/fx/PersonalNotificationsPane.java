@@ -83,7 +83,7 @@ public final class PersonalNotificationsPane extends BorderPane {
         BorderPane list = new BorderPane(table, top, null, footer(), null); list.getStyleClass().add("notification-list-card");
         list.setMinWidth(0); HBox.setHgrow(list, Priority.ALWAYS);
         configureDrawer();
-        HBox body = new HBox(0, list, drawer); body.setAlignment(Pos.TOP_LEFT); setCenter(body);
+        HBox body = new HBox(0, list, drawer); body.setAlignment(Pos.TOP_LEFT); setCenter(DesktopTheme.viewport(body));
         next.setId("notifications-next"); previous.setId("notifications-previous");
         next.setAccessibleText("Trang tiếp"); previous.setAccessibleText("Trang trước"); next.setDisable(true); previous.setDisable(true);
         next.setOnAction(event -> {
@@ -330,14 +330,14 @@ public final class PersonalNotificationsPane extends BorderPane {
         transactions.setId("notification-transactions");
         if (paid && data.containsKey("platformFee") && data.containsKey("feeRate") && data.containsKey("sellerNet")) {
             String percent = new BigDecimal(data.get("feeRate")).multiply(BigDecimal.valueOf(100)).stripTrailingZeros().toPlainString();
-            boolean tax = data.containsKey("baseFeeRate");
-            if (tax) {
+            boolean hasFeeBreakdown = data.containsKey("baseFeeRate");
+            if (hasFeeBreakdown) {
                 String base = new BigDecimal(data.get("baseFeeRate")).multiply(BigDecimal.valueOf(100)).stripTrailingZeros().toPlainString();
                 String reduction = new BigDecimal(data.get("feeDiscountRate")).multiply(BigDecimal.valueOf(100)).stripTrailingZeros().toPlainString();
-                transactions.getChildren().add(field("gavel", "Thuế suất ban đầu", base + "%"));
+                transactions.getChildren().add(field("gavel", "Tỷ lệ phí sàn ban đầu", base + "%"));
                 transactions.getChildren().add(field("trophy", "Ưu đãi doanh thu", "0".equals(data.get("revenueRank")) ? "Chưa thuộc Top 10" : "Top " + data.get("revenueRank") + " · Giảm " + reduction + " điểm %"));
             }
-            transactions.getChildren().addAll(field("gavel", (tax ? "Thuế người bán thực trả (" : "Phí sàn do người bán trả (") + percent + "%)", money(data.get("platformFee"))), field("wallet", "Người mua thanh toán", money(data.get("finalPrice"))), field("wallet", "Người bán thực nhận", money(data.get("sellerNet"))));
+            transactions.getChildren().addAll(field("gavel", "Phí sàn do người bán trả (" + percent + "%)", money(data.get("platformFee"))), field("wallet", "Người mua thanh toán", money(data.get("finalPrice"))), field("wallet", "Người bán thực nhận", money(data.get("sellerNet"))));
         }
         HBox transactionTitle = new HBox(7, MarketplaceIcons.icon("receipt", 14, "#875e2d"), DesktopTheme.label("Thông tin giao dịch", "notification-section-title")); transactionTitle.setAlignment(Pos.CENTER_LEFT);
         HBox stats = new HBox(statistic("gavel", "Tổng lượt ra giá", data.get("totalBids")), statistic("users", "Người ra giá", data.get("uniqueBidders")), statistic("clock", "Gia hạn", data.get("extensionCount"))); stats.getStyleClass().add("notification-stats");

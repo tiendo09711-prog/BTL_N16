@@ -12,15 +12,6 @@ public final class WalletSchema {
         try (Connection connection = factory.openDatabase(); Statement statement = connection.createStatement()) {
             column(connection, statement, "users", "wallet_balance", "DECIMAL(18,2) NOT NULL DEFAULT 0");
             column(connection, statement, "users", "wallet_reserved", "DECIMAL(18,2) NOT NULL DEFAULT 0");
-            column(connection, statement, "users", "vault_balance", "DECIMAL(18,2) NOT NULL DEFAULT 0");
-            statement.executeUpdate("""
-                    CREATE TABLE IF NOT EXISTS wallet_vaults (
-                        user_id BIGINT PRIMARY KEY, pin_salt VARCHAR(64) NOT NULL,
-                        pin_hash VARCHAR(128) NOT NULL, pin_iterations INT NOT NULL,
-                        failed_attempts INT NOT NULL DEFAULT 0, locked_until DATETIME(3) NULL,
-                        FOREIGN KEY(user_id) REFERENCES users(user_id)
-                    ) ENGINE=InnoDB
-                    """);
             column(connection, statement, "auctions", "wallet_required", "BOOLEAN NOT NULL DEFAULT FALSE");
             statement.executeUpdate("""
                     CREATE TABLE IF NOT EXISTS wallet_topups (
@@ -59,7 +50,6 @@ public final class WalletSchema {
                         INDEX idx_wallet_entries_user(user_id, entry_id)
                     ) ENGINE=InnoDB
                     """);
-            column(connection, statement, "wallet_entries", "vault_after", "DECIMAL(18,2) NOT NULL DEFAULT 0");
             statement.executeUpdate("""
                     CREATE TABLE IF NOT EXISTS wallet_settlements (
                         auction_id BIGINT PRIMARY KEY, buyer_id BIGINT NOT NULL, seller_id BIGINT NOT NULL,
@@ -75,6 +65,8 @@ public final class WalletSchema {
             column(connection, statement, "wallet_settlements", "revenue_rank", "INT NOT NULL DEFAULT 0");
             statement.executeUpdate("CREATE TABLE IF NOT EXISTS revenue_settlement_lock (lock_id INT PRIMARY KEY) ENGINE=InnoDB");
             statement.executeUpdate("INSERT INTO revenue_settlement_lock(lock_id) VALUES(1) ON DUPLICATE KEY UPDATE lock_id=1");
+            PlatformCashFlowRepository.initialize(connection);
+            WalletStorageMigration.apply(connection);
         } catch (SQLException exception) { throw new IllegalStateException("Cannot upgrade wallet schema", exception); }
     }
 

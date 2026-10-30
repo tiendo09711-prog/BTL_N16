@@ -31,6 +31,14 @@ InnoDB + utf8mb4; schema đầy đủ trong sql/00_schema.sql và server/db/Data
 
 ## Transaction cần giải thích
 
+### Ví và nâng cấp dữ liệu
+
+- Luồng tiền hiện tại: nạp mô phỏng → giữ chỗ khi đặt giá → thanh toán mua/bán → rút mô phỏng sau khi Server duyệt. Khả dụng = `wallet_balance - wallet_reserved`.
+- Schema ví do `WalletSchema.initialize` quản lý: `wallet_topups`, `wallet_withdrawals`, `wallet_holds`, `wallet_entries`, `wallet_settlements` và khóa đối soát doanh thu. Tài khoản chỉ còn `wallet_balance` và `wallet_reserved`.
+- Khi nâng cấp bản cũ, dừng Server cũ và sao lưu database trước khi chạy `DatabaseSetupMain` hoặc khởi động Server mới. `WalletStorageMigration` tự gom số dư cất riêng trước đây về ví đúng chủ sở hữu, giữ nguyên tiền giữ chỗ và các yêu cầu nạp/rút.
+- Migration chuẩn hóa số dư sau giao dịch về một ví duy nhất, xóa lịch sử chuyển nội bộ của tính năng đã bỏ, xóa bảng PIN và các cột số dư cũ. Cập nhật dữ liệu có transaction; nếu lỗi hoặc vượt giới hạn số dư thì rollback, không bỏ mất tiền. Bước xóa schema có thể tiếp tục sau gián đoạn mà không cộng tiền lần hai.
+- `WalletStorageMigrationSelfTest` kiểm tra schema mới/cũ, hoàn tiền, lịch sử, giữ chỗ, rollback, giới hạn số dư, chạy lại và rút tiền sau nâng cấp; thêm `--mysql` để chạy trên database MySQL/MariaDB thử riêng, không sửa `btl_16`.
+
 **Login:** last_login và login_history được ghi trong cùng transaction.
 
 **Bid:** lấy khóa auction → kiểm tra membership đúng connection/user, block, không phải host/người dẫn đầu, OPEN/đúng thời gian, amount ≥ currentPrice + minBidIncrement → SELECT ... FOR UPDATE → đối chiếu giá/trạng thái/quyền/giới hạn → INSERT bid + UPDATE price/winner/endTime/version → COMMIT → cập nhật RAM → broadcast. Lỗi SQL hoặc runtime ROLLBACK; conflict yêu cầu snapshot mới. Bid đầu cũng cần startPrice + minBidIncrement.
@@ -44,6 +52,15 @@ InnoDB + utf8mb4; schema đầy đủ trong sql/00_schema.sql và server/db/Data
 Chi tiết nghiệp vụ và giới hạn vận hành một server/database: [bộ luật hiện hành](LUAT_DAU_GIA_BTL16.md).
 
 **Archive:** sau retention mặc định 120 giây, ẩn phòng khỏi runtime/list/dashboard và dọn RoomManager; không DELETE lịch sử auctions/bids/results.
+
+## Dòng tiền và xếp hạng doanh thu
+
+- `platform_fee_entries` là sổ thu phí riêng của sàn; mỗi `auction_id` chỉ có một bản ghi, lưu `sale_amount`, `fee_amount`, `seller_net`, `fee_rate` và `collected_at`. Ràng buộc khóa chính ngăn thu trùng.
+- Bản ghi thu phí nằm trong cùng transaction với trừ ví người mua, cộng ví người bán, `wallet_settlements`, kết quả và biên nhận. Ghi sổ lỗi thì tất cả cùng rollback. Giá chốt bằng tiền người bán nhận cộng phí sàn.
+- Khi nâng cấp, Server chỉ sao chép khoản phí hợp lệ đã lưu của các settlement `PAID` chưa có sổ thu phí. Không tính lại tỷ lệ cũ, không thay đổi số dư, không thu lại. Phiên `REVIEW_REQUIRED` không được ghi nhận là đã thu.
+- Top doanh thu JOIN settlement `PAID`, kiểm tra giá chốt khớp, loại `anonymous_guests` và lọc `ended_at` theo kỳ `1y`, `6m`, `3m`, `1m`, `7d`. Mặc định `1m`; dùng tháng lịch tính lùi theo `Asia/Ho_Chi_Minh`, không quy đổi mỗi tháng thành 30 ngày.
+- Ưu đãi phí sàn luôn lấy Top 1 tháng ngay trước khi chốt. Khóa `revenue_settlement_lock` giữ qua snapshot hạng, thanh toán, biên nhận và commit, để các phiên chốt đồng thời thấy kết quả đã commit trước đó.
+- Trang dòng tiền chỉ truy cập qua ứng dụng Server, không mở API cho Client đọc sổ thu phí. Sổ lưu mã nội bộ phục vụ đối soát; giao diện che danh tính người mua và người bán của phòng ẩn danh. Biên nhận của người mua ẩn danh không trả về thứ hạng, mức giảm hoặc chi tiết phí riêng của người bán để tránh suy ra danh tính qua bảng xếp hạng. Sản phẩm mua từ phòng ẩn danh cũng che mã và tên người bán khi trả về Client; dữ liệu sở hữu gốc trong DB vẫn giữ nguyên.
 
 ## Kiểm tra DB mới
 

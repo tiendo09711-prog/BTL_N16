@@ -193,7 +193,7 @@ public final class ClientAuction {
     public String getImageMime() { return imageMime; }
     public long getImageVersion() { return imageVersion; }
     public boolean hasAnonymousGuests() { return anonymousGuests; }
-    public long viewerId(long actualUserId) { return anonymousGuests && !isHostedBy(actualUserId) ? selfParticipantId : actualUserId; }
+    public long viewerId(long actualUserId) { return anonymousGuests ? selfParticipantId : actualUserId; }
     public boolean isOpen() { return "OPEN".equals(status); }
-    public boolean isHostedBy(long userId) { return hostUserId == userId; }
+    public boolean isHostedBy(long userId) { return userId>0 && (hostUserId == userId || (anonymousGuests && selfParticipantId!=0 && hostUserId==selfParticipantId)); }
 }

@@ -338,7 +338,8 @@
 .market-sidebar .market-account { -fx-border-color: #b9954d38; -fx-border-radius: 9; -fx-padding: 10 8; -fx-spacing: 9; -fx-background-color: #15120e30; -fx-background-radius: 9; }
 .market-sidebar .market-account-name { -fx-font-size: 11px; -fx-font-weight: bold; -fx-text-fill: #fff6e7; }
 .market-sidebar .market-account-balance { -fx-font-size: 8px; -fx-text-fill: #c1b7a7; }
-.market-sidebar .market-account-avatar { -fx-background-color: linear-gradient(to bottom right, #d5b06c, #846331); -fx-background-radius: 20; -fx-min-width: 31; -fx-min-height: 31; -fx-alignment: center; -fx-text-fill: #fff7e7; -fx-font-size: 17px; }
+.market-sidebar .button.market-account-avatar { -fx-background-color: linear-gradient(to bottom right, #d5b06c, #846331); -fx-background-radius: 20; -fx-border-radius: 20; -fx-min-width: 31; -fx-pref-width: 31; -fx-max-width: 31; -fx-min-height: 31; -fx-pref-height: 31; -fx-max-height: 31; -fx-padding: 0; -fx-alignment: center; -fx-text-fill: #fff7e7; -fx-font-size: 17px; }
+.market-sidebar .button.market-account-avatar:hover, .market-sidebar .button.market-account-avatar:focused { -fx-background-color: linear-gradient(to bottom right, #e4c17f, #98753b); -fx-border-color: #efd296; }
 .market-sidebar .sound-settings { -fx-font-size: 9px; -fx-padding: 6 8; -fx-min-height: 30; -fx-background-radius: 7; }
 .market-topbar { -fx-min-height: 38; -fx-pref-height: 38; -fx-max-height: 38; -fx-padding: 0 2; }
 .market-topbar .eyebrow { -fx-font-size: 9px; -fx-font-weight: normal; -fx-text-fill: #8f7b64; }
@@ -587,6 +588,7 @@
 /* Personal wallet, products, profile and rules share the reference ivory/gold style. */
 .account-page { -fx-background-color: #fbf7f0; -fx-font-size: 11px; }
 .account-modal { -fx-border-color: #e4d6c3; -fx-border-radius: 14; -fx-background-radius: 14; }
+.desktop-viewport, .desktop-viewport > .viewport { -fx-background-color: transparent; -fx-padding: 0; }
 /* The creation form and its review share one draft and one modal surface. */
 .dialog-pane.auction-creation-dialog { -fx-padding: 0; -fx-background-color: #fbf8f1; -fx-background-radius: 14; -fx-border-color: #e7d8be; -fx-border-radius: 14; -fx-font-size: 11px; }
 .auction-creation-dialog > .content { -fx-padding: 0; }
@@ -606,7 +608,7 @@
 .auction-creation-dialog .button.auction-create-close { -fx-background-color: transparent; -fx-padding: 5; -fx-min-width: 26; -fx-min-height: 26; -fx-max-width: 26; -fx-max-height: 26; }
 .auction-creation-dialog .button.auction-create-close:hover { -fx-background-color: #e6d2b5; }
 .auction-create-scroll, .auction-create-scroll > .viewport { -fx-background-color: transparent; -fx-padding: 0; }
-.auction-create-scroll .scroll-bar:vertical { -fx-pref-width: 5; -fx-background-color: transparent; }
+.auction-create-scroll .scroll-bar:vertical { -fx-pref-width: 10; -fx-background-color: transparent; }
 .auction-create-scroll .scroll-bar .increment-button, .auction-create-scroll .scroll-bar .decrement-button { -fx-padding: 0; }
 .auction-create-scroll .scroll-bar .increment-arrow, .auction-create-scroll .scroll-bar .decrement-arrow { -fx-padding: 0; -fx-shape: ""; }
 .auction-create-body { -fx-padding: 10 13 3 13; }
@@ -676,8 +678,6 @@
 .wallet-qr-frame { -fx-border-color: #e7cfaa; -fx-border-radius: 10; -fx-background-color: #fffdfa; -fx-background-radius: 10; -fx-padding: 10; }
 .wallet-qr-frame .account-section-title { -fx-font-size: 12px; -fx-font-weight: normal; -fx-text-fill: #8c7964; }
 .wallet-filters { -fx-padding: 0 0 2 0; }
-.vault-pane { -fx-background-color: #fbf7ef; -fx-background-radius: 12; }
-.vault-value { -fx-font-size: 26px; -fx-font-weight: bold; -fx-text-fill: #825b23; }
 .transactions-page .account-table { -fx-background-color: #fffdfa; }
 .wallet-page .tab-pane > .tab-header-area { -fx-padding: 0 0 7 0; }
 .wallet-page .tab-pane > .tab-header-area > .tab-header-background { -fx-background-color: transparent; }
@@ -827,9 +827,9 @@
 .rules-prohibited { -fx-background-color: linear-gradient(to bottom right, #fff4f0, #fcebe7); -fx-border-color: #f4ded6; }
 .rules-prohibited .rules-section-title { -fx-text-fill: #b03328; }
 .rules-prohibited .rules-bullet { -fx-background-color: #a52e25; }
-.rules-tax-details { -fx-font-size: 10px; -fx-text-fill: #8a612d; }
-.rules-tax-details > .title { -fx-background-color: #f3e7d3; -fx-padding: 7; -fx-background-radius: 5; }
-.rules-tax-details > .content { -fx-background-color: #fdf8ee; -fx-border-color: #eee0c9; -fx-padding: 9; }
+.rules-fee-details { -fx-font-size: 10px; -fx-text-fill: #8a612d; }
+.rules-fee-details > .title { -fx-background-color: #f3e7d3; -fx-padding: 7; -fx-background-radius: 5; }
+.rules-fee-details > .content { -fx-background-color: #fdf8ee; -fx-border-color: #eee0c9; -fx-padding: 9; }
 
 .dialog-pane.eligibility-dialog { -fx-background-color: transparent; -fx-padding: 14; }
 .eligibility-dialog > .content { -fx-padding: 0; }
@@ -873,7 +873,7 @@
 .revenue-avatar { -fx-background-color: linear-gradient(to bottom right, #f2dbad, #bd914f); -fx-border-color: #f9ebd3; -fx-border-width: 2; -fx-border-radius: 8; -fx-background-radius: 8; }
 .revenue-initial { -fx-font-size: 33px; -fx-font-weight: bold; -fx-text-fill: #fff7e3; }
 .revenue-footer { -fx-padding: 10 23 13 23; -fx-border-color: #ecddc3 transparent transparent transparent; }
-.revenue-tax-note { -fx-font-size: 10px; -fx-text-fill: #715238; -fx-font-weight: bold; }
+.revenue-fee-note { -fx-font-size: 10px; -fx-text-fill: #715238; -fx-font-weight: bold; }
 .revenue-benefits { -fx-font-size: 10px; -fx-text-fill: #a06b29; }
 .revenue-footnote { -fx-font-size: 8px; -fx-text-fill: #9a8772; }
 .revenue-empty { -fx-padding: 65 30; -fx-alignment: center; -fx-text-fill: #907454; -fx-font-size: 13px; -fx-line-spacing: 6; }

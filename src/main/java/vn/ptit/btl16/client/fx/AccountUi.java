@@ -58,7 +58,7 @@ final class AccountUi {
     }
     static void window(Stage stage, Region root, double width, double height) {
         root.getStyleClass().addAll("account-page", "account-modal"); stage.initStyle(StageStyle.UNDECORATED);
-        Scene scene = new Scene(root, width, height); DesktopTheme.apply(scene); stage.setScene(scene);
+        Scene scene = new Scene(DesktopTheme.viewport(root), width, height); DesktopTheme.apply(scene); stage.setScene(scene);
         scene.setOnKeyPressed(event -> { if (event.getCode() == javafx.scene.input.KeyCode.ESCAPE) { stage.close(); } });
         stage.addEventHandler(javafx.stage.WindowEvent.WINDOW_SHOWN, event -> dimOwner(stage));
     }

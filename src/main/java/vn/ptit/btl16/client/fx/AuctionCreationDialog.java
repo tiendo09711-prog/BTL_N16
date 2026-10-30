@@ -49,7 +49,7 @@ final class AuctionCreationDialog extends Dialog<AuctionCreationDialog.Draft> {
     private final VBox editor = new VBox(9);
     private final ScrollPane scroll = new ScrollPane();
     private final ButtonType next = new ButtonType("Tạo phòng", ButtonBar.ButtonData.OK_DONE);
-    private final ButtonType cancel = new ButtonType("Hủy", ButtonBar.ButtonData.CANCEL_CLOSE);
+    private final ButtonType cancel = new ButtonType("Quay lại", ButtonBar.ButtonData.CANCEL_CLOSE);
     private final ButtonType confirm = new ButtonType("Xác nhận", ButtonBar.ButtonData.OK_DONE);
     private final ButtonType back = new ButtonType("Quay lại", ButtonBar.ButtonData.CANCEL_CLOSE);
     private Draft draft;
@@ -66,7 +66,19 @@ final class AuctionCreationDialog extends Dialog<AuctionCreationDialog.Draft> {
         schedule = new AuctionSchedulePane(now.get()); schedule.getStyleClass().add("auction-create-schedule");
         product.setId("auction-create-product"); product.getItems().setAll(products); product.getSelectionModel().selectFirst();
         product.setMaxWidth(Double.MAX_VALUE);
-        identity.setId("auction-create-identity"); identity.getItems().setAll("Khách thường", "Khách ẩn danh"); identity.getSelectionModel().selectFirst();
+        identity.setId("auction-create-identity"); identity.getItems().setAll("Phòng thường", "Phòng ẩn danh"); identity.getSelectionModel().selectFirst();
+        identity.valueProperty().addListener((observable,before,after) -> {
+            if (identity.getSelectionModel().getSelectedIndex()!=1) { return; }
+            ButtonType yes=new ButtonType("Có",ButtonBar.ButtonData.YES), no=new ButtonType("Không",ButtonBar.ButtonData.CANCEL_CLOSE);
+            Alert confirmation=new Alert(Alert.AlertType.CONFIRMATION,
+                    "Nếu mở phòng ẩn danh thì mọi thông tin người bán, người mua đều ẩn, giá trị phòng sẽ không được tính vào top doanh thu",yes,no);
+            confirmation.setTitle("Xác nhận mở phòng ẩn danh"); confirmation.setHeaderText("Mở phòng ẩn danh?");
+            confirmation.getDialogPane().setId("auction-anonymous-confirmation");
+            DesktopTheme.dialog(confirmation,getDialogPane().getScene()==null ? owner : getDialogPane().getScene().getWindow());
+            ((Button)confirmation.getDialogPane().lookupButton(yes)).setDefaultButton(false);
+            ((Button)confirmation.getDialogPane().lookupButton(no)).setDefaultButton(true);
+            if (confirmation.showAndWait().orElse(no)!=yes) { identity.getSelectionModel().selectFirst(); }
+        });
         ToggleGroup visibility = new ToggleGroup(); publicRoom.setToggleGroup(visibility); privateRoom.setToggleGroup(visibility); publicRoom.setSelected(true);
         privateRoom.setId("auction-create-private"); publicRoom.setId("auction-create-public");
         password.setId("auction-create-password"); repeatedPassword.setId("auction-create-password-confirm");
@@ -79,13 +91,16 @@ final class AuctionCreationDialog extends Dialog<AuctionCreationDialog.Draft> {
                 field("clock", "Thời lượng (phút)", unit(duration, "phút")), field("calendar", "Thời gian bắt đầu", schedule));
         VBox privacy = section("Quyền riêng tư phòng", "Chọn chế độ hiển thị và thiết lập mật khẩu cho phòng riêng tư", "shield",
                 field("users", "Loại phòng", roomTypes), field("lock", "Mật khẩu", password), field("lock", "Xác nhận", repeatedPassword));
-        HBox privacyNote = note("Ẩn danh: chỉ hiện Khách #1, #2…; avatar trống và không xem hồ sơ. Không thể đổi chế độ sau khi tạo.");
+        HBox privacyNote = note("Phòng ẩn danh che danh tính người bán và người mua; không xem hồ sơ và không tính vào Top doanh thu. Vẫn thanh toán và thu phí sàn bình thường. Không thể đổi chế độ sau khi tạo.");
         privacyNote.getStyleClass().add("auction-create-privacy-note");
         editor.getChildren().setAll(section("Thông tin sản phẩm", "Chọn sản phẩm sẽ được đấu giá trong phòng", "box", field("box", "Sản phẩm", product)),
-                settings, privacy, section("Cài đặt khác", "Thiết lập danh tính khách tham gia đấu giá", "users", field("profile", "Danh tính khách", identity), privacyNote), error);
+                settings, privacy, section("Cài đặt khác", "Thiết lập danh tính người bán và người mua", "users", field("profile", "Danh tính phòng", identity), privacyNote));
         editor.getStyleClass().add("auction-create-body");
+        editor.setMinHeight(Region.USE_PREF_SIZE);
         error.setId("auction-create-error"); error.setVisible(false); error.setManaged(false);
-        scroll.setFitToWidth(true); scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER); scroll.setMinHeight(0);
+        error.setMinHeight(Region.USE_PREF_SIZE); error.setMaxWidth(Double.MAX_VALUE);
+        content.setBottom(error); BorderPane.setMargin(error, new Insets(0, 13, 3, 13));
+        scroll.setId("auction-create-scroll"); scroll.setFitToWidth(true); scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER); scroll.setMinSize(0, 0);
         scroll.getStyleClass().add("auction-create-scroll");
         content.setCenter(scroll); content.setMinHeight(0);
         var pane = getDialogPane(); pane.setId("auction-creation-dialog"); pane.getStyleClass().add("auction-creation-dialog");
@@ -106,10 +121,10 @@ final class AuctionCreationDialog extends Dialog<AuctionCreationDialog.Draft> {
 
     private void edit() {
         reviewing = false; setTitle("Tạo phòng đấu giá");
-        content.setTop(header(false)); scroll.setContent(editor);
+        content.setTop(header(false)); scroll.setContent(editor); scroll.setVvalue(0);
         getDialogPane().getButtonTypes().setAll(next, cancel);
         styleButton(next, "auction-create-next", "plus", true);
-        styleButton(cancel, "auction-create-cancel", null, false);
+        styleButton(cancel, "auction-create-cancel", "left", false);
         getDialogPane().lookupButton(next).addEventFilter(ActionEvent.ACTION, event -> {
             event.consume();
             try { draft = values(); error.setVisible(false); error.setManaged(false); review(); }
@@ -128,8 +143,9 @@ final class AuctionCreationDialog extends Dialog<AuctionCreationDialog.Draft> {
                 summary("play", "Bắt đầu", draft.startTime() == null ? "Ngay sau khi tạo" : Times.display(draft.startTime())),
                 summary("clock", "Thời lượng", draft.durationMinutes() + " phút"),
                 summary("users", "Loại phòng", draft.visibility().equals("PRIVATE") ? "Riêng tư" : "Công khai"),
-                summary("shield", "Danh tính", draft.anonymousGuests() ? "Khách ẩn danh" : "Tài khoản thường"));
+                summary("shield", "Danh tính", draft.anonymousGuests() ? "Người bán và người mua ẩn danh" : "Tài khoản thường"));
         VBox body = new VBox(11, rows, note("Không thể đổi sản phẩm, loại phòng và danh tính sau khi tạo."));
+        if (draft.anonymousGuests()) { body.getChildren().add(note("Đã xác nhận phòng ẩn danh: che danh tính hai bên và không cộng doanh thu xếp hạng.")); }
         if (draft.startTime() != null) {
             body.getChildren().add(label("Phòng nằm trong mục Sắp diễn ra đến giờ bắt đầu. Dự kiến kết thúc: "
                     + Times.display(draft.startTime().plusSeconds(draft.durationMinutes() * 60L)), "auction-create-note"));
@@ -139,7 +155,7 @@ final class AuctionCreationDialog extends Dialog<AuctionCreationDialog.Draft> {
         content.setTop(header(true)); scroll.setContent(body); scroll.setVvalue(0);
         getDialogPane().getButtonTypes().setAll(confirm, back);
         styleButton(confirm, "auction-create-confirm", "check", true);
-        styleButton(back, "auction-create-back", null, false);
+        styleButton(back, "auction-create-back", "left", false);
         getDialogPane().lookupButton(back).addEventFilter(ActionEvent.ACTION, event -> { event.consume(); edit(); });
         getDialogPane().lookupButton(confirm).addEventFilter(ActionEvent.ACTION, event -> {
             try { draft = values(); }
@@ -169,7 +185,7 @@ final class AuctionCreationDialog extends Dialog<AuctionCreationDialog.Draft> {
     }
 
     private void showError(String message) {
-        error.setText(message); error.setVisible(true); error.setManaged(true); scroll.setVvalue(1);
+        error.setText(message); error.setVisible(true); error.setManaged(true);
     }
 
     private StackPane header(boolean review) {
@@ -217,7 +233,7 @@ final class AuctionCreationDialog extends Dialog<AuctionCreationDialog.Draft> {
     private void styleButton(ButtonType type, String id, String icon, boolean gold) {
         Button button = (Button) getDialogPane().lookupButton(type); button.setId(id);
         button.getStyleClass().add(gold ? "auction-create-gold" : "auction-create-secondary");
-        if (icon != null) { button.setGraphic(MarketplaceIcons.icon(icon, 16, "#fffaf1")); }
+        if (icon != null) { button.setGraphic(MarketplaceIcons.icon(icon, 16, gold ? "#fffaf1" : "#805525")); }
     }
 
     private void resize() {

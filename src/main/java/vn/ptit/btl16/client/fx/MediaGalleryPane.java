@@ -3,6 +3,7 @@ package vn.ptit.btl16.client.fx;
 import com.fasterxml.jackson.databind.JsonNode;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
+import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.image.Image;
@@ -103,6 +104,11 @@ public final class MediaGalleryPane extends BorderPane implements AutoCloseable 
 
     public static void show(Window owner, ProductMediaApi api, long productId, long auctionId, String title) {
         Stage stage = new Stage(); stage.initOwner(owner); stage.setTitle(title); MediaGalleryPane pane = new MediaGalleryPane(api);
+        Button back = AccountUi.button("Quay l\u1ea1i", "left"); back.setId("media-gallery-back"); back.setOnAction(event -> stage.close());
+        Node tools = pane.getTop(), canvas = pane.getCenter(), strip = pane.getBottom();
+        pane.setTop(null); pane.setCenter(null); pane.setBottom(null);
+        BorderPane content = new BorderPane(canvas, tools, null, strip, null);
+        pane.setCenter(DesktopTheme.viewport(content)); pane.setTop(back);
         Scene scene = new Scene(pane, 1020, 730); DesktopTheme.apply(scene);
         stage.setScene(scene); stage.setMinWidth(720); stage.setMinHeight(500); stage.setOnHidden(event -> pane.close());
         Runnable load = () -> {

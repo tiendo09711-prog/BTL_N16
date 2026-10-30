@@ -71,6 +71,7 @@ public final class LiveAuctionRoom {
     public void onProfile(java.util.function.LongConsumer action) { onProfile = action; }
 
     public LiveAuctionRoom() {
+        insights.setMinWidth(0);
         heading.setAlignment(Pos.CENTER_LEFT);
         heading.setMaxWidth(Double.MAX_VALUE);
         VBox identity = new VBox(4, status, statusDetail);
@@ -110,6 +111,7 @@ public final class LiveAuctionRoom {
         chart.setLegendVisible(false);
         chart.setVerticalGridLinesVisible(false);
         chart.setMinHeight(145);
+        chart.setMinWidth(0);
         chart.setPrefHeight(165);
         chart.setMaxHeight(185);
         chart.getStyleClass().add("room-price-chart");

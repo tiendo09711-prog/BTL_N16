@@ -87,7 +87,7 @@ public final class ProductMediaEditor {
         Button descriptionTemplate = button("Mẫu mô tả", () -> {
             if (!description.getText().isBlank()) {
                 Alert confirm = new Alert(Alert.AlertType.CONFIRMATION, "Thay mô tả hiện tại bằng mẫu?", ButtonType.OK, ButtonType.CANCEL);
-                confirm.initOwner(stage); if (confirm.showAndWait().orElse(ButtonType.CANCEL) != ButtonType.OK) { return; }
+                DesktopTheme.dialog(confirm, stage); if (confirm.showAndWait().orElse(ButtonType.CANCEL) != ButtonType.OK) { return; }
             }
             description.setText("Đặc điểm: \nTình trạng: \nPhụ kiện kèm theo: \nKhiếm khuyết/lưu ý: ");
         });
@@ -102,14 +102,17 @@ public final class ProductMediaEditor {
                 new FlowPane(6, 6, remove, replace, cover, left, right));
         information.setPadding(new Insets(18)); information.setPrefWidth(340);
         ScrollPane form = new ScrollPane(information); form.setFitToWidth(true); form.setMinWidth(300);
-        form.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        form.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER); form.setMinHeight(0);
         VBox gallery = new VBox(10, preview, editTools); VBox.setVgrow(preview, Priority.ALWAYS); gallery.setPadding(new Insets(8));
-        SplitPane split = new SplitPane(form, gallery); split.setDividerPositions(0.32);
+        ScrollPane galleryScroll = DesktopTheme.viewport(gallery); galleryScroll.setId("product-editor-preview-scroll");
+        SplitPane split = new SplitPane(form, galleryScroll); split.setDividerPositions(0.32); split.setMinHeight(0);
         validation.setWrapText(true); validation.setMaxWidth(Double.MAX_VALUE); validation.getStyleClass().add("validation-hint");
         message.setWrapText(true); message.setMaxWidth(Double.MAX_VALUE); message.getStyleClass().add("error-text");
         message.managedProperty().bind(message.textProperty().isNotEmpty()); message.visibleProperty().bind(message.managedProperty());
         VBox feedback = new VBox(4, validation, message); HBox.setHgrow(feedback, Priority.ALWAYS);
-        Button cancel = button("H\u1ee7y", stage::close);
+        Button cancel = button("Quay l\u1ea1i", stage::close); cancel.setId("product-editor-back");
+        cancel.setGraphic(MarketplaceIcons.icon("left", 14, "#805525"));
+        save.setId("product-editor-save");
         HBox actions = new HBox(12, feedback, cancel, save); actions.setAlignment(Pos.CENTER_LEFT);
         actions.getStyleClass().add("editor-footer"); cancel.setMinWidth(65); save.setMinWidth(145);
         VBox heading = new VBox(5, DesktopTheme.label(product == null ? "\u0110\u0103ng s\u1ea3n ph\u1ea9m" : "Ch\u1ec9nh s\u1eeda s\u1ea3n ph\u1ea9m", "section-title"),

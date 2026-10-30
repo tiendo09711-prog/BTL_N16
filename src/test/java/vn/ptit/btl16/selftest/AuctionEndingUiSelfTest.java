@@ -65,7 +65,7 @@ public final class AuctionEndingUiSelfTest {
                 ((Button) scene.lookup("#product-ranking-navigation")).fire(); return null;
             }); drain();
             fx(() -> {
-                Stage ranking = Window.getWindows().stream().filter(window -> window instanceof Stage stage && "Top 10 doanh thu".equals(stage.getTitle())).map(window -> (Stage) window).findFirst().orElseThrow();
+                Stage ranking = Window.getWindows().stream().filter(window -> window instanceof Stage stage && "Top doanh thu".equals(stage.getTitle())).map(window -> (Stage) window).findFirst().orElseThrow();
                 TestSupport.check(ranking.getScene().lookup("#revenue-ranking-1") != null, "ranking navigation loads seller revenue row");
                 TestSupport.check(ranking.getScene().getRoot().lookupAll(".ranking-price").stream().anyMatch(node -> ((Label) node).getText().contains("1.500.000")), "ranking formats exact price");
                 ranking.close(); return null;

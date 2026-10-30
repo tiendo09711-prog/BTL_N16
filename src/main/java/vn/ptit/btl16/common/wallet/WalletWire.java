@@ -10,7 +10,6 @@ public final class WalletWire {
         Map<String, String> data = new LinkedHashMap<>();
         data.put("userId", Long.toString(wallet.userId())); data.put("balance", wallet.balance().toPlainString());
         data.put("reserved", wallet.reserved().toPlainString()); data.put("available", wallet.available().toPlainString());
-        data.put("vaultBalance", wallet.vaultBalance().toPlainString());
         data.put("requestCount", Integer.toString(requests.size())); data.put("entryCount", Integer.toString(entries.size()));
         for (int index = 0; index < requests.size(); index++) {
             TopUpRequest request = requests.get(index); String prefix = "request." + index + ".";
@@ -25,7 +24,6 @@ public final class WalletWire {
             data.put(prefix + "amount", entry.amount().toPlainString()); data.put(prefix + "reservedDelta", entry.reservedDelta().toPlainString());
             data.put(prefix + "balanceAfter", entry.balanceAfter().toPlainString()); data.put(prefix + "reservedAfter", entry.reservedAfter().toPlainString());
             data.put(prefix + "reference", entry.reference()); data.put(prefix + "createdAt", entry.createdAt().toString());
-            data.put(prefix + "vaultAfter", entry.vaultAfter().toPlainString());
         }
         return data;
     }
@@ -66,7 +64,7 @@ public final class WalletWire {
             String prefix = "entry." + index + ".";
             values.add(new WalletEntry(Long.parseLong(data.get(prefix + "id")), data.get(prefix + "type"), new BigDecimal(data.get(prefix + "amount")),
                     new BigDecimal(data.get(prefix + "reservedDelta")), new BigDecimal(data.get(prefix + "balanceAfter")),
-                    new BigDecimal(data.get(prefix + "reservedAfter")), data.get(prefix + "reference"), Instant.parse(data.get(prefix + "createdAt")), new BigDecimal(data.getOrDefault(prefix + "vaultAfter", "0"))));
+                    new BigDecimal(data.get(prefix + "reservedAfter")), data.get(prefix + "reference"), Instant.parse(data.get(prefix + "createdAt"))));
         }
         return values;
     }

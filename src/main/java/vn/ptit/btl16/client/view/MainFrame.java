@@ -40,8 +40,8 @@ public final class MainFrame extends JFrame {
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLayout(new BorderLayout());
 
-        cards.add(loginPanel, LOGIN_CARD);
-        cards.add(auctionPanel, AUCTION_CARD);
+        cards.add(new javax.swing.JScrollPane(loginPanel), LOGIN_CARD);
+        cards.add(new javax.swing.JScrollPane(auctionPanel), AUCTION_CARD);
         add(cards, BorderLayout.CENTER);
 
         JPanel status = new JPanel(new BorderLayout(8, 0));
@@ -51,7 +51,10 @@ public final class MainFrame extends JFrame {
         status.add(latencyLabel, BorderLayout.EAST);
         add(status, BorderLayout.SOUTH);
 
-        setSize(1220, 760);
+        java.awt.Rectangle bounds = getGraphicsConfiguration().getBounds();
+        java.awt.Insets insets = java.awt.Toolkit.getDefaultToolkit().getScreenInsets(getGraphicsConfiguration());
+        setSize(Math.min(1220, bounds.width - insets.left - insets.right - 24),
+                Math.min(760, bounds.height - insets.top - insets.bottom - 24));
         setLocationRelativeTo(null);
         showLogin();
     }

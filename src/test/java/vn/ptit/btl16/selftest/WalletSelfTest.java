@@ -113,12 +113,12 @@ public final class WalletSelfTest {
                     TestSupport.equals(ProductTransactionStatus.SOLD, sellerCatalog.stream().filter(product -> product.getProductId() == acquiredProduct).findFirst().orElseThrow().getTransactionStatus(), "seller still sees sold status");
                     error(ErrorCode.AUCTION_FORBIDDEN, buyer.deleteProduct(acquiredProduct));
                     error(ErrorCode.AUCTION_FORBIDDEN, buyer.createAuction(acquiredProduct, decimal("100"), decimal("10"), 1));
-                    money("678.00", wallets.account(sellerId).balance(), "first sale taxed ten percent, next sale gets rank one reduction");
+                    money("678.00", wallets.account(sellerId).balance(), "first sale pays ten percent platform fee, next sale gets rank one reduction");
                     money("400", wallets.account(firstId).balance(), "first buyer charged once"); money("880", wallets.account(secondId).balance(), "second buyer charged once");
                     money("0", wallets.account(firstId).reserved(), "purchase releases its reservation");
                     int entriesBefore = wallets.entries(sellerId).size(); close(repository, room);
                     TestSupport.equals(entriesBefore, wallets.entries(sellerId).size(), "repeated close never settles twice");
-                    money("42.00", fees(config), "platform taxes with rank reduction are stored durably");
+                    money("42.00", fees(config), "platform fees with rank reduction are stored durably");
                     money("2000", wallets.accounts().stream().map(value -> value.balance()).reduce(BigDecimal.ZERO, BigDecimal::add).add(fees(config)), "wallets plus platform fees conserve all money");
                     long privateProduct = Long.parseLong(ok(TestMedia.create(host, "PRIVATE_WALLET", "Private room", TestMedia.DESCRIPTION)).get("productId"));
                     long privateRoom = Long.parseLong(ok(host.createAuction(privateProduct, decimal("1"), decimal("0.01"), 1, "PRIVATE", "secret", true)).get("auctionId"));

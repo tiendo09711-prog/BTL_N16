@@ -17,11 +17,13 @@ import java.util.UUID;
 
 public final class WalletRepository {
     private final JdbcConnectionFactory factory;
-    private static final String ACCOUNT = "SELECT user_id, username, display_name, email, phone, created_at, last_login_at, wallet_balance, wallet_reserved, vault_balance FROM users";
+    private static final String ACCOUNT = "SELECT user_id, username, display_name, email, phone, created_at, last_login_at, wallet_balance, wallet_reserved FROM users";
     private static final String TOPUPS = "SELECT t.*, u.username FROM wallet_topups t JOIN users u ON u.user_id = t.user_id";
     private static final String WITHDRAWALS = "SELECT w.*, u.username FROM wallet_withdrawals w JOIN users u ON u.user_id = w.user_id";
     public WalletRepository(JdbcConnectionFactory factory) { this.factory = factory; }
-    public VaultRepository vault() { return new VaultRepository(factory); }
+    public PlatformCashFlowRepository.Snapshot cashFlow(vn.ptit.btl16.common.util.RevenuePeriod period, long before) {
+        return new PlatformCashFlowRepository(factory).snapshot(period, before);
+    }
 
     public List<WalletAccount> accounts() {
         try (Connection connection = factory.openDatabase(); var query = connection.prepareStatement(ACCOUNT + " ORDER BY user_id")) {
@@ -76,7 +78,7 @@ public final class WalletRepository {
             try (var rows = query.executeQuery()) {
                 while (rows.next()) { result.add(new WalletEntry(rows.getLong("entry_id"), rows.getString("entry_type"), rows.getBigDecimal("amount"),
                         rows.getBigDecimal("reserved_delta"), rows.getBigDecimal("balance_after"), rows.getBigDecimal("reserved_after"),
-                        rows.getString("reference_key"), rows.getTimestamp("created_at").toInstant(), rows.getBigDecimal("vault_after"))); }
+                        rows.getString("reference_key"), rows.getTimestamp("created_at").toInstant())); }
             }
             return result;
         } catch (SQLException exception) { throw failure(exception); }
@@ -92,7 +94,7 @@ public final class WalletRepository {
 
     public Map<String, String> entryPage(long userId, Long room, String type, Instant from, Instant to, long before, int limit, boolean hideReservations, boolean hideLegacyReview) {
         if (before <= 0 || limit < 1 || limit > 100 || (room != null && room <= 0)
-                || (!type.isEmpty() && !java.util.Set.of("TOPUP", "WITHDRAWAL", "VAULT_DEPOSIT", "VAULT_WITHDRAWAL", "RESERVE", "RELEASE", "PURCHASE", "SALE", "LEGACY_REVIEW").contains(type))
+                || (!type.isEmpty() && !java.util.Set.of("TOPUP", "WITHDRAWAL", "RESERVE", "RELEASE", "PURCHASE", "SALE", "LEGACY_REVIEW").contains(type))
                 || (from != null && to != null && !from.isBefore(to))) {
             throw new AuctionException(ErrorCode.VALIDATION_ERROR, "Bộ lọc giao dịch không hợp lệ");
         }
@@ -117,7 +119,7 @@ public final class WalletRepository {
             try (var rows = query.executeQuery()) {
                 while (rows.next()) { values.add(new WalletEntry(rows.getLong("entry_id"), rows.getString("entry_type"), rows.getBigDecimal("amount"),
                         rows.getBigDecimal("reserved_delta"), rows.getBigDecimal("balance_after"), rows.getBigDecimal("reserved_after"),
-                        rows.getString("reference_key"), rows.getTimestamp("created_at").toInstant(), rows.getBigDecimal("vault_after"))); }
+                        rows.getString("reference_key"), rows.getTimestamp("created_at").toInstant())); }
             }
             boolean more = values.size() > limit;
             if (more) { values.remove(values.size() - 1); }
@@ -298,7 +300,7 @@ public final class WalletRepository {
         Timestamp last = rows.getTimestamp("last_login_at");
         return new WalletAccount(rows.getLong("user_id"), rows.getString("username"), rows.getString("display_name"),
                 rows.getString("email"), rows.getString("phone"), rows.getTimestamp("created_at").toInstant(), last == null ? null : last.toInstant(),
-                rows.getBigDecimal("wallet_balance"), rows.getBigDecimal("wallet_reserved"), rows.getBigDecimal("vault_balance"));
+                rows.getBigDecimal("wallet_balance"), rows.getBigDecimal("wallet_reserved"));
     }
     private TopUpRequest topup(ResultSet rows) throws SQLException {
         Timestamp reviewed = rows.getTimestamp("reviewed_at");

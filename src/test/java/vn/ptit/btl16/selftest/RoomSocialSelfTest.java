@@ -69,7 +69,9 @@ public final class RoomSocialSelfTest {
                 long anonymous = create(hostAuctions, "SOCIAL_ANON", true, true);
                 failure(bobSocial.social(anonymous), "ROOM_ACCESS_DENIED", "private chat denied");
                 failure(bobSocial.profile(anonymous, 2), "ROOM_ACCESS_DENIED", "private profile denied");
-                success(hostAuctions.join(anonymous), "host anonymous join");
+                var hostJoined=success(hostAuctions.join(anonymous), "host anonymous join");
+                var hostView=ClientWireParser.auction(hostJoined.getWireMessage().getData(),"");
+                TestSupport.check(hostView.getHostUserId()<0 && hostView.isHostedBy(1),"anonymous host keeps controls with masked identity");
                 ApiResponse joined = success(aliceAuctions.join(anonymous, "room-secret"), "anonymous join");
                 TestSupport.equals("true", joined.get("anonymousGuests"), "mode persisted in snapshot");
                 long alias = Long.parseLong(joined.get("selfParticipantId")); TestSupport.check(alias < 0, "negative room-local public id");
@@ -147,8 +149,9 @@ public final class RoomSocialSelfTest {
             String value = entry.getValue();
             TestSupport.check(!value.toLowerCase(Locale.ROOT).contains("alice") && !value.toLowerCase(Locale.ROOT).contains("bob")
                     && !value.contains("@local.test") && !entry.getKey().endsWith("avatarBase64"), "anonymous packet leaks identity: " + entry);
-            if (entry.getKey().matches(".*(currentWinnerId|previousWinnerId|winnerId|userId|participantId)$") && !value.isBlank()) {
-                TestSupport.check(Long.parseLong(value) < 0 || value.equals("1"), "guest actual id leaked: " + entry);
+            if (entry.getKey().endsWith("hostUsername")) { TestSupport.equals("Chủ phòng",value,"anonymous seller name hidden"); }
+            if (entry.getKey().matches(".*(hostUserId|currentWinnerId|previousWinnerId|winnerId|userId|participantId)$") && !value.isBlank()) {
+                TestSupport.check(Long.parseLong(value) < 0, "actual identity leaked: " + entry);
             }
         }
     }

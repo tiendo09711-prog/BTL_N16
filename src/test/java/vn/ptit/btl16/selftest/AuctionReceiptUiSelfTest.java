@@ -26,7 +26,7 @@ public final class AuctionReceiptUiSelfTest {
             TestSupport.equals("B\u1ea1n \u0111\u00e3 th\u1eafng", fx(() -> ((Label) pane.lookup("#receipt-personal-result")).getText()), "confirmed personal winner rendered");
             TestSupport.check(fx(() -> ((Label) pane.lookup("#receipt-winner")).getText()).contains("Kh\u00e1ch #7"), "anonymous winner stays alias");
             TestSupport.check(fx(() -> ((Label) pane.lookup("#receipt-wallet")).getText()).contains("sổ giao dịch"), "payment source explicitly shown");
-            TestSupport.check(fx(() -> labels(pane)).contains("Phí sàn (3%): 37.037,04"), "receipt displays exact seller fee");
+            TestSupport.check(fx(() -> labels(pane)).contains("Phí sàn thực thu (3%): 37.037,04"), "receipt displays exact seller fee");
             TestSupport.check(fx(() -> labels(pane)).contains("Người bán thực nhận: 1.197.530,85"), "receipt displays net proceeds");
             TestSupport.check(paneLookup(pane, "#receipt-ledger-link") == null && paneLookup(pane, "#receipt-ledger") == null, "receipt no longer includes wallet transaction controls");
             fx(() -> {
@@ -91,11 +91,11 @@ public final class AuctionReceiptUiSelfTest {
             session.set(true);
             var reopened = fx(() -> new AuctionReceiptsPane(null, network, session::get));
             fx(() -> { reopened.show(12); return null; });
-            var taxed = receipt(12, "WINNER", "WON", "PAID"); taxed.putAll(Map.of("baseFeeRate", "0.10", "feeDiscountRate", "0.05", "revenueRank", "1", "feeRate", "0.05", "platformFee", "61728.39", "sellerNet", "1172839.50"));
-            network.complete(MessageType.GET_PERSONAL_RECEIPT, taxed); drain();
+            var withFee = receipt(12, "WINNER", "WON", "PAID"); withFee.putAll(Map.of("baseFeeRate", "0.10", "feeDiscountRate", "0.05", "revenueRank", "1", "feeRate", "0.05", "platformFee", "61728.39", "sellerNet", "1172839.50"));
+            network.complete(MessageType.GET_PERSONAL_RECEIPT, withFee); drain();
             TestSupport.check(fx(() -> labels(reopened)).contains("B\u1ea1n \u0111\u00e3 th\u1eafng"), "fresh window restores server receipt without room runtime");
             TestSupport.check(fx(() -> labels(reopened)).contains("Top 1 · Giảm 5 điểm %"), "receipt explains frozen revenue discount");
-            TestSupport.check(fx(() -> labels(reopened)).contains("Thuế thực thu (5%): 61.728,39"), "new receipt displays effective tax separately from historical fees");
+            TestSupport.check(fx(() -> labels(reopened)).contains("Phí sàn thực thu (5%): 61.728,39"), "new receipt displays effective platform fee");
             fx(() -> { ((Stage) reopened.getScene().getWindow()).close(); return null; });
             System.out.println("[PASS] AuctionReceiptUiSelfTest: confirmed-only results, four personal roles, no-bid/cancel/reconciliation, detail drawer, offline/denial/retry, stale response/session guards, reopen and screenshot");
         } finally { Platform.exit(); }

@@ -113,7 +113,7 @@ public final class AuctionReceiptsPane extends BorderPane implements AutoCloseab
         sessionGuard.setCycleCount(Timeline.INDEFINITE);
         if (stage != null) {
             stage.setOnHidden(event -> close());
-            Scene scene = new Scene(this, 1120, 800); DesktopTheme.apply(scene); stage.setScene(scene); stage.setMinWidth(920); stage.setMinHeight(560);
+            Scene scene = new Scene(DesktopTheme.viewport(this), 1120, 800); DesktopTheme.apply(scene); stage.setScene(scene); stage.setMinWidth(920); stage.setMinHeight(560);
         }
     }
     private Node hero() {
@@ -297,17 +297,17 @@ public final class AuctionReceiptsPane extends BorderPane implements AutoCloseab
         payment.setId("receipt-platform-fee");
         if (data.containsKey("platformFee") && "PAID".equals(data.get("walletStatus"))) {
             String percent = new BigDecimal(data.get("feeRate")).multiply(new BigDecimal("100")).stripTrailingZeros().toPlainString();
-            boolean tax = data.containsKey("baseFeeRate");
-            if (tax) {
+            boolean hasFeeBreakdown = data.containsKey("baseFeeRate");
+            if (hasFeeBreakdown) {
                 String base = new BigDecimal(data.get("baseFeeRate")).multiply(BigDecimal.valueOf(100)).stripTrailingZeros().toPlainString();
                 String reduction = new BigDecimal(data.get("feeDiscountRate")).multiply(BigDecimal.valueOf(100)).stripTrailingZeros().toPlainString();
-                payment.getChildren().add(field("Thuế suất ban đầu:", new Label(base + "%")));
+                payment.getChildren().add(field("Tỷ lệ phí sàn ban đầu:", new Label(base + "%")));
                 payment.getChildren().add(field("Ưu đãi doanh thu:", new Label("0".equals(data.get("revenueRank")) ? "Chưa thuộc Top 10" : "Top " + data.get("revenueRank") + " · Giảm " + reduction + " điểm %")));
             }
-            payment.getChildren().addAll(field((tax ? "Thuế thực thu (" : "Phí sàn (") + percent + "%):", new Label(money(data.get("platformFee")))),
+            payment.getChildren().addAll(field("Phí sàn thực thu (" + percent + "%):", new Label(money(data.get("platformFee")))),
                     field("Người mua thanh toán:", new Label(money(data.get("finalPrice")))),
                     field("Người bán thực nhận:", new Label(money(data.get("sellerNet")))));
-            payment.setAccessibleText("Thuế và phí được trừ vào tiền người bán.");
+            payment.setAccessibleText("Phí sàn được trừ vào tiền người bán.");
         }
         payment.setVisible(!payment.getChildren().isEmpty()); payment.setManaged(payment.isVisible());
         result.getChildren().add(payment);

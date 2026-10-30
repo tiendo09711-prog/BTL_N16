@@ -1,4 +1,16 @@
-# VERIFICATION - Kết quả mới nhất: 18/10/2026
+# VERIFICATION - Kết quả mới nhất: 30/10/2026
+
+## Gỡ két sắt, giữ nạp/rút mô phỏng - 30/10/2026
+
+- Gỡ giao diện két, thống kê số dư két, bộ lọc/cột giao dịch két, API Client, Controller/Repository Server, trường model/wire, message/error code và CSS liên quan. Không còn class chức năng két trong bản biên dịch sạch hoặc JAR đã kiểm tra.
+- Schema mới không tạo dữ liệu két. `WalletStorageMigration` chỉ phục vụ xóa cấu trúc cũ: hoàn tiền về ví đúng chủ sở hữu, chuẩn hóa số dư lịch sử, xóa giao dịch chuyển nội bộ, bảng PIN và hai cột cũ. Cập nhật dữ liệu có rollback; chạy lại hoặc tiếp tục sau gián đoạn DDL không cộng tiền hai lần. Tên kỹ thuật cũ chỉ còn trong migration xóa và fixture kiểm thử migration.
+- Đã áp dụng lên MySQL/XAMPP `btl_16`: bảng/cột/giao dịch két đều **0**; không còn index, constraint, trigger, routine hoặc view liên quan. Kiểm tra lại sau khi Server khởi động vẫn không tái tạo cấu trúc két.
+- Giữ nguyên **5 tài khoản**, tổng số dư **1.471.100.000,00 đồng**, giữ chỗ **0,00 đồng**, **25 dòng giao dịch không thuộc két** và **1 yêu cầu rút PENDING**. Không reset database hoặc xóa dữ liệu đấu giá.
+- Sao lưu trước nâng cấp: `C:\Users\tiend\AppData\Local\BTL16\backups\btl_16-before-wallet-cleanup-20261030-151040.sql` (nằm ngoài source và database đang chạy).
+- PASS build sạch ban đầu; `WalletSelfTest`, `WithdrawalSelfTest`, migration trên H2 và MySQL/MariaDB; kiểm tra hoàn tiền, chuẩn hóa lịch sử/phân trang, giữ chỗ, rollback, vượt giới hạn, tiếp tục DDL và rút tiền sau nâng cấp. PASS `WalletUiSelfTest`, `AccountScreensUiSelfTest`, `CompletionUiSelfTest` trên dữ liệu thử riêng.
+- Bộ kiểm thử rộng `node tools/run-tests.mjs --ui --mysql --skip-build` đạt **25/29 nhóm**, bằng chứng tại `target/qa/results.json`. Bốn nhóm chưa PASS: `BidExperienceUiSelfTest` (yêu cầu JOIN), `LiveAuctionRoomUiSelfTest` (bố cục phòng), `AuctionButtonsUiSelfTest` (ép kiểu bố cục tạo phiên), `MysqlStorageSelfTest` (số dư kỳ vọng). Không sửa các phần ngoài phạm vi gỡ két.
+- Sau khi tiếp tục với thay đổi song song được người dùng xác nhận, giữ nguyên phần doanh thu/dòng tiền và các chỉnh sửa của phiên khác. Lần build kiểm tra lại gặp `illegal forward reference` tại `ServerCashFlowWindow.java:33`; chưa thể tuyên bố build chung hoặc toàn bộ kiểm thử trên source cuối cùng đều PASS. Cần chạy lại sau khi phiên kia hoàn tất.
+- Hướng dẫn Ví và luật đấu giá đã bỏ mô tả tính năng két; tài liệu Word và manifest được xuất lại bằng `tools/export-auction-rules.py`.
 
 ## Kiểm tra lại toàn bộ dist sau khi tiếp tục context - 18/10/2026
 

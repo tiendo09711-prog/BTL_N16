@@ -27,6 +27,7 @@ public final class AuctionQueryService {
 
     public java.util.Map<String, String> topProducts() { return repository.topProducts(); }
     public java.util.Map<String, String> topSellers() { return repository.topSellers(); }
+    public java.util.Map<String, String> topSellers(vn.ptit.btl16.common.util.RevenuePeriod period) { return repository.topSellers(period); }
 
     /** Each current participant, valid bid and recorded join contributes one point; leaves add none. */
     public java.util.Map<String, String> featured(long userId, RoomManager rooms, java.time.Instant now) {

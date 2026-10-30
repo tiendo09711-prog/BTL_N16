@@ -164,7 +164,11 @@ public final class AuctionReceiptStore {
             query.setLong(1, user); query.setLong(2, room);
             try (var rows = query.executeQuery()) {
                 if (!rows.next()) { throw new AuctionException(ErrorCode.AUCTION_FORBIDDEN, "Không có biên nhận cá nhân đã chốt cho phiên này"); }
-                var result = summary(rows); wallet(connection, user, room, result); return result;
+                var result = summary(rows); wallet(connection, user, room, result);
+                if ("true".equals(result.get("anonymousGuests")) && !"HOST".equals(result.get("personalRole"))) {
+                    for (String key:List.of("platformFee","feeRate","sellerNet","baseFeeRate","feeDiscountRate","revenueRank")) { result.remove(key); }
+                }
+                return result;
             }
         } catch (SQLException exception) { throw new AuctionRepositoryException("Cannot read personal receipt", exception); }
     }

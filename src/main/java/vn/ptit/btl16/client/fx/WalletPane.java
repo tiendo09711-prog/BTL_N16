@@ -35,9 +35,7 @@ public final class WalletPane extends BorderPane implements AutoCloseable {
     private final Stage stage = new Stage();
     private final Label balance = DesktopTheme.label("0 \u20ab", "stat-value");
     private final Label available = DesktopTheme.label("0 \u20ab", "stat-value");
-    private final Label vaultBalance = DesktopTheme.label("0 ₫", "stat-value");
     private final TabPane moneyActions = new TabPane();
-    private final VaultPane vaultPane;
     private final Label message = DesktopTheme.label("", "muted");
     private final Label qrHint = DesktopTheme.label("Ch\u1ecdn s\u1ed1 ti\u1ec1n v\u00e0 b\u1ea5m Hi\u1ec7n QR demo.", "muted");
     private final TextField amount = new TextField("100000");
@@ -63,16 +61,13 @@ public final class WalletPane extends BorderPane implements AutoCloseable {
     }
     public WalletPane(Window owner, WalletApi api, long userId, String username, BooleanSupplier sameSession, boolean embedded) {
         this.api = api; this.userId = userId; this.username = username; this.sameSession = sameSession; this.embedded = embedded;
-        vaultPane = new VaultPane(api, userId, sameSession, this::refresh);
         stage.initOwner(owner); stage.initModality(Modality.WINDOW_MODAL); stage.setTitle("Ví của " + username);
         getStyleClass().addAll("account-page", "wallet-page"); setId("account-wallet");
         HBox stats = new HBox(12, stat("Số dư", balance, "Tổng số tiền trong ví của bạn", "coins"),
-                stat("Khả dụng", available, "Có thể dùng để tham gia đấu giá", "wallet"),
-                stat("Trong két", vaultBalance, "Tiền cất riêng, không dùng để đặt giá", "shield"));
-        vaultBalance.setId("wallet-vault-balance");
+                stat("Khả dụng", available, "Có thể dùng để đấu giá hoặc rút tiền mô phỏng", "wallet"));
         Button retry = AccountUi.button("Làm mới / Thử lại", "refresh"); retry.setId("wallet-refresh"); retry.getStyleClass().add("account-gold-soft");
         retry.setOnAction(event -> refresh());
-        Label explanation = DesktopTheme.label("Số dư khả dụng dùng để đấu giá hoặc chuyển vào két. Xem lịch sử cộng/trừ tiền tại mục Giao dịch.", "account-note");
+        Label explanation = DesktopTheme.label("Số dư khả dụng dùng để đấu giá hoặc rút tiền mô phỏng. Xem lịch sử cộng/trừ tiền tại mục Giao dịch.", "account-note");
         HBox refreshRow = new HBox(16, retry, explanation); refreshRow.setAlignment(javafx.geometry.Pos.CENTER_LEFT); HBox.setHgrow(explanation, Priority.ALWAYS);
         VBox heading = new VBox(12, AccountUi.banner("Ví của " + username, "MÔ PHỎNG HỌC TẬP - KHÔNG CHUYỂN TIỀN THẬT", "Quản lý số dư\nTham gia đấu giá dễ dàng"), stats, refreshRow);
         heading.getStyleClass().add("wallet-heading"); setTop(heading);
@@ -111,13 +106,10 @@ public final class WalletPane extends BorderPane implements AutoCloseable {
         HBox depositContent = new HBox(14, deposit, requestsCard); HBox.setHgrow(requestsCard, Priority.ALWAYS);
         HBox withdrawalContent = new HBox(14, withdrawalCard, withdrawalsCard); HBox.setHgrow(withdrawalsCard, Priority.ALWAYS);
         withdrawalCard.setMinWidth(290); withdrawalCard.setPrefWidth(300); withdrawalCard.setMaxWidth(310);
-        Tab depositTab = new Tab("Nạp tiền", depositContent), withdrawalTab = new Tab("Rút tiền", withdrawalContent), vaultTab = new Tab("Két sắt", vaultPane);
-        for (Tab tab : java.util.List.of(depositTab, withdrawalTab, vaultTab)) { tab.setClosable(false); }
-        withdrawalTab.setId("wallet-withdrawal-tab"); vaultTab.setId("wallet-vault-tab"); moneyActions.setId("wallet-money-actions");
-        moneyActions.getTabs().setAll(depositTab, withdrawalTab, vaultTab);
-        moneyActions.getSelectionModel().selectedIndexProperty().addListener((observable, before, now) -> {
-            if (now.intValue() == 2 && active()) { vaultPane.start(); } else { vaultPane.close(); }
-        });
+        Tab depositTab = new Tab("Nạp tiền", depositContent), withdrawalTab = new Tab("Rút tiền", withdrawalContent);
+        for (Tab tab : java.util.List.of(depositTab, withdrawalTab)) { tab.setClosable(false); }
+        withdrawalTab.setId("wallet-withdrawal-tab"); moneyActions.setId("wallet-money-actions");
+        moneyActions.getTabs().setAll(depositTab, withdrawalTab);
         VBox content = new VBox(moneyActions); VBox.setVgrow(moneyActions, Priority.ALWAYS); content.getStyleClass().add("wallet-content"); content.setMinHeight(490);
         ScrollPane scroll = new ScrollPane(content); scroll.setFitToWidth(true); scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER); scroll.setId("wallet-body-scroll");
         content.minHeightProperty().bind(javafx.beans.binding.Bindings.max(490, scroll.heightProperty().subtract(3))); setCenter(scroll);
@@ -126,7 +118,7 @@ public final class WalletPane extends BorderPane implements AutoCloseable {
         amount.textProperty().addListener((observable, before, now) -> { if (!pending && !submitting) { requestId = null; requestedAmount = null; qr.setImage(null); confirm.setDisable(true); } });
         generate.setOnAction(event -> generate()); confirm.setOnAction(event -> submit());
         if (!embedded) {
-            Scene scene = new Scene(this, 1100, 800); DesktopTheme.apply(scene); stage.setScene(scene); stage.setMinWidth(850); stage.setMinHeight(520); stage.setOnHidden(event -> close());
+            Scene scene = new Scene(DesktopTheme.viewport(this), 1100, 800); DesktopTheme.apply(scene); stage.setScene(scene); stage.setMinWidth(850); stage.setMinHeight(520); stage.setOnHidden(event -> close());
         }
         poll.setCycleCount(Timeline.INDEFINITE);
     }
@@ -177,9 +169,9 @@ public final class WalletPane extends BorderPane implements AutoCloseable {
         return embedded ? embeddedActive && getScene() != null : stage.isShowing();
     }
     @Override public void close() {
-        embeddedActive = false; poll.stop(); vaultPane.close(); walletGeneration++; requests.getItems().clear(); withdrawals.getItems().clear(); qr.setImage(null);
+        embeddedActive = false; poll.stop(); walletGeneration++; requests.getItems().clear(); withdrawals.getItems().clear(); qr.setImage(null);
         availableFunds = null; withdrawalRequestId = null; withdrawalRequestedAmount = null;
-        requestId = null; requestedAmount = null; balance.setText("—"); available.setText("—"); vaultBalance.setText("—");
+        requestId = null; requestedAmount = null; balance.setText("—"); available.setText("—");
     }
     private void generate() {
         if (!active() || pending || submitting || withdrawing) { return; }
@@ -222,7 +214,6 @@ public final class WalletPane extends BorderPane implements AutoCloseable {
         if (!Long.toString(userId).equals(response.get("userId"))) { stage.close(); return; }
         balance.setText(WalletUi.money(new BigDecimal(response.get("balance"))));
         available.setText(WalletUi.money(new BigDecimal(response.get("available"))));
-        vaultBalance.setText(WalletUi.money(new BigDecimal(response.getWireMessage().getData().getOrDefault("vaultBalance", "0"))));
         availableFunds = new BigDecimal(response.get("available"));
         var data = response.getWireMessage().getData(); var values = WalletWire.requests(data);
         var withdrawalValues = WalletWire.withdrawals(data); withdrawals.getItems().setAll(withdrawalValues);

@@ -67,6 +67,7 @@ import vn.ptit.btl16.client.service.ProductMediaApi;
 import vn.ptit.btl16.client.service.WalletApi;
 import vn.ptit.btl16.common.config.ClientConfig;
 import vn.ptit.btl16.common.protocol.MessageType;
+import vn.ptit.btl16.common.protocol.ProductTransactionStatus;
 import vn.ptit.btl16.common.protocol.WireMessage;
 
 import java.math.BigDecimal;
@@ -118,6 +119,9 @@ public final class FxClientController implements AutoCloseable {
 
     private final Label userLabel = new Label("Tài khoản");
     private VBox accountPageHost, auctionWorkspace;
+    private ScrollPane accountPageScroll;
+    private Button pageBack;
+    private boolean accountPageVisible;
     private Label accountBreadcrumb;
     private Button marketplaceNavigation, walletNavigation, transactionsNavigation, receiptsNavigation, productsNavigation, rulesNavigation;
     private WalletPane embeddedWallet;
@@ -190,7 +194,7 @@ public final class FxClientController implements AutoCloseable {
     private final Label bidFeedback = DesktopTheme.label("", "bid-feedback");
     private final Label roomConnection = DesktopTheme.label("", "bid-hint");
     private final Label roomFunds = DesktopTheme.label("", "bid-hint");
-    private final Label roomFeeHint = DesktopTheme.label("Thuế người bán: đến 1 tỷ 10%, trên 1 tỷ 15%; Top doanh thu giảm 1–5 điểm %.", "bid-hint");
+    private final Label roomFeeHint = DesktopTheme.label("Phí sàn người bán: đến 1 tỷ 10%, trên 1 tỷ 15%; Top doanh thu 1 tháng giảm 1–5 điểm %.", "bid-hint");
     private final Label hostLockReason = DesktopTheme.label("", "muted");
     private final Button syncRoomButton = new Button("\u0110\u1ed3ng b\u1ed9 l\u1ea1i");
     private long roomGeneration, roomWalletRequest;
@@ -294,7 +298,7 @@ public final class FxClientController implements AutoCloseable {
         stage.setTitle("Auction • Sàn đấu giá");
         stage.getIcons().add(DesktopTheme.icon());
         stage.setMinWidth(1100);
-        stage.setMinHeight(720);
+        stage.setMinHeight(480);
         stage.setScene(loginScene);
         DesktopTheme.fitOnScreen(stage, 1120, 780);
         stage.heightProperty().addListener((observable, before, now) -> updateRoomImageSize());
@@ -367,17 +371,18 @@ public final class FxClientController implements AutoCloseable {
         connectButton.setOnAction(event -> connect(true));
         endpointField.setOnAction(event -> connect(true));
         passwordField.setOnAction(event -> login());
-        return root;
+        root.setMinHeight(Region.USE_PREF_SIZE);
+        ScrollPane scroll = DesktopTheme.viewport(root); scroll.setId("client-login-scroll");
+        return scroll;
     }
 
     private Region buildMainRoot() {
-        Button profileButton = navButton("Tài khoản", "profile");
         Button productsButton = navButton("Sản phẩm bán", "box"); productsButton.setId("account-products-navigation"); productsNavigation = productsButton;
         Button walletButton = navButton("Ví & nạp/rút tiền", "wallet"); walletButton.setId("account-wallet-navigation"); walletNavigation = walletButton;
         Button transactionsButton = navButton("Giao dịch", "exchange"); transactionsButton.setId("account-transactions-navigation"); transactionsNavigation = transactionsButton;
         transactionsButton.setOnAction(event -> showTransactions());
         Button rulesButton = navButton("Luật đấu giá", "rules"); rulesNavigation = rulesButton;
-        Button rankingButton = navButton("Top 10 doanh thu", "trophy");
+        Button rankingButton = navButton("Top doanh thu", "trophy");
         rankingButton.setId("product-ranking-navigation"); rankingButton.setMaxWidth(Double.MAX_VALUE);
         rankingButton.setOnAction(event -> {
             long user = model.getUserId(); String token = model.getSessionToken();
@@ -397,20 +402,24 @@ public final class FxClientController implements AutoCloseable {
         VBox sidebar = new VBox(14, DesktopTheme.brand("LIVE"));
         sidebar.getStyleClass().addAll("sidebar", "market-sidebar");
         sidebar.setMinWidth(192); sidebar.setPrefWidth(192); sidebar.setMaxWidth(192);
-        for (Button navigation : List.of(marketplace, productsButton, walletButton, transactionsButton, profileButton, rulesButton)) {
+        for (Button navigation : List.of(marketplace, productsButton, walletButton, transactionsButton, rulesButton)) {
             navigation.getProperties().put("client.sound.cue", ClientSounds.Cue.NAVIGATE);
         }
         Region gap = new Region();
         gap.setPrefHeight(4);
         Region filler = new Region();
         VBox.setVgrow(filler, Priority.ALWAYS);
-        for (Button button : List.of(marketplace, productsButton, walletButton, transactionsButton, profileButton, rulesButton, logoutButton)) {
+        for (Button button : List.of(marketplace, productsButton, walletButton, transactionsButton, rulesButton, logoutButton)) {
             button.setMaxWidth(Double.MAX_VALUE);
         }
         userLabel.getStyleClass().add("market-account-name"); userLabel.setMinWidth(0);
-        VBox navigation = new VBox(4, marketplace, rankingButton, productsButton, walletButton, transactionsButton, profileButton, rulesButton);
+        VBox navigation = new VBox(4, marketplace, rankingButton, productsButton, walletButton, transactionsButton, rulesButton);
         navigation.getStyleClass().add("sidebar-navigation");
-        Label avatar = new Label("P"); avatar.getStyleClass().add("market-account-avatar");
+        Button avatar = new Button("P"); avatar.getStyleClass().add("market-account-avatar");
+        avatar.setId("account-profile-navigation"); avatar.setAccessibleText("Mở tài khoản");
+        avatar.setTooltip(new Tooltip("Tài khoản"));
+        avatar.getProperties().put("client.sound.cue", ClientSounds.Cue.NAVIGATE);
+        avatar.setOnAction(event -> showProfile());
         userLabel.textProperty().addListener((observable, before, name) -> avatar.setText(name.isBlank() ? "P" : name.substring(0, name.offsetByCodePoints(0, 1)).toUpperCase(java.util.Locale.ROOT)));
         walletBalance.getStyleClass().add("market-account-balance"); walletBalance.setMinWidth(0);
         VBox identity = new VBox(3, userLabel, walletBalance); identity.setMinWidth(0); HBox.setHgrow(identity, Priority.ALWAYS);
@@ -418,11 +427,14 @@ public final class FxClientController implements AutoCloseable {
         VBox account = new VBox(11, accountIdentity, ClientSoundUi.controls(sounds, bidVoice)); account.getStyleClass().add("market-account");
         sidebar.getChildren().addAll(gap, DesktopTheme.label("Không gian của bạn", "market-nav-caption"),
                 navigation, filler, createAuctionButton, new Separator(), account, logoutButton);
+        sidebar.setMinWidth(0); sidebar.setMinHeight(Region.USE_PREF_SIZE);
+        ScrollPane navigationScroll = DesktopTheme.viewport(sidebar); navigationScroll.setId("client-navigation-scroll");
+        navigationScroll.setMinWidth(192); navigationScroll.setPrefWidth(192); navigationScroll.setMaxWidth(192);
         marketplace.setOnAction(event -> { showAuctionPage(); if (!roomMode) { auctionCards.getSelectionModel().clearSelection(); } loadAuctionList(); });
         connectionLabel.getStyleClass().addAll("pill", "market-connection");
         rttLabel.getStyleClass().add("muted");
         Button menu = iconButton("menu", "Ẩn / hiện thanh điều hướng");
-        menu.setOnAction(event -> { boolean show = !sidebar.isManaged(); sidebar.setVisible(show); sidebar.setManaged(show); });
+        menu.setOnAction(event -> { boolean show = !navigationScroll.isManaged(); navigationScroll.setVisible(show); navigationScroll.setManaged(show); });
         Button bell = iconButton("bell", "Thông báo"); notificationBell = bell;
         bell.setId("marketplace-notification-bell"); bell.getStyleClass().add("market-notification-button");
         notificationCount.setId("marketplace-notification-count"); notificationCount.getStyleClass().add("market-notification-count");
@@ -434,7 +446,10 @@ public final class FxClientController implements AutoCloseable {
         Button full = iconButton("expand", "Bật / tắt toàn màn hình"); full.setOnAction(event -> { stage.setFullScreenExitHint(""); stage.setFullScreen(!stage.isFullScreen()); });
         pageEyebrow.setText("Khám phá & Đấu giá");
         Label crumb = new Label("Sàn đấu giá"); accountBreadcrumb = crumb; crumb.getStyleClass().add("market-breadcrumb-current");
-        HBox header = new HBox(10, menu, MarketplaceIcons.icon("right", 9, "#b7a28b"), pageEyebrow,
+        pageBack = AccountUi.button("Quay lại", "left"); pageBack.setId("client-page-back");
+        pageBack.setVisible(false); pageBack.managedProperty().bind(pageBack.visibleProperty());
+        pageBack.setOnAction(event -> { if (accountPageVisible) { showAuctionPage(); } else { leaveJoined(); } });
+        HBox header = new HBox(10, menu, pageBack, MarketplaceIcons.icon("right", 9, "#b7a28b"), pageEyebrow,
                 MarketplaceIcons.icon("right", 9, "#b7a28b"), crumb, DesktopTheme.spacer(), friendsPane.button(), bell, connectionLabel, rttLabel, full);
         header.getStyleClass().add("market-topbar");
         header.setAlignment(Pos.CENTER_LEFT);
@@ -615,9 +630,11 @@ public final class FxClientController implements AutoCloseable {
         workspace.setPadding(new Insets(4, 10, 8, 12));
         workspace.getStyleClass().add("market-workspace");
         auctionWorkspace = workspace;
-        accountPageHost = new VBox(header, workspace); VBox.setVgrow(workspace, Priority.ALWAYS);
+        accountPageScroll = DesktopTheme.viewport(workspace); accountPageScroll.setId("client-page-scroll");
+        accountPageHost = new VBox(header, accountPageScroll); accountPageHost.setMinSize(0, 0);
+        VBox.setVgrow(accountPageScroll, Priority.ALWAYS); showAccountContent(workspace);
         BorderPane root = new BorderPane(accountPageHost);
-        root.setLeft(sidebar); BorderPane.setMargin(sidebar, new Insets(5, 0, 5, 4));
+        root.setLeft(navigationScroll); BorderPane.setMargin(navigationScroll, new Insets(5, 0, 5, 4));
         Button receiptsButton = navButton("Kết quả phiên của tôi", "receipt");
         receiptsButton.setId("my-auction-receipts"); receiptsButton.setMaxWidth(Double.MAX_VALUE); receiptsNavigation = receiptsButton;
         navigation.getChildren().add(2, receiptsButton);
@@ -640,7 +657,6 @@ public final class FxClientController implements AutoCloseable {
                 }
             }, this::acceptNotificationCount).show();
         });
-        profileButton.setOnAction(event -> showProfile());
         productsButton.setOnAction(event -> showProducts());
         walletButton.setOnAction(event -> showWallet());
         createAuctionButton.setOnAction(event -> showCreateAuction());
@@ -1498,14 +1514,14 @@ public final class FxClientController implements AutoCloseable {
         closeAccountPages();
         embeddedWallet = new WalletPane(stage, new WalletApi(transport), user, model.getUsername(), same, true);
         VBox.setVgrow(embeddedWallet, Priority.ALWAYS);
-        accountPageHost.getChildren().setAll(accountPageHost.getChildren().get(0), embeddedWallet);
+        showAccountContent(embeddedWallet);
         accountBreadcrumb.setText("Ví & nạp/rút tiền"); marketplaceNavigation.getStyleClass().remove("nav-active"); walletNavigation.getStyleClass().add("nav-active");
         stage.setTitle("Auction • Ví của " + model.getUsername()); embeddedWallet.startEmbedded();
     }
     private void showAuctionPage() {
         if (embeddedWallet == null && embeddedTransactions == null && embeddedReceipts == null && embeddedProducts == null && embeddedRules == null) { return; }
         closeAccountPages();
-        accountPageHost.getChildren().setAll(accountPageHost.getChildren().get(0), auctionWorkspace);
+        showAccountContent(auctionWorkspace);
         accountBreadcrumb.setText("Sàn đấu giá"); walletNavigation.getStyleClass().remove("nav-active");
         if (!marketplaceNavigation.getStyleClass().contains("nav-active")) { marketplaceNavigation.getStyleClass().add("nav-active"); }
         stage.setTitle("Auction • Sàn đấu giá");
@@ -1517,10 +1533,18 @@ public final class FxClientController implements AutoCloseable {
         embeddedTransactions = new TransactionsPane(new WalletApi(transport), user, model.getUsername(),
                 () -> model.getUserId() == user && token.equals(model.getSessionToken()) && !closed.get());
         VBox.setVgrow(embeddedTransactions, Priority.ALWAYS);
-        accountPageHost.getChildren().setAll(accountPageHost.getChildren().get(0), embeddedTransactions);
+        showAccountContent(embeddedTransactions);
         accountBreadcrumb.setText("Giao dịch"); marketplaceNavigation.getStyleClass().remove("nav-active");
         transactionsNavigation.getStyleClass().add("nav-active"); stage.setTitle("Auction • Giao dịch của " + model.getUsername()); embeddedTransactions.start();
     }
+    private void showAccountContent(Region content) {
+        VBox body = new VBox(content); VBox.setVgrow(content, Priority.ALWAYS);
+        accountPageScroll.setContent(body); accountPageScroll.setVvalue(0); accountPageScroll.setHvalue(0);
+        accountPageVisible = content != auctionWorkspace;
+        pageBack.setVisible(accountPageVisible || roomMode);
+        pageBack.setDisable(!accountPageVisible && leaveButton.isDisabled());
+    }
+
     private void closeAccountPages() {
         if (embeddedWallet != null) { embeddedWallet.close(); embeddedWallet = null; }
         if (embeddedTransactions != null) { embeddedTransactions.close(); embeddedTransactions = null; }
@@ -1537,7 +1561,7 @@ public final class FxClientController implements AutoCloseable {
         if (accountPageHost == null || embeddedRules != null) { return; }
         closeAccountPages(); embeddedRules = new AuctionRulesPane();
         VBox.setVgrow(embeddedRules, Priority.ALWAYS); VBox.setMargin(embeddedRules, new Insets(4, 12, 10, 12));
-        accountPageHost.getChildren().setAll(accountPageHost.getChildren().get(0), embeddedRules);
+        showAccountContent(embeddedRules);
         accountBreadcrumb.setText("Luật đấu giá"); marketplaceNavigation.getStyleClass().remove("nav-active"); rulesNavigation.getStyleClass().add("nav-active");
         stage.setTitle("Auction • Luật đấu giá");
     }
@@ -1565,7 +1589,7 @@ public final class FxClientController implements AutoCloseable {
             ScrollPane scroll = new ScrollPane(form); scroll.setFitToWidth(true); scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER); scroll.getStyleClass().add("profile-scroll");
             Button close = AccountUi.close(() -> dialog.close());
             HBox heading = AccountUi.heading("Hồ sơ tài khoản", "Quản lý thông tin tài khoản và cài đặt hiển thị của bạn", "profile", close);
-            VBox body = new VBox(13, heading, scroll); VBox.setVgrow(scroll, Priority.ALWAYS); body.setPrefHeight(590);
+            VBox body = new VBox(13, heading, scroll); VBox.setVgrow(scroll, Priority.ALWAYS); body.setPrefHeight(590); body.setMinHeight(0);
             dialog.getDialogPane().setContent(body); dialog.getDialogPane().getStyleClass().addAll("account-page", "profile-dialog");
             dialog.getDialogPane().setPrefWidth(520); dialog.setResizable(true);
             dialog.setOnShown(event -> {
@@ -1644,7 +1668,7 @@ public final class FxClientController implements AutoCloseable {
         embeddedProducts = view;
         java.util.function.BooleanSupplier active = () -> embeddedProducts == view && sameOwner.getAsBoolean();
         VBox.setVgrow(view, Priority.ALWAYS); VBox.setMargin(view, new Insets(4, 12, 14, 12));
-        accountPageHost.getChildren().setAll(accountPageHost.getChildren().get(0), view);
+        showAccountContent(view);
         accountBreadcrumb.setText("Sản phẩm bán"); marketplaceNavigation.getStyleClass().remove("nav-active"); productsNavigation.getStyleClass().add("nav-active");
         stage.setTitle("Auction • Sản phẩm bán của " + model.getUsername());
         TableView<ClientProduct> table = view.table();
@@ -1656,10 +1680,10 @@ public final class FxClientController implements AutoCloseable {
         Runnable updateActions = () -> {
             ClientProduct selected = table.getSelectionModel().getSelectedItem();
             add.setDisable(busy.get());
-            boolean acquired = selected != null && selected.getTransactionStatus() == vn.ptit.btl16.common.protocol.ProductTransactionStatus.OWNED;
-            edit.setDisable(busy.get() || selected == null || acquired);
+            ProductTransactionStatus transactionStatus = selected == null ? null : selected.getTransactionStatus();
+            edit.setDisable(busy.get() || transactionStatus != ProductTransactionStatus.UNTRADED);
             media.setDisable(busy.get() || selected == null);
-            delete.setDisable(busy.get() || selected == null || acquired);
+            delete.setDisable(busy.get() || (transactionStatus != ProductTransactionStatus.UNTRADED && transactionStatus != ProductTransactionStatus.SOLD));
             refresh.setDisable(busy.get());
         };
         busy.addListener((observable, previous, current) -> updateActions.run());
@@ -2045,7 +2069,7 @@ public final class FxClientController implements AutoCloseable {
         closeAccountPages();
         embeddedReceipts = new AuctionReceiptsPane(stage, transport, sameSession, true);
         VBox.setVgrow(embeddedReceipts, Priority.ALWAYS);
-        accountPageHost.getChildren().setAll(accountPageHost.getChildren().get(0), embeddedReceipts);
+        showAccountContent(embeddedReceipts);
         accountBreadcrumb.setText("Kết quả phiên của tôi"); marketplaceNavigation.getStyleClass().remove("nav-active"); receiptsNavigation.getStyleClass().add("nav-active");
         stage.setTitle("Auction • Kết quả phiên của " + model.getUsername()); embeddedReceipts.startEmbedded(room);
     }
@@ -2300,6 +2324,7 @@ public final class FxClientController implements AutoCloseable {
         boolean hosted = auction != null && auction.isHostedBy(model.getUserId());
         joinButton.setDisable(!available || joined || roomChanging);
         leaveButton.setDisable(model.getJoinedAuctionId() == null || roomChanging || !transport.isConnected());
+        if (pageBack != null) { pageBack.setDisable(!accountPageVisible && leaveButton.isDisabled()); }
         boolean leading = auction != null && java.util.Objects.equals(auction.getCurrentWinnerId(), auction.viewerId(model.getUserId()));
         boolean noNextPrice = auction != null && maxBidAmount != null
                 && auction.getCurrentPrice().add(auction.getMinBidIncrement()).compareTo(maxBidAmount) > 0;
@@ -2333,6 +2358,7 @@ public final class FxClientController implements AutoCloseable {
         backgroundMusic.setInAuctionRoom(joined && transport.isConnected());
         if (roomMode == joined) { return; }
         roomMode = joined;
+        if (pageBack != null) { pageBack.setVisible(accountPageVisible || joined); }
         if (joined) {
             bidVoice.setRoom(model.getJoinedAuctionId(), model.currentBidSnapshot());
             bidLeadingBanner.setRoom(model.getJoinedAuctionId(), model.currentBidSnapshot(), model.joinedAuction().getCurrentPrice());

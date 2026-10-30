@@ -40,8 +40,8 @@ public final class WalletTransactions {
         }
         try (var entry = connection.prepareStatement("""
                 INSERT INTO wallet_entries(user_id, entry_type, amount, reserved_delta, balance_after,
-                    reserved_after, reference_key, created_at, vault_after)
-                SELECT user_id, ?, ?, ?, wallet_balance, wallet_reserved, ?, ?, vault_balance FROM users WHERE user_id = ?
+                    reserved_after, reference_key, created_at)
+                SELECT user_id, ?, ?, ?, wallet_balance, wallet_reserved, ?, ? FROM users WHERE user_id = ?
                 """)) {
             entry.setString(1, type); entry.setBigDecimal(2, amount); entry.setBigDecimal(3, reservedDelta);
             entry.setString(4, reference); entry.setTimestamp(5, Timestamp.from(time)); entry.setLong(6, userId); entry.executeUpdate();
@@ -86,7 +86,9 @@ public final class WalletTransactions {
              var rows = query.executeQuery()) {
             if (!rows.next()) { throw new SQLException("Missing revenue settlement lock"); }
         }
-        int rank = held ? vn.ptit.btl16.server.auction.repository.SellerRevenueStore.rankBeforeSale(connection, seller) : 0;
+        Instant rankingAt = Instant.now();
+        if (time.isAfter(rankingAt)) { rankingAt = time; }
+        int rank = held ? vn.ptit.btl16.server.auction.repository.SellerRevenueStore.rankBeforeSale(connection, seller, rankingAt) : 0;
         BigDecimal baseRate = held ? AuctionFees.rate(amount) : ZERO;
         BigDecimal discount = held ? AuctionFees.discount(rank) : ZERO;
         BigDecimal fee = held ? AuctionFees.fee(amount, rank) : ZERO;
@@ -108,5 +110,6 @@ public final class WalletTransactions {
             insert.setBigDecimal(7, feeRate); insert.setBigDecimal(8, fee);
             insert.setBigDecimal(9, baseRate); insert.setBigDecimal(10, discount); insert.setInt(11, rank); insert.executeUpdate();
         }
+        if (held) { PlatformCashFlowRepository.collect(connection, auctionId, fee, time); }
     }
 }

@@ -37,10 +37,10 @@ public final class TransactionsPane extends BorderPane implements AutoCloseable 
     public TransactionsPane(WalletApi api, long user, String username, BooleanSupplier sameSession) {
         this.api = api; this.user = user; this.sameSession = sameSession;
         setId("account-transactions"); getStyleClass().addAll("account-page", "transactions-page");
-        VBox heading = new VBox(10, AccountUi.heading("Giao dịch", "Lịch sử cộng, trừ tiền của " + username + " từ nạp, rút, mua bán và két sắt", "exchange", null), balances);
+        VBox heading = new VBox(10, AccountUi.heading("Giao dịch", "Lịch sử cộng, trừ tiền của " + username + " từ nạp, rút và mua bán", "exchange", null), balances);
         heading.setPadding(new javafx.geometry.Insets(16)); setTop(heading);
         room.setId("transactions-room"); room.setPromptText("Mã phiên"); room.setPrefWidth(155); room.setPrefColumnCount(8);
-        type.setId("transactions-type"); type.getItems().setAll("", "TOPUP", "WITHDRAWAL", "PURCHASE", "SALE", "VAULT_DEPOSIT", "VAULT_WITHDRAWAL"); type.setValue(""); type.setPrefWidth(230);
+        type.setId("transactions-type"); type.getItems().setAll("", "TOPUP", "WITHDRAWAL", "PURCHASE", "SALE"); type.setValue(""); type.setPrefWidth(230);
         type.setConverter(new javafx.util.StringConverter<>() {
             @Override public String toString(String value) { return value == null || value.isEmpty() ? "Tất cả loại giao dịch" : WalletUi.type(value); }
             @Override public String fromString(String value) { return value; }
@@ -50,7 +50,6 @@ public final class TransactionsPane extends BorderPane implements AutoCloseable 
         Button refresh = AccountUi.button("Làm mới", "refresh"); refresh.setId("transactions-refresh"); refresh.setOnAction(event -> load());
         FlowPane filterRow = new FlowPane(10, 10, room, type, from, to, filter, refresh);
         entries.setId("transactions-entries"); entries.getStyleClass().add("account-table"); entries.setFixedCellSize(46); entries.setMinHeight(220); entries.setPrefHeight(520);
-        WalletUi.column(entries, "TRONG KÉT SAU", entry -> WalletUi.money(entry.vaultAfter()), 160);
         configureAmountColumn();
         entries.setPlaceholder(DesktopTheme.label("Chưa có giao dịch phù hợp. Các khoản nạp/rút xuất hiện khi đã được duyệt.", "account-note"));
         previous.setId("transactions-previous"); next.setId("transactions-next");
@@ -106,8 +105,7 @@ public final class TransactionsPane extends BorderPane implements AutoCloseable 
             }
             entries.getItems().setAll(WalletWire.entries(response.getWireMessage().getData()));
             hasMore = Boolean.parseBoolean(response.get("hasMore")); nextCursor = Long.parseLong(response.get("nextBeforeId"));
-            balances.setText("Số dư ví: " + WalletUi.money(new BigDecimal(response.get("balance"))) + "    •    Khả dụng: " + WalletUi.money(new BigDecimal(response.get("available")))
-                    + "    •    Trong két: " + WalletUi.money(new BigDecimal(response.getWireMessage().getData().getOrDefault("vaultBalance", "0"))));
+            balances.setText("Số dư ví: " + WalletUi.money(new BigDecimal(response.get("balance"))) + "    •    Khả dụng: " + WalletUi.money(new BigDecimal(response.get("available"))));
             status.setText("Trang " + (page + 1) + " • " + entries.getItems().size() + " giao dịch • Mới nhất trước"); controls();
         }));
     }

@@ -5,6 +5,7 @@ import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.DialogPane;
+import javafx.scene.control.TabPane;
 import javafx.scene.input.Clipboard;
 import javafx.scene.input.DataFormat;
 import javafx.stage.Stage;
@@ -39,6 +40,14 @@ public final class ServerButtonsUiSelfTest {
         ServerFxApp app = new ServerFxApp(); Stage stage = fx(() -> { Stage value = new Stage(); app.start(value); return value; });
         try {
             waitFor(() -> field(app, "application") != null && !(boolean) field(app, "busy"), "server dashboard starts");
+            fx(() -> { ((Button)stage.getScene().lookup("#server-cash-flow-open")).fire(); return null; });
+            waitFor(() -> Window.getWindows().stream().anyMatch(window -> window.isShowing() && window.getScene().lookup("#cash-flow-table")!=null),"cash-flow navigation opens server-only money page");
+            fx(() -> {
+                TestSupport.check(stage.getScene().lookup("#cash-flow-table") != null, "cash flow is embedded in the main server window");
+                TestSupport.equals(1L, Window.getWindows().stream().filter(Window::isShowing).count(), "menu navigation creates no floating window");
+                ((TabPane) stage.getScene().lookup("#server-admin-tabs")).getSelectionModel().selectFirst();
+                return null;
+            });
             fx(() -> {
                 @SuppressWarnings("unchecked") ComboBox<String> addresses = (ComboBox<String>) field(app, "addresses");
                 String selected = addresses.getValue(); TestSupport.check(selected != null, "a live address is selected");
@@ -62,8 +71,20 @@ public final class ServerButtonsUiSelfTest {
                 ((Button) dialog.lookupButton(ButtonType.YES)).fire(); return null;
             });
             waitFor(() -> field(app, "application") == null && !(boolean) field(app, "busy"), "pause button stops the server");
+            fx(() -> {
+                ((Button) stage.getScene().lookup("#server-cash-flow-open")).fire();
+                TestSupport.check(stage.getScene().lookup("#server-offline-banner").isVisible(), "paused server displays an inline notice");
+                TestSupport.check(stage.getScene().lookup("#server-cash-flow").isDisabled(), "admin actions are disabled while paused");
+                return null;
+            });
             fx(() -> { toggle.fire(); return null; });
             waitFor(() -> field(app, "application") != null && !(boolean) field(app, "busy"), "start button restarts the server");
+            fx(() -> {
+                TestSupport.check(!stage.getScene().lookup("#server-offline-banner").isVisible(), "restart clears the inline notice");
+                TestSupport.check(!stage.getScene().lookup("#server-cash-flow").isDisabled(), "restart reactivates the selected admin page");
+                TestSupport.equals(1L, Window.getWindows().stream().filter(Window::isShowing).count(), "restart keeps a single admin window");
+                return null;
+            });
             ServerApplication restarted = fx(() -> (ServerApplication) field(app, "application"));
             try (var client = new WebSocketClientTransport("ws://127.0.0.1:" + restarted.getWebSocketBoundPort() + "/ws", 2097152, 5000, 10000)) {
                 client.connect().get(10, TimeUnit.SECONDS);

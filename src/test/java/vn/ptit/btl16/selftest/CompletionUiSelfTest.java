@@ -250,7 +250,7 @@ public final class CompletionUiSelfTest {
     private static Map<String,String> notifications(String kind) { return Map.of("count", "1", "hasMore", "false", "nextBeforeId", "1", "unreadCount", "1", "notification.0.id", "1", "notification.0.kind", kind, "notification.0.auctionId", "2", "notification.0.reference", "", "notification.0.createdAt", "2026-10-25T10:00:00Z", "notification.0.read", "false"); }
     private static Map<String,String> ledger(String reference) {
         var result = new LinkedHashMap<>(Map.of("userId", "2", "entryCount", "1", "hasMore", "false", "nextBeforeId", "1"));
-        result.putAll(Map.of("balance", "900", "available", "900", "vaultBalance", "0"));
+        result.putAll(Map.of("balance", "900", "available", "900"));
         result.putAll(Map.of("entry.0.id", "1", "entry.0.type", "PURCHASE", "entry.0.amount", "-100", "entry.0.reservedDelta", "-100", "entry.0.balanceAfter", "900", "entry.0.reservedAfter", "0", "entry.0.reference", reference, "entry.0.createdAt", "2026-10-25T10:00:00Z")); return result;
     }
     private static Button dialogButton(ButtonBar.ButtonData data) {

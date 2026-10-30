@@ -57,6 +57,7 @@ public final class AuctionReceiptSelfTest {
             TestSupport.equals("NOT_WON", loser.get("personalRole"), "loser role"); TestSupport.equals("RELEASED", loser.get("walletStatus"), "loser sees real release");
             TestSupport.equals("HOST", host.get("personalRole"), "host role"); TestSupport.equals("PAID", host.get("walletStatus"), "sale ledger confirms credit");
             TestSupport.equals("13.00", host.get("platformFee"), "first sale pays ten percent without a prior rank");
+            TestSupport.check(!winner.containsKey("revenueRank") && !winner.containsKey("feeRate") && !winner.containsKey("platformFee") && !winner.containsKey("sellerNet"),"anonymous buyer cannot infer seller identity from monthly rank or discounted fee");
             TestSupport.equals("117.00", host.get("sellerNet"), "seller receives net proceeds");
             TestSupport.equals("WATCHED", watcher.get("personalRole"), "departed watcher retains minimal receipt"); TestSupport.equals("NONE", watcher.get("walletStatus"), "watcher never sees participant wallet");
             TestSupport.equals("0", watcher.get("entryCount"), "watcher ledger empty"); TestSupport.equals("3", winner.get("totalBids"), "whole-session count from cluster2");
@@ -114,7 +115,7 @@ public final class AuctionReceiptSelfTest {
             var receipt = repository.personalReceipt(1, room);
             BigDecimal price = BigDecimal.valueOf(value);
             TestSupport.equals("PAID", receipt.get("walletStatus"), "net sale ledger reconciles at threshold " + value);
-            TestSupport.check(new BigDecimal(receipt.get("feeRate")).compareTo(new BigDecimal(value <= 1000000000 ? "0.05" : "0.10")) == 0, "base tax minus rank one reduction at " + value);
+            TestSupport.check(new BigDecimal(receipt.get("feeRate")).compareTo(new BigDecimal(value <= 1000000000 ? "0.05" : "0.10")) == 0, "base platform fee minus rank one reduction at " + value);
             TestSupport.equals(Map.of(999999999, "49999999.95", 1000000000, "50000000.00", 1000000001, "100000000.10").get(value), receipt.get("platformFee"), "persisted tier fee");
             TestSupport.check(new BigDecimal(receipt.get("sellerNet")).add(new BigDecimal(receipt.get("platformFee"))).compareTo(price) == 0, "net plus fee equals buyer payment");
             TestSupport.check(repository.closeAuction(expire(factory, repository, room)).isEmpty(), "fee cannot be charged twice");
@@ -152,6 +153,19 @@ public final class AuctionReceiptSelfTest {
                 var forged = ok(winner.sendRequest(MessageType.GET_PERSONAL_RECEIPT, Map.of("auctionId", Long.toString(closedRoom), "userId", "1")).thenApply(ApiResponse::new));
                 TestSupport.equals("WINNER", forged.get("personalRole"), "userId spoof ignored"); anonymous(forged.getWireMessage().getData());
                 anonymous(ok(new AuctionReceiptApi(winner).list("WON", "WON", "ANON_PRIVATE", Long.MAX_VALUE)).getWireMessage().getData());
+                var catalog=ok(new AuctionApi(winner).myProducts());
+                long purchasedProduct=repository.findAuctionById(closedRoom).orElseThrow().getProduct().getProductId();
+                boolean foundAnonymous=false;
+                for (int index=0;index<Integer.parseInt(catalog.get("productCount"));index++) {
+                    String prefix="product."+index+".";
+                    if (!Long.toString(purchasedProduct).equals(catalog.get(prefix+"productId"))) { continue; }
+                    foundAnonymous=true;
+                    TestSupport.equals("0",catalog.get(prefix+"ownerId"),"purchased anonymous item hides seller id");
+                    TestSupport.equals("Người bán ẩn danh",catalog.get(prefix+"ownerUsername"),"purchased anonymous item hides seller name");
+                    TestSupport.equals("OWNED",catalog.get(prefix+"transactionStatus"),"masking seller does not lose winner ownership");
+                }
+                TestSupport.check(foundAnonymous,"winner still sees acquired anonymous product");
+                TestSupport.equals(1L,repository.findProductById(purchasedProduct).orElseThrow().getOwnerId(),"audit retains original seller internally");
                 var deniedHistory = new AuctionApi(loser).history(closedRoom).get(10, TimeUnit.SECONDS);
                 TestSupport.equals("ROOM_ACCESS_DENIED", deniedHistory.getErrorCode(), "own receipt does not grant private history access");
                 ok(new AuctionReceiptApi(loser).get(closedRoom));

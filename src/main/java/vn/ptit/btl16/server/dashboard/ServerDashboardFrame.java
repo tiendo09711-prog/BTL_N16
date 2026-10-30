@@ -207,12 +207,12 @@ public final class ServerDashboardFrame extends JFrame {
             return switch (columnIndex) {
                 case 0 -> value.getAuctionId();
                 case 1 -> value.getProduct().getName();
-                case 2 -> value.getHostUsername();
+                case 2 -> value.hasAnonymousGuests() ? "Ẩn danh" : value.getHostUsername();
                 case 3 -> value.getVisibility();
                 case 4 -> Money.display(value.getMinBidIncrement());
                 case 5 -> Money.display(value.getCurrentPrice());
                 case 6 -> value.getCurrentWinnerUsername().isBlank()
-                        ? "Chưa có" : value.getCurrentWinnerUsername();
+                        ? "Chưa có" : value.hasAnonymousGuests() ? "Ẩn danh" : value.getCurrentWinnerUsername();
                 case 7 -> Times.display(value.getEndTime());
                 case 8 -> value.getStatus();
                 case 9 -> value.getVersion();

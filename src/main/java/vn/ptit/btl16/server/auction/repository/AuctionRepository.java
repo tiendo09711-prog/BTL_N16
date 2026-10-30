@@ -21,6 +21,7 @@ public interface AuctionRepository {
     default java.util.Map<Long, vn.ptit.btl16.server.auction.model.AuctionActivity> auctionActivity() { return java.util.Map.of(); }
     default java.util.Map<String, String> topProducts() { return java.util.Map.of("count", "0"); }
     default java.util.Map<String, String> topSellers() { return java.util.Map.of("count", "0"); }
+    default java.util.Map<String, String> topSellers(vn.ptit.btl16.common.util.RevenuePeriod period) { return topSellers(); }
     default java.util.Map<String,String> notifications(long user, long before, boolean unread, int limit) {
         return java.util.Map.of("count","0","unreadCount","0","hasMore","false","nextBeforeId","0");
     }
@@ -68,6 +69,7 @@ public interface AuctionRepository {
 
     List<Product> findProductsByOwner(long ownerId);
     default List<Product> findPurchasedProducts(long userId) { return List.of(); }
+    default java.util.Set<Long> anonymousPurchasedProducts(long userId) { return java.util.Set.of(); }
     default boolean hasPurchasedProduct(long userId, long productId) {
         return findPurchasedProducts(userId).stream().anyMatch(product -> product.getProductId() == productId);
     }

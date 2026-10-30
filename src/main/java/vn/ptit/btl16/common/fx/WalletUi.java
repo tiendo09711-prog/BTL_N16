@@ -21,8 +21,6 @@ public final class WalletUi {
     public static String type(String type) {
         return switch (type) {
             case "WITHDRAWAL" -> "Rút tiền đã duyệt";
-            case "VAULT_DEPOSIT" -> "Chuyển tiền vào két";
-            case "VAULT_WITHDRAWAL" -> "Rút tiền từ két về ví";
             case "TOPUP" -> "Nạp tiền đã duyệt"; case "RESERVE" -> "Gi\u1eef ti\u1ec1n \u0111\u1eb7t gi\u00e1";
             case "RELEASE" -> "Ho\u00e0n ti\u1ec1n gi\u1eef ch\u1ed7"; case "PURCHASE" -> "Thanh to\u00e1n mua h\u00e0ng";
             case "SALE" -> "Thu ti\u1ec1n b\u00e1n h\u00e0ng"; case "LEGACY_REVIEW" -> "Phi\u00ean c\u0169: c\u1ea7n ki\u1ec3m tra thanh to\u00e1n"; default -> type;

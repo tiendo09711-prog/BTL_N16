@@ -18,7 +18,6 @@ public final class WalletController {
         this.sessions = sessions;
     }
     public void register(MessageRouter router) {
-        new VaultController(wallets.vault(), sessions).register(router);
         router.register(MessageType.GET_WALLET, true, context -> {
             if (context.value("auctionId").isBlank()) {
                 reply(context, MessageType.WALLET_RESULT);

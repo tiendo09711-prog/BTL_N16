@@ -173,7 +173,9 @@ public final class AuctionButtonsUiSelfTest {
         } return false; }, "dialog: " + title); return found.get();
     }
     private static TextInputControl textRow(DialogPane dialog, int row) {
-        return (TextInputControl) ((GridPane) dialog.getContent()).getChildren().stream().filter(TextInputControl.class::isInstance)
+        javafx.scene.Node content = dialog.getContent();
+        if (content instanceof ScrollPane scroll) { content = scroll.getContent(); }
+        return (TextInputControl) ((GridPane) content).getChildren().stream().filter(TextInputControl.class::isInstance)
                 .filter(node -> java.util.Objects.equals(GridPane.getRowIndex(node), row)).findFirst().orElseThrow();
     }
     private static void submit(DialogPane dialog) {

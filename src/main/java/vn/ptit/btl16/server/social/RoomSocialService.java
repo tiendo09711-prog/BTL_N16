@@ -332,7 +332,7 @@ public final class RoomSocialService {
     }
 
     private long publicId(AuctionSnapshot auction, long userId) {
-        return auction.hasAnonymousGuests() && userId != auction.getHostUserId() ? -store.ordinal(auction.getAuctionId(), userId, true) : userId;
+        return auction.hasAnonymousGuests() ? -store.ordinal(auction.getAuctionId(), userId, true) : userId;
     }
 
     private String alias(AuctionSnapshot auction, long userId) {
@@ -381,11 +381,13 @@ public final class RoomSocialService {
             if (runtime == null) { throw new IllegalStateException("Cannot project unknown auction"); }
             AuctionSnapshot auction = runtime.snapshot();
             sessions.findByConnection(connectionId).ifPresent(session -> {
-                long self = rooms.isMember(auctionId, connectionId, session.getUserId()) ? publicId(auction, session.getUserId()) : 0;
+                long self = session.getUserId()==auction.getHostUserId() || rooms.isMember(auctionId, connectionId, session.getUserId())
+                        ? publicId(auction, session.getUserId()) : 0;
                 data.put(prefix + "selfParticipantId", Long.toString(self));
             });
             if (!auction.hasAnonymousGuests()) { continue; }
             data.put(prefix + "anonymousGuests", "true");
+            maskPair(data, prefix + "hostUserId", prefix + "hostUsername", auction);
             maskPair(data, prefix + "currentWinnerId", prefix + "currentWinnerUsername", auction);
             if (!prefix.isEmpty()) { continue; }
             maskPair(data, "previousWinnerId", "previousWinnerUsername", auction);

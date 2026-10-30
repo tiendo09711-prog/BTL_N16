@@ -50,8 +50,8 @@ public final class SellerRevenueSelfTest {
                 TestSupport.equals(seller <= 10 ? Integer.toString(seller) : "0", receipt.get("revenueRank"), "rank frozen before current sale");
                 BigDecimal expectedRate = BigDecimal.valueOf(10 - reduction[seller - 1], 2);
                 money(expectedRate.toPlainString(), receipt.get("feeRate"), "all rank discount bands");
-                money(price.multiply(expectedRate).setScale(2, java.math.RoundingMode.HALF_UP).toPlainString(), receipt.get("platformFee"), "discounted rounded tax");
-                money(price.toPlainString(), new BigDecimal(receipt.get("sellerNet")).add(new BigDecimal(receipt.get("platformFee"))).toPlainString(), "buyer payment equals seller net plus tax");
+                money(price.multiply(expectedRate).setScale(2, java.math.RoundingMode.HALF_UP).toPlainString(), receipt.get("platformFee"), "discounted rounded platform fee");
+                money(price.toPlainString(), new BigDecimal(receipt.get("sellerNet")).add(new BigDecimal(receipt.get("platformFee"))).toPlainString(), "buyer payment equals seller net plus platform fee");
             }
             TestSupport.equals("2", repository.topSellers().get("ranking.0.saleCount"), "one row per seller aggregates multiple products");
             money("12100.15", repository.topSellers().get("ranking.0.revenue"), "board uses gross cumulative revenue");
@@ -62,10 +62,10 @@ public final class SellerRevenueSelfTest {
             TestSupport.check(!repository.topSellers().containsValue("seller13"), "open, unsold and cancelled do not generate revenue");
             // Equal real sales and first-sale timestamps fall back to the stable account ID.
             for (int seller : new int[]{15,16}) { long room = room(factory, repository, seller); bid(repository, room, new BigDecimal("20000.50")); close(factory, repository, room); }
-            sql(factory, "UPDATE auction_receipt_summaries SET ended_at='2026-10-01 10:00:00' WHERE auction_id IN (SELECT auction_id FROM auctions WHERE host_user_id IN (15,16))");
+            sql(factory, "UPDATE auction_receipt_summaries SET ended_at='"+Timestamp.from(Instant.now().minus(2,ChronoUnit.DAYS))+"' WHERE auction_id IN (SELECT auction_id FROM auctions WHERE host_user_id IN (15,16))");
             TestSupport.equals("15", repository.topSellers().get("ranking.0.sellerId"), "equal revenue and first-sale time prefer lower seller ID");
             TestSupport.equals("16", repository.topSellers().get("ranking.1.sellerId"), "equal revenue keeps separate sellers");
-            sql(factory, "UPDATE auction_receipt_summaries SET ended_at='2026-09-01 10:00:00' WHERE auction_id IN (SELECT auction_id FROM auctions WHERE host_user_id=16)");
+            sql(factory, "UPDATE auction_receipt_summaries SET ended_at='"+Timestamp.from(Instant.now().minus(3,ChronoUnit.DAYS))+"' WHERE auction_id IN (SELECT auction_id FROM auctions WHERE host_user_id=16)");
             TestSupport.equals("16", repository.topSellers().get("ranking.0.sellerId"), "earlier first sale wins equal revenue even with higher ID");
             for (String priceText : List.of("999999999.99", "1000000000.00", "1000000000.01")) {
                 BigDecimal price = new BigDecimal(priceText); long room = room(factory, repository, 14); bid(repository, room, price); close(factory, repository, room);
@@ -89,13 +89,14 @@ public final class SellerRevenueSelfTest {
             sql(factory, "UPDATE wallet_settlements SET base_fee_rate=0,fee_discount_rate=0,revenue_rank=0,fee_rate=0.03,platform_fee=360 WHERE auction_id=" + firstRoom);
             sql(factory, "UPDATE wallet_entries SET amount=11640 WHERE reference_key='SELL:" + firstRoom + "'");
             sql(factory, "UPDATE users SET wallet_balance=wallet_balance+840 WHERE user_id=1");
+            sql(factory, "UPDATE platform_fee_entries SET fee_amount=360,seller_net=11640,fee_rate=0.03 WHERE auction_id="+firstRoom);
             var history = repository.personalReceipt(20, one); var finalBoard = repository.topSellers();
             DatabaseSchema.initialize(factory); DatabaseSchema.initialize(factory);
             var old = repository.personalReceipt(1, firstRoom);
             TestSupport.equals("PAID", old.get("walletStatus"), "historical three-percent receipt still reconciles");
             money("360", old.get("platformFee"), "historical fee never recalculated during upgrade");
             TestSupport.check(!old.containsKey("baseFeeRate"), "historical receipt not assigned a new discount");
-            TestSupport.equals(finalBoard, new JdbcAuctionRepository(factory).topSellers(), "ranking survives schema restart");
+            TestSupport.equals(stable(finalBoard), stable(new JdbcAuctionRepository(factory).topSellers()), "ranking survives schema restart");
             TestSupport.equals(history, repository.personalReceipt(20, one), "historical rates and rank do not change on restart");
             network(factory, repository);
             System.out.println("[PASS] SellerRevenueSelfTest: seller totals/Top10, all discounts, exact billion boundary, rounding, atomic concurrent rank snapshots, immutable history, authenticated public API");
@@ -110,7 +111,14 @@ public final class SellerRevenueSelfTest {
                 TestSupport.equals("AUTH_REQUIRED", new ApiResponse(client.sendRequest(MessageType.GET_REVENUE_RANKING, Map.of()).get(10, TimeUnit.SECONDS)).getErrorCode(), "revenue endpoint authenticated");
                 TestSupport.check(new AccountApi(client).login("alice", "alice123").get(10, TimeUnit.SECONDS).isSuccess(), "fixture login");
                 var response = new ApiResponse(client.sendRequest(MessageType.GET_REVENUE_RANKING, Map.of()).get(10, TimeUnit.SECONDS)); TestSupport.check(response.isSuccess(), "revenue endpoint succeeds");
-                TestSupport.equals(repository.topSellers(), response.getWireMessage().getData().entrySet().stream().filter(e -> !Set.of("success", "serverTime", "message").contains(e.getKey())).collect(java.util.stream.Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)), "network board matches settlement ordering");
+                TestSupport.equals(stable(repository.topSellers()), stable(response.getWireMessage().getData().entrySet().stream().filter(e -> !Set.of("success", "serverTime", "message").contains(e.getKey())).collect(java.util.stream.Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))), "network board matches settlement ordering");
+                TestSupport.equals("1m",response.get("period"),"API defaults to one month");
+                for (var period : vn.ptit.btl16.common.util.RevenuePeriod.values()) {
+                    var filtered=new ApiResponse(client.sendRequest(MessageType.GET_REVENUE_RANKING,Map.of("period",period.code())).get(10,TimeUnit.SECONDS));
+                    TestSupport.check(filtered.isSuccess(),"period accepted: "+period.code());
+                    TestSupport.equals(period.code(),filtered.get("period"),"response identifies period");
+                }
+                TestSupport.equals("VALIDATION_ERROR",new ApiResponse(client.sendRequest(MessageType.GET_REVENUE_RANKING,Map.of("period","all" )).get(10,TimeUnit.SECONDS)).getErrorCode(),"invalid period rejected");
                 TestSupport.check(response.getWireMessage().getData().keySet().stream().noneMatch(k -> k.matches(".*(?i:email|phone|password|balance|buyer|winner).*")), "board contains only public seller data");
             }
         }
@@ -135,4 +143,5 @@ public final class SellerRevenueSelfTest {
     private static void sql(JdbcConnectionFactory factory, String sql) throws Exception { try (var connection = factory.openDatabase(); var statement = connection.createStatement()) { statement.executeUpdate(sql); } }
     private static void money(String expected, String actual, String message) { TestSupport.check(new BigDecimal(expected).compareTo(new BigDecimal(actual)) == 0, message + ": " + actual); }
     private static void restore(String key, String value) { if (value == null) { System.clearProperty(key); } else { System.setProperty(key, value); } }
+    private static Map<String,String> stable(Map<String,String> data) { var copy=new HashMap<>(data); copy.remove("periodStart"); copy.remove("periodEnd"); return copy; }
 }

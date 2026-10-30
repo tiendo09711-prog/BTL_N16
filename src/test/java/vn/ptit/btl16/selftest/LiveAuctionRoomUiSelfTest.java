@@ -131,7 +131,10 @@ public final class LiveAuctionRoomUiSelfTest {
         root.resize(850, 620);
         layout(root);
         TestSupport.check(room.insights().getBoundsInParent().getWidth() > 300, "compact room leaves chart usable");
-        TestSupport.check(room.history().getBoundsInParent().getMaxX() <= columns.getWidth() + 1, "compact columns do not overlap or overflow");
+        var historyBounds = room.history().localToParent(room.history().getLayoutBounds());
+        var insightsBounds = room.insights().localToParent(room.insights().getLayoutBounds());
+        TestSupport.check(historyBounds.getMinX() >= insightsBounds.getMaxX()
+                && historyBounds.getMaxX() <= columns.getWidth() + 1, "compact column layouts do not overlap or overflow, excluding decorative shadows");
         snapshot(scene, "compact");
     }
 

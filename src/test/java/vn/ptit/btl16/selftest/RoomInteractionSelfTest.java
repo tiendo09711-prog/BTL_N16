@@ -24,7 +24,9 @@ public final class RoomInteractionSelfTest {
                 var hostAuctions = new AuctionApi(host); var guestAuctions = new AuctionApi(guest); var otherAuctions = new AuctionApi(other);
                 var hostSocial = new RoomSocialApi(host); var guestSocial = new RoomSocialApi(guest); var otherSocial = new RoomSocialApi(other);
                 long room = create(hostAuctions, "INTERACTION_ANON", true), otherRoom = create(hostAuctions, "INTERACTION_OTHER", false);
-                ok(hostAuctions.join(room)); var joined = ok(guestAuctions.join(room)); long guestId = Long.parseLong(joined.get("selfParticipantId"));
+                var hostJoined = ok(hostAuctions.join(room)); long hostId = Long.parseLong(hostJoined.get("selfParticipantId"));
+                TestSupport.check(hostId < 0, "host uses room alias instead of account identity");
+                var joined = ok(guestAuctions.join(room)); long guestId = Long.parseLong(joined.get("selfParticipantId"));
                 TestSupport.check(guestId < 0, "room guest code, not username");
                 List<WireMessage> events = new CopyOnWriteArrayList<>(); guest.addEventListener(events::add);
                 denied(otherSocial.announcement(room, "no member", "outsider-announce"), "NOT_IN_AUCTION_ROOM");
@@ -40,7 +42,7 @@ public final class RoomInteractionSelfTest {
                 var reply = ok(host.sendRequest(MessageType.SEND_ROOM_CHAT, Map.of(
                         "auctionId", Long.toString(room), "body", "Tra loi", "nonce", "reply-message-001", "replyToId", Long.toString(originalId),
                         "senderId", "2", "name", "Impersonated", "reply.name", "Forged", "reply.body", "Fabricated quote")).thenApply(ApiResponse::new));
-                TestSupport.equals("1", reply.get("chat.participantId"), "author from session");
+                TestSupport.equals(Long.toString(hostId), reply.get("chat.participantId"), "author from session uses anonymous host alias");
                 TestSupport.equals(Long.toString(guestId), reply.get("chat.reply.participantId"), "reply room alias");
                 TestSupport.equals("Trich dan tu server", reply.get("chat.reply.body"), "quote from stored message");
                 TestSupport.check(reply.get("chat.reply.name").startsWith("Kh\u00e1ch #"), "server-derived reply alias"); safe(reply);

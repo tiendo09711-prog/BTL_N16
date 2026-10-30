@@ -43,6 +43,15 @@ public final class AccountScreensUiSelfTest {
                     invoke(view, "buildScenes"); stage.setScene((Scene) field(view, "mainScene")); DesktopTheme.fitOnScreen(stage, 1250, 940); stage.show(); return view;
                 });
                 FxClientController view = controller; Stage owner = (Stage) field(view, "stage");
+                fx(() -> {
+                    var root = owner.getScene().getRoot(); root.applyCss(); root.layout();
+                    var avatar = (Button) root.lookup("#account-profile-navigation");
+                    TestSupport.check(avatar != null && avatar.getParent().getParent().getStyleClass().contains("market-account"), "account profile opens from the existing footer avatar");
+                    TestSupport.check(avatar.isFocusTraversable() && "Tài khoản".equals(avatar.getTooltip().getText()), "avatar exposes keyboard navigation and an account tooltip");
+                    TestSupport.check(avatar.getWidth() == 31 && avatar.getHeight() == 31, "interactive avatar keeps its compact circular dimensions");
+                    TestSupport.check(root.lookupAll(".sidebar-navigation .button").stream().noneMatch(node -> "Tài khoản".equals(((Button) node).getText())), "sidebar no longer contains a separate account menu item");
+                    return null;
+                });
                 fire(owner.getScene().getRoot(), "account-wallet-navigation");
                 waitFor(() -> owner.getScene().lookup("#account-wallet") != null && labels(owner.getScene().getRoot()).contains("886.858.000"), "embedded wallet loads actual balance");
                 TestSupport.check(fx(() -> Window.getWindows().stream().filter(Window::isShowing).count()) == 1, "wallet stays in the main shell without a new window");
@@ -50,7 +59,7 @@ public final class AccountScreensUiSelfTest {
                 fx(() -> { ((TextField) owner.getScene().lookup("#wallet-amount")).setText("100000"); return null; });
                 fire(owner.getScene().getRoot(), "wallet-generate");
                 TestSupport.check(fx(() -> ((ImageView) owner.getScene().lookup("#wallet-qr-image")).getImage() != null), "embedded wallet generates the same real QR");
-                exerciseVault(owner);
+                exerciseWalletTransactions(owner);
                 WalletPane oldWallet = (WalletPane) fx(() -> owner.getScene().lookup("#account-wallet"));
                 fire(owner.getScene().getRoot(), "account-marketplace-navigation");
                 TestSupport.check(fx(() -> owner.getScene().lookup("#account-wallet") == null), "marketplace navigation restores the auction workspace");
@@ -77,7 +86,7 @@ public final class AccountScreensUiSelfTest {
                 TestSupport.equals(firstProduct, fx(() -> table.getSelectionModel().getSelectedItem().getProductId()), "search keeps selected product details in sync");
                 fx(() -> { ((ToggleButton) productsWindow.getScene().lookup("#seller-grid-view")).fire(); return null; });
                 TestSupport.check(fx(() -> productsWindow.getScene().lookup("#seller-product-grid").isVisible()), "grid toggle shows product cards");
-                TestSupport.check(fx(() -> !productsPage.lookup("#seller-product-grid").lookupAll(".account-more").isEmpty()), "grid keeps per-product actions after removing footer buttons");
+                TestSupport.check(fx(() -> productsPage.lookup("#seller-product-grid").lookupAll(".account-more").isEmpty()), "auctioning product cards hide all per-product actions");
                 fx(() -> { ((ToggleButton) productsWindow.getScene().lookup("#seller-list-view")).fire(); ((TextField) productsWindow.getScene().lookup("#seller-product-search")).clear(); @SuppressWarnings("unchecked") var filter = (ComboBox<String>) productsWindow.getScene().lookup("#seller-product-filter"); filter.setValue("UNTRADED"); return null; });
                 TestSupport.equals(2, fx(() -> table.getItems().size()), "untraded filter is independent of activation");
                 fx(() -> { @SuppressWarnings("unchecked") var filter = (ComboBox<String>) productsWindow.getScene().lookup("#seller-product-filter"); filter.setValue("AUCTIONING"); return null; });
@@ -119,7 +128,7 @@ public final class AccountScreensUiSelfTest {
                 ok(auctions.endAuction(featuredRoom));
                 auctionChoices(view, Set.of(firstProduct, secondProduct));
                 exerciseReceipts(owner, featuredRoom);
-                Platform.runLater(() -> { try { invoke(view, "showProfile"); } catch (Exception error) { throw new RuntimeException(error); } });
+                fire(owner.getScene().getRoot(), "account-profile-navigation");
                 Stage profile = waitWindow("#account-profile-form");
                 TestSupport.check(fx(() -> !((TextField) profile.getScene().lookup("#profile-created-at")).getText().contains("T")), "created date is localized");
                 TestSupport.check(fx(() -> ((TextField) profile.getScene().lookup("#profile-username")).isEditable()) == false, "username remains read only");
@@ -134,20 +143,21 @@ public final class AccountScreensUiSelfTest {
                     var save = dialog.getButtonTypes().stream().filter(button -> button.getButtonData() == ButtonBar.ButtonData.OK_DONE).findFirst().orElseThrow(); ((Button) dialog.lookupButton(save)).fire(); return null;
                 });
                 waitFor(() -> model.getDisplayName().equals("Thiên Nguyễn"), "profile save persists through account API");
+                TestSupport.equals("T", fx(() -> ((Button) owner.getScene().lookup("#account-profile-navigation")).getText()), "avatar initial still updates after a profile edit");
                 TestSupport.equals("Thiên Nguyễn", ok(account.getProfile()).get("displayName"), "profile update is stored by the server");
                 fire(owner.getScene().getRoot(), "auction-rules-navigation"); Stage rules = waitWindow("#auction-rules-content");
                 TestSupport.check(rules == owner && fx(() -> Window.getWindows().stream().filter(Window::isShowing).count()) == 1, "rules uses the existing account shell");
                 TestSupport.check(fx(() -> owner.getScene().lookup("#auction-rules-navigation").getStyleClass().contains("nav-active")), "rules navigation is selected");
                 TestSupport.equals(7, fx(() -> rules.getScene().getRoot().lookupAll(".rules-section").size()), "all seven existing rule sections retained");
                 TestSupport.equals(3, fx(() -> rules.getScene().getRoot().lookupAll(".rules-checklist").size()), "principles, prohibited behavior and important notes are shown beside the process");
-                TestSupport.check(fx(() -> labels(rules.getScene().getRoot())).contains("1.000.000.000"), "new seller tax threshold is documented");
+                TestSupport.check(fx(() -> labels(rules.getScene().getRoot())).contains("1.000.000.000"), "seller platform-fee threshold is documented");
                 screenshot(rules.getScene().getRoot(), "target/account-rules.png");
-                fx(() -> { ((TitledPane) owner.getScene().lookup("#auction-rules-tax-details")).setExpanded(true); ((ScrollPane) owner.getScene().lookup("#auction-rules-scroll")).setVvalue(1); return null; });
-                TestSupport.check(fx(() -> labels(owner.getScene().getRoot())).contains("thứ hạng lấy trước khi chốt phiên hiện tại"), "detailed tax and ranking rules remain available");
+                fx(() -> { ((TitledPane) owner.getScene().lookup("#auction-rules-fee-details")).setExpanded(true); ((ScrollPane) owner.getScene().lookup("#auction-rules-scroll")).setVvalue(1); return null; });
+                TestSupport.check(fx(() -> labels(owner.getScene().getRoot())).contains("thứ hạng 1 tháng trước khi chốt phiên hiện tại"), "detailed fee and ranking rules remain available");
                 screenshot(owner.getScene().getRoot(), "target/account-rules-bottom.png");
                 fire(owner.getScene().getRoot(), "account-marketplace-navigation");
                 TestSupport.check(fx(() -> owner.isShowing() && owner.getScene().lookup("#auction-rules-page") == null), "marketplace navigation restores the auction workspace after rules");
-                System.out.println("[PASS] AccountScreensUiSelfTest: embedded wallet/transactions/receipts navigation and private-data lifecycle, vault PIN/transfers, QR, product thumbnails/search/status/grid, auction eligibility, profile and rules with screenshots");
+                System.out.println("[PASS] AccountScreensUiSelfTest: embedded wallet/transactions/receipts navigation and private-data lifecycle, deposit/withdrawal tabs, ledger filters, QR, product thumbnails/search/status/grid, auction eligibility, profile and rules with screenshots");
             }
         } finally {
             FxClientController current = controller;
@@ -178,61 +188,28 @@ public final class AccountScreensUiSelfTest {
         fire(owner.getScene().getRoot(), "account-marketplace-navigation");
         TestSupport.check(fx(() -> owner.getScene().lookup("#account-receipts") == null), "marketplace restores the auction workspace after receipts");
     }
-    private static void exerciseVault(Stage owner) throws Exception {
+    private static void exerciseWalletTransactions(Stage owner) throws Exception {
         WalletPane firstWallet = (WalletPane) fx(() -> owner.getScene().lookup("#account-wallet"));
-        TestSupport.check(fx(() -> owner.getScene().lookup("#wallet-ledger-card") == null), "ledger is removed from the wallet page");
-        fx(() -> { ((TabPane) owner.getScene().lookup("#wallet-money-actions")).getSelectionModel().select(2); return null; });
-        waitFor(() -> owner.getScene().lookup("#vault-initialize") != null && !owner.getScene().lookup("#vault-initialize").isDisabled(), "first vault setup is ready");
-        VaultPane firstVault = (VaultPane) fx(() -> owner.getScene().lookup("#wallet-vault"));
-        fx(() -> {
-            ((TextField) owner.getScene().lookup("#vault-initial-amount")).setText("5000");
-            ((PasswordField) owner.getScene().lookup("#vault-new-pin")).setText("012345");
-            ((PasswordField) owner.getScene().lookup("#vault-confirm-pin")).setText("012345"); return null;
-        });
-        fire(owner.getScene().getRoot(), "vault-initialize");
-        waitFor(() -> Boolean.TRUE.equals(field(firstVault, "unlocked")) && ((Label) field(firstVault, "balance")).getText().contains("5.000"), "first deposit creates PIN and opens vault");
-        waitFor(() -> ((Label) owner.getScene().lookup("#wallet-vault-balance")).getText().contains("5.000"), "wallet vault total refreshes after transfer");
-        TestSupport.check(fx(() -> ((PasswordField) field(firstVault, "newPin")).getText().isEmpty() && ((PasswordField) field(firstVault, "confirmPin")).getText().isEmpty()), "setup clears PIN fields");
-        screenshot(owner.getScene().getRoot(), "target/account-vault.png");
+        TestSupport.check(fx(() -> owner.getScene().lookup("#wallet-ledger-card") == null), "ledger stays on its own page");
+        TestSupport.equals(List.of("Nạp tiền", "Rút tiền"), fx(() -> ((TabPane) owner.getScene().lookup("#wallet-money-actions")).getTabs().stream().map(Tab::getText).toList()), "wallet exposes only deposit and simulated withdrawal");
         fire(owner.getScene().getRoot(), "account-transactions-navigation");
         waitFor(() -> owner.getScene().lookup("#transactions-entries") instanceof TableView<?> entries
-                && entries.getItems().stream().anyMatch(item -> item instanceof vn.ptit.btl16.common.wallet.WalletEntry entry && entry.type().equals("VAULT_DEPOSIT")), "transactions page displays the real vault debit");
-        TestSupport.check(fx(() -> ((javafx.animation.Timeline) field(firstWallet, "poll")).getStatus() == javafx.animation.Animation.Status.STOPPED
-                && ((String) field(firstVault, "token")).isEmpty()), "leaving wallet stops polling and discards vault access");
+                && entries.getItems().size() == 1, "transactions page displays the funded wallet history");
+        TestSupport.check(fx(() -> ((javafx.animation.Timeline) field(firstWallet, "poll")).getStatus() == javafx.animation.Animation.Status.STOPPED), "leaving wallet stops polling");
         TestSupport.check(fx(() -> Window.getWindows().stream().filter(Window::isShowing).count()) == 1, "transactions stays in the main window");
+        TestSupport.equals(List.of("", "TOPUP", "WITHDRAWAL", "PURCHASE", "SALE"), fx(() -> List.copyOf(((ComboBox<?>) owner.getScene().lookup("#transactions-type")).getItems())), "transaction filters match the supported money lifecycle");
+        TestSupport.equals(5, fx(() -> ((TableView<?>) owner.getScene().lookup("#transactions-entries")).getColumns().size()), "history contains only the current wallet columns");
         selectTransactionsType(owner, "TOPUP", 1);
         screenshot(owner.getScene().getRoot(), "target/account-transactions-topup.png");
-        selectTransactionsType(owner, "", 2);
-        for (String type : List.of("WITHDRAWAL", "PURCHASE", "SALE", "VAULT_WITHDRAWAL")) { selectTransactionsType(owner, type, 0); }
-        selectTransactionsType(owner, "VAULT_DEPOSIT", 1);
+        selectTransactionsType(owner, "", 1);
+        for (String type : List.of("WITHDRAWAL", "PURCHASE", "SALE")) { selectTransactionsType(owner, type, 0); }
+        selectTransactionsType(owner, "", 1);
         screenshot(owner.getScene().getRoot(), "target/account-transactions.png");
         TransactionsPane oldTransactions = (TransactionsPane) fx(() -> owner.getScene().lookup("#account-transactions"));
         fire(owner.getScene().getRoot(), "account-wallet-navigation");
         waitFor(() -> owner.getScene().lookup("#wallet-money-actions") != null, "wallet opens again");
         TestSupport.check(fx(() -> ((javafx.animation.Timeline) field(oldTransactions, "poll")).getStatus() == javafx.animation.Animation.Status.STOPPED), "leaving transactions stops polling");
-        fx(() -> { ((TabPane) owner.getScene().lookup("#wallet-money-actions")).getSelectionModel().select(2); return null; });
-        waitFor(() -> owner.getScene().lookup("#vault-unlock") != null && !owner.getScene().lookup("#vault-unlock").isDisabled(), "returning to vault requires unlocking");
-        VaultPane vault = (VaultPane) fx(() -> owner.getScene().lookup("#wallet-vault"));
-        fx(() -> { ((PasswordField) owner.getScene().lookup("#vault-unlock-pin")).setText("999999"); return null; });
-        fire(owner.getScene().getRoot(), "vault-unlock");
-        waitFor(() -> !Boolean.TRUE.equals(field(vault, "busy")) && ((Label) field(vault, "message")).getText().contains("không đúng"), "wrong PIN is rejected");
-        fx(() -> { ((PasswordField) owner.getScene().lookup("#vault-unlock-pin")).setText("012345"); return null; });
-        fire(owner.getScene().getRoot(), "vault-unlock");
-        waitFor(() -> Boolean.TRUE.equals(field(vault, "unlocked")), "correct PIN unlocks vault");
-        fx(() -> { ((TextField) owner.getScene().lookup("#vault-withdrawal-amount")).setText("2000"); return null; });
-        fire(owner.getScene().getRoot(), "vault-withdraw");
-        TestSupport.check(fx(() -> ((Label) field(vault, "message")).getText().contains("6 số")), "each withdrawal requests PIN again");
-        fx(() -> { ((PasswordField) owner.getScene().lookup("#vault-withdrawal-pin")).setText("012345"); return null; });
-        fire(owner.getScene().getRoot(), "vault-withdraw");
-        waitFor(() -> !Boolean.TRUE.equals(field(vault, "busy")) && ((Label) field(vault, "balance")).getText().contains("3.000"), "withdrawal returns money to liquid wallet");
-        fx(() -> { ((TextField) owner.getScene().lookup("#vault-deposit-amount")).setText("1000"); return null; });
-        fire(owner.getScene().getRoot(), "vault-deposit");
-        waitFor(() -> !Boolean.TRUE.equals(field(vault, "busy")) && ((Label) field(vault, "balance")).getText().contains("4.000"), "open vault accepts another deposit without repeating PIN");
-        fx(() -> { ((TextField) owner.getScene().lookup("#vault-withdrawal-amount")).setText("4000"); ((PasswordField) owner.getScene().lookup("#vault-withdrawal-pin")).setText("012345"); return null; });
-        fire(owner.getScene().getRoot(), "vault-withdraw");
-        waitFor(() -> !Boolean.TRUE.equals(field(vault, "busy")) && ((Label) field(vault, "balance")).getText().equals(vn.ptit.btl16.common.fx.WalletUi.money(java.math.BigDecimal.ZERO)), "vault can be emptied into wallet");
-        waitFor(() -> ((Label) field(owner.getScene().lookup("#account-wallet"), "balance")).getText().contains("886.858.000"), "wallet balance is restored after all vault transfers");
-        TestSupport.check(fx(() -> ((PasswordField) field(vault, "withdrawalPin")).getText().isEmpty()), "withdrawal clears PIN field");
+        waitFor(() -> ((Label) field(owner.getScene().lookup("#account-wallet"), "balance")).getText().contains("886.858.000"), "wallet balance is unchanged by account navigation");
     }
     private static void selectTransactionsType(Stage owner, String type, int expectedCount) throws Exception {
         fx(() -> { @SuppressWarnings("unchecked") var filter = (ComboBox<String>) owner.getScene().lookup("#transactions-type"); filter.setValue(type); return null; });

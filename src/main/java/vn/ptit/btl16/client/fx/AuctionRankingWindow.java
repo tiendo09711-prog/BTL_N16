@@ -19,18 +19,23 @@ import vn.ptit.btl16.client.service.ApiResponse;
 import vn.ptit.btl16.common.fx.DesktopTheme;
 import vn.ptit.btl16.common.fx.WalletUi;
 import vn.ptit.btl16.common.protocol.MessageType;
+import vn.ptit.btl16.common.util.RevenuePeriod;
+import java.time.Instant;
+import java.time.format.DateTimeFormatter;
 import java.io.ByteArrayInputStream;
 import java.math.BigDecimal;
 import java.util.*;
 import java.util.function.BooleanSupplier;
 
-/** Lifetime seller revenue, with the same podium benefits used by server settlement. */
+/** Period-based seller revenue; settlement benefits always use the monthly ranking. */
 public final class AuctionRankingWindow {
     private final Stage stage = new Stage();
     private final VBox rows = new VBox(10);
     private final Label status = DesktopTheme.label("Đang tải bảng xếp hạng…", "revenue-status");
     private final Button refresh = AccountUi.button("Làm mới", "refresh");
     private final Timeline poll = new Timeline();
+    private final ComboBox<RevenuePeriod> period = new ComboBox<>();
+    private final Label range = DesktopTheme.label("", "revenue-footnote");
     private final ClientTransport transport;
     private final BooleanSupplier sameSession;
     private boolean loading;
@@ -39,13 +44,18 @@ public final class AuctionRankingWindow {
 
     public AuctionRankingWindow(Window owner, ClientTransport transport, BooleanSupplier sameSession) {
         this.transport = transport; this.sameSession = sameSession;
-        stage.initOwner(owner); stage.initModality(Modality.WINDOW_MODAL); stage.setTitle("Top 10 doanh thu");
+        stage.initOwner(owner); stage.initModality(Modality.WINDOW_MODAL); stage.setTitle("Top doanh thu");
         refresh.getStyleClass().add("revenue-refresh"); refresh.setId("revenue-ranking-refresh"); refresh.setMinWidth(132);
         Button close = AccountUi.close(stage::close); close.setId("revenue-ranking-close");
-        Label title = DesktopTheme.label("Top 10 doanh thu", "revenue-title");
-        Label description = DesktopTheme.label("Vinh danh 10 người bán có tổng doanh thu đấu giá thành công cao nhất. Doanh thu là tổng giá chốt trước khi trừ thuế.", "revenue-description");
+        Label title = DesktopTheme.label("Top doanh thu", "revenue-title");
+        Label description = DesktopTheme.label("10 người bán có doanh thu trước phí cao nhất trong kỳ. Chỉ tính phiên đã thanh toán; không tính phòng ẩn danh.", "revenue-description");
+        description.setWrapText(true);
+        period.setId("revenue-ranking-period"); period.getItems().setAll(RevenuePeriod.values()); period.setValue(RevenuePeriod.DEFAULT);
+        range.setId("revenue-ranking-range"); range.setWrapText(true);
+        FlowPane filters = new FlowPane(8,5,new Label("Thời gian"),period);
         HBox update = new HBox(7, MarketplaceIcons.icon("clock", 15, "#aa6a22"), status); update.setAlignment(Pos.CENTER_LEFT); update.getStyleClass().add("revenue-update");
-        VBox text = new VBox(9, title, description, update); text.setMinWidth(0); HBox.setHgrow(text, Priority.ALWAYS);
+        status.setWrapText(true);
+        VBox text = new VBox(9, title, description, filters, range, update); text.setMinWidth(0); HBox.setHgrow(text, Priority.ALWAYS);
         VBox controls = new VBox(15, close, refresh); controls.setAlignment(Pos.TOP_RIGHT);
         HBox heading = new HBox(16, new RankingArtwork(0, 120), text, controls); heading.setAlignment(Pos.CENTER_LEFT); heading.getStyleClass().add("revenue-heading");
         StackPane hero = new StackPane(); hero.getStyleClass().add("revenue-hero"); hero.setMinHeight(170);
@@ -58,14 +68,19 @@ public final class AuctionRankingWindow {
         hero.getChildren().addAll(decoration, heading); AccountUi.draggable(heading, stage);
         ScrollPane scroll = new ScrollPane(rows); scroll.setId("revenue-ranking-scroll"); scroll.setFitToWidth(true); scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER); scroll.getStyleClass().add("revenue-scroll");
         rows.setId("revenue-ranking-rows"); rows.setPadding(new Insets(5, 8, 8, 5));
-        Label tax = DesktopTheme.label("Thuế trên giá chốt: đến 1 tỷ đồng 10% · Trên 1 tỷ đồng 15%", "revenue-tax-note");
-        Label benefits = DesktopTheme.label("Giảm thuế: Top 1 −5 điểm % · Top 2 −4 · Top 3 −3 · Top 4–5 −2 · Top 6–10 −1", "revenue-benefits");
-        Label timing = DesktopTheme.label("Thứ hạng được lấy trước khi chốt phiên. Bằng doanh thu: người bán có phiên thành công đầu tiên sớm hơn xếp trước, sau đó theo mã tài khoản.", "revenue-footnote");
-        VBox footer = new VBox(4, tax, benefits, timing); footer.getStyleClass().add("revenue-footer");
+        Label fee = DesktopTheme.label("Phí sàn trên giá chốt: đến 1 tỷ đồng 10% · Trên 1 tỷ đồng 15%", "revenue-fee-note");
+        Label benefits = DesktopTheme.label("Ưu đãi theo Top 1 tháng: Top 1 −5 điểm % · Top 2 −4 · Top 3 −3 · Top 4–5 −2 · Top 6–10 −1", "revenue-benefits");
+        Label timing = DesktopTheme.label("Mốc thời gian tính lùi từ hiện tại (GMT+7). Ưu đãi phí lấy hạng 1 tháng ngay trước lúc chốt, không thay đổi theo bộ lọc đang xem. Bằng doanh thu: phiên thành công đầu tiên trong kỳ sớm hơn, rồi mã tài khoản.", "revenue-footnote");
+        fee.setWrapText(true); benefits.setWrapText(true); timing.setWrapText(true);
+        VBox footer = new VBox(4, fee, benefits, timing); footer.getStyleClass().add("revenue-footer");
         BorderPane content = new BorderPane(scroll, hero, null, footer, null); content.getStyleClass().add("revenue-page");
         content.widthProperty().addListener((o, before, width) -> content.pseudoClassStateChanged(javafx.css.PseudoClass.getPseudoClass("compact"), width.doubleValue() < 850));
         AccountUi.window(stage, content, 920, 830); stage.setMinWidth(780); stage.setMinHeight(540);
         refresh.setOnAction(event -> load());
+        period.setOnAction(event -> {
+            request++; loading=false; refresh.setDisable(false); previous=List.of(); rows.getChildren().clear();
+            range.setText("Đang tải kỳ "+period.getValue()+"..."); load();
+        });
         poll.getKeyFrames().add(new KeyFrame(Duration.seconds(5), event -> load())); poll.setCycleCount(Timeline.INDEFINITE);
         stage.setOnHidden(event -> { poll.stop(); request++; loading = false; rows.getChildren().clear(); previous = List.of(); });
     }
@@ -75,7 +90,8 @@ public final class AuctionRankingWindow {
         if (loading) { return; }
         if (!transport.isConnected()) { status.setText("Mất kết nối. Đang chờ kết nối lại…"); return; }
         loading = true; refresh.setDisable(true); long expected = ++request;
-        transport.sendRequest(MessageType.GET_REVENUE_RANKING, Map.of()).whenComplete((message, error) -> Platform.runLater(() -> {
+        var selected=period.getValue();
+        transport.sendRequest(MessageType.GET_REVENUE_RANKING, Map.of("period",selected.code())).whenComplete((message, error) -> Platform.runLater(() -> {
             if (request != expected || !stage.isShowing()) { return; }
             loading = false; refresh.setDisable(false);
             if (!sameSession.getAsBoolean()) { stage.close(); return; }
@@ -88,16 +104,20 @@ public final class AuctionRankingWindow {
                 List<Map<String, String>> values = new ArrayList<>();
                 for (int index = 0; index < count; index++) {
                     String prefix = "ranking." + index + "."; Map<String, String> value = new LinkedHashMap<>();
-                    for (String key : List.of("sellerId", "username", "displayName", "revenue", "saleCount", "avatarBase64", "discountRate")) { value.put(key, response.get(prefix + key)); }
+                    for (String key : List.of("sellerId", "username", "displayName", "revenue", "saleCount", "avatarBase64", "discountRate", "benefitRank")) { value.put(key, response.get(prefix + key)); }
                     values.add(value);
                 }
                 if (!values.equals(previous) || rows.getChildren().isEmpty()) {
                     List<Node> updated = new ArrayList<>();
                     for (int index = 0; index < count; index++) { updated.add(row(index + 1, values.get(index))); }
-                    if (count == 0) { Label empty = DesktopTheme.label("Chưa có doanh thu đấu giá thành công.\nBảng xếp hạng sẽ xuất hiện sau phiên bán thành công đầu tiên.", "revenue-empty"); empty.setMaxWidth(Double.MAX_VALUE); updated.add(empty); }
+                    if (count == 0) { Label empty = DesktopTheme.label("Chưa có doanh thu đủ điều kiện trong kỳ "+selected+".\nChỉ tính phiên đã thanh toán và không ẩn danh.", "revenue-empty"); empty.setMaxWidth(Double.MAX_VALUE); updated.add(empty); }
                     rows.getChildren().setAll(updated); previous = values;
                 }
-                status.setText("Tự động cập nhật mỗi 5 giây  ·  Đã có " + count + " người bán trong Top 10");
+                if (!response.get("periodStart").isBlank() && !response.get("periodEnd").isBlank()) {
+                    var format=DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm").withZone(RevenuePeriod.ZONE);
+                    range.setText(format.format(Instant.parse(response.get("periodStart")))+" → "+format.format(Instant.parse(response.get("periodEnd")))+" (GMT+7)");
+                }
+                status.setText("Cập nhật mỗi 5 giây · "+selected+" · "+count+" người bán");
             } catch (RuntimeException invalid) { status.setText("Dữ liệu xếp hạng chưa hợp lệ. Nhấn Làm mới để thử lại."); }
         }));
     }
@@ -108,7 +128,8 @@ public final class AuctionRankingWindow {
         String username = value.get("username");
         String display = value.get("displayName").isBlank() ? username : value.get("displayName");
         Label name = DesktopTheme.label(username, "revenue-name"); name.setWrapText(false); name.setMinWidth(0); name.setTooltip(new Tooltip(display + " (@" + username + ")"));
-        Label badge = DesktopTheme.label("−" + percent(value.get("discountRate")) + " điểm % thuế", "revenue-discount");
+        Label badge = DesktopTheme.label(new BigDecimal(value.get("discountRate")).signum()==0 ? "Chưa có ưu đãi phí sàn" : "−" + percent(value.get("discountRate")) + " điểm % phí sàn", "revenue-discount");
+        badge.setTooltip(new Tooltip("Ưu đãi theo Top doanh thu 1 tháng, không theo bộ lọc đang xem"));
         FlowPane identity = new FlowPane(8, 4, name, badge); identity.setAlignment(Pos.CENTER_LEFT); identity.setMinWidth(0); identity.setPrefWrapLength(220);
         Label seller = DesktopTheme.label(display + "  ·  Mã #" + value.get("sellerId"), "revenue-metadata"); seller.setWrapText(false); seller.setMinWidth(0);
         HBox sales = new HBox(7, MarketplaceIcons.icon("gavel", 14, "#9f794d"), DesktopTheme.label(value.get("saleCount") + " phiên bán thành công", "revenue-metadata")); sales.setAlignment(Pos.CENTER_LEFT);

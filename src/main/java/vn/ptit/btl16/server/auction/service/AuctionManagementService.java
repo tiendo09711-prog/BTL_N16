@@ -82,6 +82,10 @@ public final class AuctionManagementService {
         return List.copyOf(products.values());
     }
 
+    public java.util.Set<Long> anonymousPurchasedProducts(UserSession session) {
+        requireLoggedIn(session); return repository.anonymousPurchasedProducts(session.getUserId());
+    }
+
     public vn.ptit.btl16.common.protocol.ProductTransactionStatus transactionStatus(Product product) {
         return repository.productTransactionStatus(product.getProductId());
     }

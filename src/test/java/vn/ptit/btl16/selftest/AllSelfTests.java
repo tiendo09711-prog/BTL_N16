@@ -18,7 +18,7 @@ public final class AllSelfTests {
         SeekableMp4SelfTest.run();
         WalletSelfTest.run();
         WithdrawalSelfTest.run();
-        VaultSelfTest.run();
+        WalletStorageMigrationSelfTest.run();
         AuctionRulesSelfTest.run();
         ProductCodesSelfTest.run();
         FriendsSelfTest.run();
@@ -39,6 +39,7 @@ public final class AllSelfTests {
         AuctionReceiptSelfTest.run();
         AuctionFinishSelfTest.run();
         SellerRevenueSelfTest.run();
+        CashFlowRulesSelfTest.run();
         CompletionSelfTest.run();
         AwayBidNotificationsSelfTest.run();
         WebSocketUpgradeSelfTest.run();

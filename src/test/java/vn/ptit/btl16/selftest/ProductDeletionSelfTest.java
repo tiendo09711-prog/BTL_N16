@@ -52,11 +52,12 @@ public final class ProductDeletionSelfTest {
                     }
                     long sold=product(repository); long auction=room(repository,sold,false); var current=repository.findAuctionById(auction).orElseThrow();
                     repository.commitAcceptedBid(new BidCommit(auction,current.getCurrentPrice(),2,"alice",new BigDecimal("110"),++sequence,Instant.now(),current.getEndTime())); close(factory,repository,auction);
-                    var receipt=repository.personalReceipt(2,auction); var revenue=repository.topSellers(); var media=repository.findProductMedia(sold);
+                    var rankingAt=Instant.now();
+                    var receipt=repository.personalReceipt(2,auction); var revenue=SellerRevenueStore.topSellers(factory,vn.ptit.btl16.common.util.RevenuePeriod.DEFAULT,rankingAt); var media=repository.findProductMedia(sold);
                     repository.deactivateProduct(sold,1); ok(api.deleteProduct(sold));
                     TestSupport.check(repository.findProductsByOwner(1).stream().noneMatch(p->p.getProductId()==sold),"inactive sold item is deletable and disappears");
                     TestSupport.equals(receipt,repository.personalReceipt(2,auction),"winner receipt, price, thumbnail and ledger retained");
-                    TestSupport.equals(revenue,repository.topSellers(),"deletion does not reduce earned revenue or ranking");
+                    TestSupport.equals(revenue,SellerRevenueStore.topSellers(factory,vn.ptit.btl16.common.util.RevenuePeriod.DEFAULT,rankingAt),"deletion does not reduce earned revenue or ranking");
                     TestSupport.equals(media,repository.findProductMedia(sold),"historic media retained");
                     fail(api.restoreProduct(sold),"PRODUCT_NOT_FOUND"); fail(api.deleteProduct(sold),"PRODUCT_NOT_FOUND");
                     fail(api.updateProduct(sold,"DELETED_EDIT","Edited",TestMedia.DESCRIPTION),"PRODUCT_NOT_FOUND");

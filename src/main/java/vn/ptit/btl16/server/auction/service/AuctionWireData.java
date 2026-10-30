@@ -54,10 +54,21 @@ public final class AuctionWireData {
     public static Map<String, String> productList(List<Product> products, Instant serverNow,
             Function<Product, ProductRestorationStatus> restorationStatus,
             Function<Product, vn.ptit.btl16.common.protocol.ProductTransactionStatus> transactionStatus) {
+        return productList(products,serverNow,restorationStatus,transactionStatus,product -> false);
+    }
+
+    public static Map<String, String> productList(List<Product> products, Instant serverNow,
+            Function<Product, ProductRestorationStatus> restorationStatus,
+            Function<Product, vn.ptit.btl16.common.protocol.ProductTransactionStatus> transactionStatus,
+            java.util.function.Predicate<Product> hideSeller) {
         Map<String, String> data = new LinkedHashMap<>();
         data.put("productCount", Integer.toString(products.size()));
         for (int i = 0; i < products.size(); i++) {
             putProduct(data, "product." + i + '.', products.get(i));
+            if (hideSeller.test(products.get(i))) {
+                data.put("product."+i+".ownerId","0");
+                data.put("product."+i+".ownerUsername","Người bán ẩn danh");
+            }
             data.put("product." + i + ".restorationStatus", restorationStatus.apply(products.get(i)).name());
             data.put("product." + i + ".transactionStatus", transactionStatus.apply(products.get(i)).name());
         }

@@ -59,6 +59,9 @@ public final class JdbcAuctionRepository implements AuctionRepository {
         return new AuctionReceiptStore(connectionFactory).topProducts();
     }
     @Override public java.util.Map<String, String> topSellers() { return SellerRevenueStore.topSellers(connectionFactory); }
+    @Override public java.util.Map<String, String> topSellers(vn.ptit.btl16.common.util.RevenuePeriod period) {
+        return SellerRevenueStore.topSellers(connectionFactory, period, Instant.now());
+    }
     @Override public java.util.List<java.util.Map<String,String>> operationEvents(Long room, String type, Instant from, Instant to, long before, int limit) {
         if (before <= 0 || limit < 1 || limit > 100 || (room != null && room <= 0) || (from != null && to != null && !from.isBefore(to))) {
             throw new IllegalArgumentException("Invalid operation log filters");
@@ -525,6 +528,18 @@ public final class JdbcAuctionRepository implements AuctionRepository {
             query.setLong(1, productId); query.setLong(2, userId);
             try (var rows = query.executeQuery()) { return rows.next(); }
         } catch (SQLException error) { throw new AuctionRepositoryException("Cannot check purchased product", error); }
+    }
+
+    @Override
+    public java.util.Set<Long> anonymousPurchasedProducts(long userId) {
+        try (var connection=connectionFactory.openDatabase(); var query=connection.prepareStatement("""
+                SELECT a.product_id FROM auctions a JOIN auction_results r ON r.auction_id=a.auction_id
+                WHERE a.status='ENDED' AND a.anonymous_guests=TRUE AND r.winner_id=?
+                """)) {
+            query.setLong(1,userId); java.util.Set<Long> products=new java.util.HashSet<>();
+            try (var rows=query.executeQuery()) { while (rows.next()) { products.add(rows.getLong(1)); } }
+            return products;
+        } catch (SQLException error) { throw new AuctionRepositoryException("Cannot check anonymous purchases",error); }
     }
 
     @Override

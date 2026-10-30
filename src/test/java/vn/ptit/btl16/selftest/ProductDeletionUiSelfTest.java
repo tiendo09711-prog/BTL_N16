@@ -3,7 +3,10 @@ package vn.ptit.btl16.selftest;
 import javafx.application.Platform;
 import javafx.scene.*;
 import javafx.scene.control.*;
+import javafx.scene.input.MouseButton;
+import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.StackPane;
+import javafx.scene.layout.TilePane;
 import javafx.stage.*;
 import vn.ptit.btl16.client.fx.FxClientController;
 import vn.ptit.btl16.client.model.*;
@@ -32,6 +35,7 @@ public final class ProductDeletionUiSelfTest {
             Node page=fx(()->window.getScene().lookup("#seller-products-page"));
             @SuppressWarnings("unchecked") TableView<ClientProduct> table=fx(()->(TableView<ClientProduct>)window.getScene().lookup("#seller-products"));
             Button delete=fx(()->(Button)field(page,"delete"));
+            verifyActionStates(page, table);
             fx(()->{
                 TestSupport.equals(3,table.getItems().size(),"all undeleted items load");
                 TestSupport.check(table.getColumns().stream().noneMatch(c->c.getText().contains("Khôi phục")),"restoration column removed");
@@ -52,8 +56,8 @@ public final class ProductDeletionUiSelfTest {
                 table.applyCss();table.layout();
                 return table.lookupAll(".account-more").stream().filter(MenuButton.class::isInstance).map(MenuButton.class::cast).filter(m->{for(Node n=m;n!=null;n=n.getParent()){if(n instanceof TableRow<?> row){return row.getIndex()==1;}}return false;}).findFirst().orElseThrow();
             });
-            fx(()->{menu.show();TestSupport.equals(List.of("Sửa","Ảnh / video","Xóa sản phẩm"),menu.getItems().stream().map(MenuItem::getText).toList(),"menu has deletion without restore");menu.hide();return null;});
-            CompletableFuture<Void> firing=launch(()->menu.getItems().get(2).fire());waitDialog(ButtonType.YES);fx(()->{((Button)dialog(ButtonType.YES).lookupButton(ButtonType.YES)).fire();return null;});firing.get(10,TimeUnit.SECONDS);
+            fx(()->{menu.show();TestSupport.equals(List.of("Sửa","Xóa sản phẩm"),menu.getItems().stream().map(MenuItem::getText).toList(),"untraded menu only has edit and delete");menu.hide();return null;});
+            CompletableFuture<Void> firing=launch(()->menu.getItems().get(1).fire());waitDialog(ButtonType.YES);fx(()->{((Button)dialog(ButtonType.YES).lookupButton(ButtonType.YES)).fire();return null;});firing.get(10,TimeUnit.SECONDS);
             fx(()->{TestSupport.equals(3L,network.requested,"context menu deletes its own row");network.complete(false);return null;});waitDialog(ButtonType.OK);
             fx(()->{DialogPane message=dialog(ButtonType.OK);TestSupport.check(message.getContentText().contains("phiên đang mở"),"server refusal explained");((Button)message.lookupButton(ButtonType.OK)).fire();return null;});drain();
             fx(()->{TestSupport.equals(2,table.getItems().size(),"refused deletion keeps item");TestSupport.check(!delete.isDisabled(),"failed deletion re-enables action");table.getSelectionModel().selectFirst();return null;});
@@ -62,9 +66,91 @@ public final class ProductDeletionUiSelfTest {
             TestSupport.equals(loads,network.loads,"late mutation reply after close does not reload view");
             TestSupport.check(fx(()->window.isShowing()&&window.getScene().lookup("#seller-products-page")==null),"top-right X returns to marketplace without closing the app");
             TestSupport.equals(0,fx(()->table.getItems().size()),"close releases product view");
-            System.out.println("[PASS] ProductDeletionUiSelfTest: no restoration/bottom close, inactive delete, cancel/confirm, single pending request, context-menu target, refusal/reload, X and stale closed reply");
+            System.out.println("[PASS] ProductDeletionUiSelfTest: status-based list/grid actions, read-only details/gallery, inactive delete, cancel/confirm, single pending request, context-menu target, refusal/reload, X and stale closed reply");
         } finally {fx(()->{controller.close();for(Window window:List.copyOf(Window.getWindows())){window.hide();}return null;});Platform.exit();}
     }
+    private static void verifyActionStates(Node page, TableView<ClientProduct> table) throws Exception {
+        fx(() -> {
+            List<ClientProduct> original = List.copyOf(table.getItems());
+            Button edit = (Button) field(page, "edit"), media = (Button) field(page, "media"), delete = (Button) field(page, "delete");
+            var editHandler = edit.getOnAction(); var mediaHandler = media.getOnAction(); var deleteHandler = delete.getOnAction();
+            List<Long> edits = new ArrayList<>(), deletes = new ArrayList<>(), views = new ArrayList<>();
+            edit.setOnAction(event -> edits.add(table.getSelectionModel().getSelectedItem().getProductId()));
+            delete.setOnAction(event -> deletes.add(table.getSelectionModel().getSelectedItem().getProductId()));
+            media.setOnAction(event -> views.add(table.getSelectionModel().getSelectedItem().getProductId()));
+            var setter = page.getClass().getDeclaredMethod("setProducts", List.class, Long.class); setter.setAccessible(true);
+            List<ProductTransactionStatus> statuses = List.of(ProductTransactionStatus.UNTRADED, ProductTransactionStatus.AUCTIONING, ProductTransactionStatus.SOLD);
+            try {
+                for (int round = 0; round < 2; round++) {
+                    List<ClientProduct> products = new ArrayList<>();
+                    for (int index = 0; index < original.size(); index++) {
+                        ClientProduct product = original.get(index);
+                        products.add(new ClientProduct(product.getProductId(), product.getOwnerId(), product.getOwnerUsername(), product.getCode(),
+                                product.getName(), product.getDescription(), product.isActive(), product.getCreatedAt(), product.getUpdatedAt(),
+                                product.hasImage(), product.getImageMime(), product.getImageName(), product.getImageSize(), product.getImageVersion(),
+                                product.getRestorationStatus(), statuses.get((index + round) % statuses.size())));
+                    }
+                    setter.invoke(page, products, null);
+                    for (ClientProduct product : products) {
+                        table.getSelectionModel().select(product); table.applyCss(); table.layout();
+                        boolean untraded = product.getTransactionStatus() == ProductTransactionStatus.UNTRADED;
+                        boolean auctioning = product.getTransactionStatus() == ProductTransactionStatus.AUCTIONING;
+                        TestSupport.equals(!untraded, edit.isDisabled(), "only untraded products enable editing");
+                        TestSupport.equals(auctioning, delete.isDisabled(), "auctioning products disable deletion");
+                        TestSupport.check(!media.isDisabled(), "all statuses retain read-only gallery access");
+                        TableRow<?> row = table.lookupAll(".table-row-cell").stream().filter(TableRow.class::isInstance).map(TableRow.class::cast)
+                                .filter(candidate -> candidate.getItem() == product).findFirst().orElseThrow();
+                        MenuButton menu = (MenuButton) row.lookup(".account-more");
+                        if (auctioning) {
+                            TestSupport.check(menu == null, "auctioning table rows hide all actions");
+                            int previousEdits = edits.size(), previousDeletes = deletes.size(); edit.fire(); delete.fire();
+                            TestSupport.equals(previousEdits, edits.size(), "auctioning edit cannot fire");
+                            TestSupport.equals(previousDeletes, deletes.size(), "auctioning delete cannot fire");
+                        } else {
+                            table.getSelectionModel().select(products.stream().filter(other -> other != product).findFirst().orElseThrow());
+                            menu.show();
+                            TestSupport.equals(product, table.getSelectionModel().getSelectedItem(), "opening menu selects its own product");
+                            TestSupport.equals(untraded ? List.of("Sửa", "Xóa sản phẩm") : List.of("Xóa sản phẩm"), menu.getItems().stream().map(MenuItem::getText).toList(), "table menu follows transaction status");
+                            TestSupport.check(menu.getItems().stream().noneMatch(MenuItem::isDisable), "menu permissions reflect its own product");
+                            if (untraded) { menu.getItems().getFirst().fire(); TestSupport.equals(product.getProductId(), edits.getLast(), "edit targets untraded menu product"); }
+                            else { int previousEdits = edits.size(); edit.fire(); TestSupport.equals(previousEdits, edits.size(), "sold product cannot invoke edit"); }
+                            menu.getItems().getLast().fire(); menu.hide();
+                            TestSupport.equals(product.getProductId(), deletes.getLast(), "delete targets menu product");
+                        }
+                        String details = labels(page.lookup("#seller-product-detail"));
+                        TestSupport.check(details.contains(product.getCode()) && details.contains(product.getName()) && details.contains(product.getDescription()), "selection retains right-side product information");
+                        int previousViews = views.size();
+                        page.lookup("#seller-detail-image").getOnMouseClicked().handle(click(1));
+                        page.lookup("#seller-media-count").getOnMouseClicked().handle(click(1));
+                        TestSupport.equals(previousViews + 2, views.size(), "image and media count retain gallery entry points for every status");
+                        TestSupport.equals(product.getProductId(), views.getLast(), "detail gallery targets selected product");
+                    }
+                    ((ToggleButton) page.lookup("#seller-grid-view")).fire();
+                    TilePane cards = (TilePane) field(page, "cards");
+                    for (int index = 0; index < products.size(); index++) {
+                        ClientProduct product = products.get(index); Node card = cards.getChildren().get(index);
+                        card.getOnMouseClicked().handle(click(1));
+                        TestSupport.equals(product, table.getSelectionModel().getSelectedItem(), "single grid click selects product details");
+                        MenuButton menu = (MenuButton) card.lookup(".account-more");
+                        if (product.getTransactionStatus() == ProductTransactionStatus.AUCTIONING) { TestSupport.check(menu == null, "auctioning grid cards hide all actions"); }
+                        else { TestSupport.equals(product.getTransactionStatus() == ProductTransactionStatus.UNTRADED ? List.of("Sửa", "Xóa sản phẩm") : List.of("Xóa sản phẩm"), menu.getItems().stream().map(MenuItem::getText).toList(), "grid menu follows transaction status"); }
+                        int previousViews = views.size(); card.getOnMouseClicked().handle(click(2));
+                        TestSupport.equals(previousViews + 1, views.size(), "double grid click opens gallery regardless of status");
+                        TestSupport.equals(product.getProductId(), views.getLast(), "grid gallery targets clicked product");
+                    }
+                    ((ToggleButton) page.lookup("#seller-list-view")).fire();
+                }
+                table.getSelectionModel().clearSelection();
+                TestSupport.check(edit.isDisabled() && delete.isDisabled() && media.isDisabled(), "empty selection disables all handlers");
+            } finally {
+                edit.setOnAction(editHandler); media.setOnAction(mediaHandler); delete.setOnAction(deleteHandler);
+                setter.invoke(page, original, null);
+                ((ToggleButton) page.lookup("#seller-list-view")).fire();
+            }
+            return null;
+        });
+    }
+    private static MouseEvent click(int count) { return new MouseEvent(MouseEvent.MOUSE_CLICKED, 0, 0, 0, 0, MouseButton.PRIMARY, count, false, false, false, false, false, false, false, false, false, true, null); }
     private static void answer(Button button,ButtonType answer,String text)throws Exception{var action=launch(button::fire);waitDialog(ButtonType.YES);fx(()->{DialogPane pane=dialog(ButtonType.YES);TestSupport.check(pane.getContentText().contains(text),"confirmation explains permanent removal");((Button)pane.lookupButton(answer)).fire();return null;});action.get(10,TimeUnit.SECONDS);drain();}
     private static CompletableFuture<Void> launch(Runnable action){var result=new CompletableFuture<Void>();Platform.runLater(()->{try{action.run();result.complete(null);}catch(Throwable error){result.completeExceptionally(error);}});return result;}
     private static DialogPane dialog(ButtonType button){return Window.getWindows().stream().filter(w->w.isShowing()&&w.getScene()!=null&&w.getScene().getRoot() instanceof DialogPane pane&&pane.getButtonTypes().contains(button)).map(w->(DialogPane)w.getScene().getRoot()).findFirst().orElseThrow();}

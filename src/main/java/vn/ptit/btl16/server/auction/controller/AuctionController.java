@@ -61,11 +61,13 @@ public final class AuctionController {
     }
 
     public void handleMyProducts(RequestContext context) throws Exception {
+        var viewer=context.requireSession(); var hiddenSellers=management.anonymousPurchasedProducts(viewer);
         context.replySuccess(
                 MessageType.MY_PRODUCTS_RESULT,
                 AuctionWireData.productList(
                         management.myProducts(context.requireSession()),
-                        Instant.now(), management::restorationStatus, product -> management.transactionStatus(context.requireSession(), product)));
+                        Instant.now(), management::restorationStatus, product -> management.transactionStatus(viewer, product),
+                        product -> product.getOwnerId()!=viewer.getUserId() && hiddenSellers.contains(product.getProductId())));
     }
 
     public void handleUpdateProduct(RequestContext context) throws Exception {
@@ -200,7 +202,12 @@ public final class AuctionController {
     }
     public void handleRevenueRanking(RequestContext context) throws Exception {
         context.requireSession();
-        context.replySuccess(MessageType.REVENUE_RANKING_RESULT, queries.topSellers());
+        vn.ptit.btl16.common.util.RevenuePeriod period;
+        try { period = vn.ptit.btl16.common.util.RevenuePeriod.parse(context.value("period")); }
+        catch (IllegalArgumentException invalid) {
+            throw new AuctionException(vn.ptit.btl16.common.protocol.ErrorCode.VALIDATION_ERROR, "Invalid revenue period");
+        }
+        context.replySuccess(MessageType.REVENUE_RANKING_RESULT, queries.topSellers(period));
     }
 
     public void handleJoin(RequestContext context) throws Exception {
