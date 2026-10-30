@@ -1,6 +1,6 @@
 # Local Windows environment
 
-This machine was configured on 2026-10-11 for the Java desktop auction project.
+This machine was updated on 2026-10-30 for the Java desktop auction project.
 The client uses JavaFX and WebSocket; the server stores data through JDBC in
 the MariaDB installation bundled with XAMPP.
 
@@ -8,15 +8,17 @@ the MariaDB installation bundled with XAMPP.
 
 | Tool | Version | Location |
 | --- | --- | --- |
-| Project JDK | Eclipse Temurin 17.0.20.1+1 | `%LOCALAPPDATA%\BTL16\tools\jdk-17.0.20.1+1` |
+| Project Java compiler/runtime | Eclipse Temurin 25.0.4.1+1 | `%LOCALAPPDATA%\BTL16\tools\jdk-25.0.4.1` |
 | Maven | 3.9.16 | `C:\Program Files\Apache\maven\apache-maven-3.9.16` |
 | Node.js / npm | 24.13.0 / 11.6.2 | `C:\Program Files\nodejs` |
 | XAMPP MariaDB | 10.4.32 | `C:\xampp\mysql` |
 | VS Code Java support | Already installed | Extension Pack for Java |
 
-Only the project JDK was downloaded and installed; the other tools were already
-available. The JDK ZIP was checked against the SHA-256 published by the Adoptium
-release API. Download metadata is in `%LOCALAPPDATA%\BTL16\jdk-install.json`.
+The Java 25 compiler/runtime was copied from the already-installed VS Code Java
+extension bundle into the project tools directory. This avoids depending on the
+extension's installation path. The other build tools were already available.
+Java 17 cannot build this version: `pom.xml` targets Java 25.
+Packaging EXEs additionally requires a full JDK 25+ with `jpackage` and `jlink`.
 JavaFX, MySQL Connector/J, Jackson, WebSocket and SLF4J JARs are downloaded by
 Maven into `target/dependency`. The Node runners have no external npm packages,
 so `npm install` is not needed.
@@ -24,7 +26,7 @@ so `npm install` is not needed.
 ## Start working
 
 Open the project folder in VS Code and create a new terminal. Workspace settings
-select the installed JDK 17 for the project and new terminals, without changing
+select the installed Java 25 for the project and new terminals, without changing
 the system-wide Java installation or `JAVA_HOME`. The Java language server can
 continue using the newer runtime bundled with its extension.
 
@@ -66,11 +68,12 @@ npm.cmd run dist
 ## Existing database
 
 The database already contained data before setup. A SQL backup was made before
-running the schema initializer and retained under `%LOCALAPPDATA%\BTL16\backups\`.
-A working copy also exists under `target/local-setup/backups/`; `mvn clean`
-removes that working copy, but not the backup outside the project. No reset,
-demo seeding, or account creation was performed on `btl_16`. Comparing SQL dumps
-before and after setup confirmed that the existing schema and data are unchanged.
+running the new schema initializer:
+`%LOCALAPPDATA%\BTL16\backups\btl_16_before_update_20261030-095551.sql`.
+The SQL backup is retained independently of old source-code copies and is
+outside this project, so `mvn clean` does not remove it. No database reset,
+demo seeding, or account creation is required.
+Starting the new server applies its additive schema migrations to existing data.
 
 The database self-test uses its own randomly named `btl16_verify_*` database
 and deletes only that temporary test database when it finishes.
@@ -78,3 +81,58 @@ and deletes only that temporary test database when it finishes.
 The paths in `.vscode/settings.json` are specific to this Windows account.
 Update them when moving the repository to another machine. The activation
 script finds the project JDK under the current account's `%LOCALAPPDATA%`.
+
+## Source repository
+
+The source was updated to `upstream/main`, commit
+`de891d312f1ed235d45b19abfec3c2e8982499b2` (2026-10-29).
+`origin` remains the original `tiendo09711-prog/BTL_N16` repository;
+`upstream` is `phuoc2005nd-a11y/BTL-LTM`. Publish this project's updates to
+`origin/main`; do not push local setup changes to `upstream`.
+
+To check for future updates without replacing local changes:
+
+```powershell
+git fetch upstream main
+git log --oneline HEAD..upstream/main
+git merge upstream/main
+git push origin main
+```
+
+Legacy `target_classes/` and `target_test-classes/` compiled outputs are removed
+from Git and ignored. Maven builds the current source into `target/classes`
+and `target/test-classes`; do not restore old `.class` files into the project.
+
+## Media and Vietnamese voice
+
+FFmpeg and FFprobe 8.1.2 are present in `tools/media/` and pass the checksums in
+`tools/prepare-media.ps1`. Piper and the Vietnamese voice model are installed in
+`tools/speech/`. The model passes the SHA-256 check in
+`tools/prepare-client-voice.ps1`; an actual synthesis also produced a nonempty WAV.
+These downloaded executables and models are ignored by Git.
+
+## Verification on 2026-10-30
+
+A fresh Maven build removes the previous `target/` outputs and compiles the new
+source with Java 25. The complete test run and clean-build rechecks are recorded
+in `target/qa/final-verification.json`: 24 of 28 groups pass.
+`MarketplaceUiSelfTest` passes after the clean rebuild. The following upstream
+checks still fail; the application is not certified free of functional bugs:
+
+- `BidExperienceUiSelfTest`: expects a JOIN while the mock still has an
+  unacknowledged LEAVE request.
+- `LiveAuctionRoomUiSelfTest`: compact-column overlap/overflow assertion.
+- `AuctionButtonsUiSelfTest`: the test casts a new BorderPane form to GridPane.
+- `MysqlStorageSelfTest`: wallet-balance assertion reports `99.00` instead of
+  the test's expected `106.70`.
+
+Core/network/media self-tests, packaging unit checks, and the other two real
+MySQL test groups pass. The existing database initializes successfully and
+retains its 5 users, 4 products, 3 auctions and 8 bids.
+
+Both JavaFX desktop applications are launched from the rebuilt `target/classes`.
+The live WebSocket PING reports `UP`, the client connects, and the protected
+media HTTP server responds on port 8891. Runtime logs and process IDs are in
+`target/run/`. Close both applications before another clean build or before
+running `npm.cmd run dev`, to avoid deleting live classes or occupying the same
+server ports twice.

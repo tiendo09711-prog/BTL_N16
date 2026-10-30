@@ -3,13 +3,13 @@
   "java.compile.nullAnalysis.mode": "automatic",
   "java.configuration.runtimes": [
     {
-      "name": "JavaSE-17",
-      "path": "C:\\Users\\tiend\\AppData\\Local\\BTL16\\tools\\jdk-17.0.20.1+1",
+      "name": "JavaSE-25",
+      "path": "C:\\Users\\tiend\\AppData\\Local\\BTL16\\tools\\jdk-25.0.4.1",
       "default": true
     }
   ],
   "terminal.integrated.env.windows": {
-    "JAVA_HOME": "C:\\Users\\tiend\\AppData\\Local\\BTL16\\tools\\jdk-17.0.20.1+1",
-    "PATH": "C:\\Users\\tiend\\AppData\\Local\\BTL16\\tools\\jdk-17.0.20.1+1\\bin;${env:PATH}"
+    "JAVA_HOME": "C:\\Users\\tiend\\AppData\\Local\\BTL16\\tools\\jdk-25.0.4.1",
+    "PATH": "C:\\Users\\tiend\\AppData\\Local\\BTL16\\tools\\jdk-25.0.4.1\\bin;${env:PATH}"
   }
 }

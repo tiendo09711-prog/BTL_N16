@@ -2,7 +2,7 @@ BTL 16 - SAN DAU GIA REALTIME
 ===========================
 
 1. Doc README.md: ten du an, chuc nang, hai EXE, setup va su dung.
-2. Sua code: VS Code + JDK 17+ + Maven + Node.js 20+ + XAMPP.
+2. Sua code: VS Code + JDK 25+ + Maven + Node.js 20+ + XAMPP.
 3. Start MySQL trong XAMPP; sua db.port/password theo may minh.
 4. npm run build; scripts\setup-db.cmd; npm run dev.
 5. DB moi hoan toan trong: dang ky tai khoan, them san pham, tao phong.

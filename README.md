@@ -25,13 +25,13 @@ Cho phép đăng ký tài khoản, quản lý sản phẩm có ảnh, tạo phò
 
 ### Bản macOS (client và server)
 
-- Tạo portable cho **Mac Apple Silicon và Intel** ngay trên Windows: `npm run dist:mac:portable`. Bốn gói `.tar.gz` nằm trong `dist/`; máy nhận cần **JDK 17+ đúng kiến trúc**, mở file `.command` sau khi giải nén.
+- Tạo portable cho **Mac Apple Silicon và Intel** ngay trên Windows: `npm run dist:mac:portable`. Bốn gói `.tar.gz` nằm trong `dist/`; máy nhận cần **JDK 25+ đúng kiến trúc**, mở file `.command` sau khi giải nén.
 - Tạo `.app` **kèm runtime Java**: chạy `npm run dist` **trên Mac**, kết quả ở `dist/macos-arm64/` hoặc `dist/macos-x64/`. Server dùng cấu hình database của bản đóng gói, client không cần DB.
 - Hướng dẫn chi tiết: [docs/20_MACOS_PACKAGING.md](docs/20_MACOS_PACKAGING.md). Bản Windows hiện tại được giữ riêng, không chuyển EXE thành ứng dụng Mac.
 
 ## 4. Setup để đọc và sửa code: VS Code + XAMPP
 
-1. Cài **VS Code + Extension Pack for Java**, **JDK 17+**, **Maven 3.x**, **Node.js 20+** và **XAMPP**. Mở thư mục chứa `pom.xml` bằng VS Code.
+1. Cài **VS Code + Extension Pack for Java**, **JDK 25+**, **Maven 3.x**, **Node.js 20+** và **XAMPP**. Mở thư mục chứa `pom.xml` bằng VS Code.
 2. Trong XAMPP Control Panel, bấm **Start** ở dòng **MySQL**. Không cần bật Apache, trừ khi muốn dùng phpMyAdmin.
 3. Sửa `config/server.properties` cho đúng máy mình:
 
