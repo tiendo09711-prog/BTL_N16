@@ -3,6 +3,7 @@ package vn.ptit.btl16.client.view;
 import vn.ptit.btl16.client.model.ClientAppModel;
 import vn.ptit.btl16.client.model.ClientProduct;
 import vn.ptit.btl16.client.network.ConnectionState;
+import vn.ptit.btl16.client.service.ClientMessages;
 
 import javax.swing.BorderFactory;
 import javax.swing.JComboBox;
@@ -31,12 +32,16 @@ public final class MainFrame extends JFrame {
     private final JPanel cards = new JPanel(cardLayout);
     private final LoginPanel loginPanel = new LoginPanel();
     private final AuctionPanel auctionPanel = new AuctionPanel();
-    private final JLabel stateLabel = new JLabel(ConnectionState.DISCONNECTED.name());
+    private final JLabel stateLabel = new JLabel("Chưa kết nối");
     private final JLabel detailLabel = new JLabel("Chưa kết nối");
-    private final JLabel latencyLabel = new JLabel("RTT: -");
+    private final JLabel latencyLabel = new JLabel("Độ trễ: -");
 
     public MainFrame() {
-        super("BTL 16 - Realtime Auction Client");
+        super("Sàn đấu giá");
+        javax.swing.UIManager.put("OptionPane.okButtonText", "Đã hiểu");
+        javax.swing.UIManager.put("OptionPane.cancelButtonText", "Hủy");
+        javax.swing.UIManager.put("OptionPane.yesButtonText", "Đồng ý");
+        javax.swing.UIManager.put("OptionPane.noButtonText", "Không");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLayout(new BorderLayout());
 
@@ -76,13 +81,18 @@ public final class MainFrame extends JFrame {
     }
 
     public void renderConnection(ConnectionState state, String detail) {
-        stateLabel.setText(state.name());
-        detailLabel.setText(detail == null ? "" : detail);
+        stateLabel.setText(switch (state) {
+            case CONNECTED -> "Đã kết nối";
+            case CONNECTING -> "Đang kết nối";
+            case DISCONNECTED -> "Chưa kết nối";
+            case CLOSED -> "Đã đóng kết nối";
+        });
+        detailLabel.setText(detail == null || detail.isBlank() ? "" : ClientMessages.text(detail));
         loginPanel.setConnectionAvailable(state == ConnectionState.CONNECTED);
     }
 
     public void setLatency(String value) {
-        latencyLabel.setText(value == null || value.isBlank() ? "RTT: -" : "RTT: " + value + " ms");
+        latencyLabel.setText(value == null || value.isBlank() ? "Độ trễ: -" : "Độ trễ: " + value + " ms");
     }
 
     public void showInfo(String message) {
@@ -90,7 +100,7 @@ public final class MainFrame extends JFrame {
     }
 
     public void showError(String message) {
-        JOptionPane.showMessageDialog(this, message, "Lỗi", JOptionPane.ERROR_MESSAGE);
+        JOptionPane.showMessageDialog(this, ClientMessages.text(message), "Lỗi", JOptionPane.ERROR_MESSAGE);
     }
 
     public boolean confirm(String message) {
@@ -169,7 +179,7 @@ public final class MainFrame extends JFrame {
                 "Giá khởi điểm", startPrice,
                 "Bước giá tối thiểu", minIncrement,
                 "Thời lượng (phút)", duration,
-                "Số lượng tối đa (1-10000, tính cả chủ phòng)", maxParticipants);
+                "Số lượng tối đa", maxParticipants);
         int option = JOptionPane.showConfirmDialog(
                 this,
                 panel,
@@ -222,7 +232,7 @@ public final class MainFrame extends JFrame {
         JTextField email = new JTextField();
         JTextField phone = new JTextField();
         JPanel panel = formPanel(
-                "Username", username,
+                "Tên đăng nhập", username,
                 "Mật khẩu", password,
                 "Nhập lại", confirm,
                 "Tên hiển thị", displayName,
@@ -251,7 +261,7 @@ public final class MainFrame extends JFrame {
         JTextField email = new JTextField(model.getEmail());
         JTextField phone = new JTextField(model.getPhone());
         JPanel panel = formPanel(
-                "Username", new JLabel(model.getUsername()),
+                "Tên đăng nhập", new JLabel(model.getUsername()),
                 "Tên hiển thị", displayName,
                 "Email", email,
                 "Số điện thoại", phone,

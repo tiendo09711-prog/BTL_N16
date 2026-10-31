@@ -97,8 +97,7 @@ public final class BidLeadingBanner extends StackPane implements AutoCloseable {
                 || (bid.getServerSequence() > 0 && bid.getServerSequence() <= latestSequence)) { return false; }
         latestSequence = Math.max(latestSequence, bid.getServerSequence()); latestAmount = bid.getAmount();
         presentation++;
-        // Negative IDs are the server's public anonymous participant IDs, never account IDs.
-        String name = bid.getUserId() < 0 ? "Khách #" + Long.toString(bid.getUserId()).substring(1) : bid.getUsername().strip();
+        String name = bid.getUsername().strip();
         if (name.isBlank()) { name = "Người tham gia"; }
         fit(bidder, name, 16, 127, 264, 175);
         fit(amount, WalletUi.money(bid.getAmount()), 32, 174, 265, 215);

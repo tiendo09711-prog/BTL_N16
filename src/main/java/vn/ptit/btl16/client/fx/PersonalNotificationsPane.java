@@ -137,7 +137,7 @@ public final class PersonalNotificationsPane extends BorderPane {
             return DesktopTheme.label(title(row.get("kind")), "notification-cell-text");
         });
         column("PHIÊN", 62, 45, row -> row.get("auctionId"), row -> DesktopTheme.label(row.get("auctionId").isBlank() ? "—" : row.get("auctionId"), "notification-cell-text"));
-        column("THỜI GIAN", 135, 111, row -> time(row.get("createdAt"), false), row -> DesktopTheme.label(time(row.get("createdAt"), false), "notification-cell-time"));
+        column("Thời gian", 135, 111, row -> time(row.get("createdAt"), false), row -> DesktopTheme.label(time(row.get("createdAt"), false), "notification-cell-time"));
         column("THAO TÁC", 94, 86, row -> "", row -> {
             MenuButton more = new MenuButton(); more.setGraphic(MarketplaceIcons.icon("more", 15, "#775631")); more.getStyleClass().addAll("notification-button", "notification-icon-button", "notification-more");
             more.setId("notification-more-" + row.get("id")); more.setAccessibleText("Thao tác thông báo");
@@ -295,7 +295,7 @@ public final class PersonalNotificationsPane extends BorderPane {
         new AuctionReceiptApi(transport).get(Long.parseLong(row.get("auctionId"))).whenComplete((response, error) -> Platform.runLater(() -> {
             if (!active() || token != detailGeneration) { return; }
             if (error != null || response == null || !response.isSuccess()) {
-                Label message = DesktopTheme.label(error == null && response != null ? response.getMessageText() : "Không tải được chi tiết. Hãy thử lại.", "notification-note");
+                Label message = DesktopTheme.label(error == null && response != null ? response.getUserMessage() : "Không tải được chi tiết. Hãy thử lại.", "notification-note");
                 Button retry = action("Thử lại", "refresh"); retry.setId("notification-detail-retry"); retry.setOnAction(event -> showDetail(row)); detail.getChildren().setAll(message, retry); return;
             }
             renderReceipt(response.getWireMessage().getData());
@@ -335,7 +335,7 @@ public final class PersonalNotificationsPane extends BorderPane {
                 String base = new BigDecimal(data.get("baseFeeRate")).multiply(BigDecimal.valueOf(100)).stripTrailingZeros().toPlainString();
                 String reduction = new BigDecimal(data.get("feeDiscountRate")).multiply(BigDecimal.valueOf(100)).stripTrailingZeros().toPlainString();
                 transactions.getChildren().add(field("gavel", "Tỷ lệ phí sàn ban đầu", base + "%"));
-                transactions.getChildren().add(field("trophy", "Ưu đãi doanh thu", "0".equals(data.get("revenueRank")) ? "Chưa thuộc Top 10" : "Top " + data.get("revenueRank") + " · Giảm " + reduction + " điểm %"));
+                transactions.getChildren().add(field("trophy", "Ưu đãi doanh thu", "0".equals(data.get("revenueRank")) ? "Chưa thuộc 10 hạng đầu" : "Hạng " + data.get("revenueRank") + " · Giảm " + reduction + " điểm %"));
             }
             transactions.getChildren().addAll(field("gavel", "Phí sàn do người bán trả (" + percent + "%)", money(data.get("platformFee"))), field("wallet", "Người mua thanh toán", money(data.get("finalPrice"))), field("wallet", "Người bán thực nhận", money(data.get("sellerNet"))));
         }

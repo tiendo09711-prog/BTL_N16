@@ -12,7 +12,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-/** A three-second winner badge with surrounding fireworks, shown only for a confirmed personal win. */
+/** An eight-second winner badge with surrounding fireworks, shown only for a confirmed personal win. */
 public final class WinnerCelebration extends StackPane implements AutoCloseable {
     private static final String ARTWORK = java.util.Objects.requireNonNull(
             WinnerCelebration.class.getResource("/ui/winner/badge.gif")).toExternalForm();
@@ -20,7 +20,7 @@ public final class WinnerCelebration extends StackPane implements AutoCloseable 
             WinnerCelebration.class.getResource("/ui/winner/fireworks.gif")).toExternalForm();
     private static final double ASPECT = 775.0 / 363;
     private final Set<String> shown = new HashSet<>();
-    private final PauseTransition timeout = new PauseTransition(Duration.seconds(3));
+    private final PauseTransition timeout = new PauseTransition(Duration.seconds(8));
     private final ImageView picture = new ImageView();
     private final ImageView fireworks = new ImageView();
 

@@ -65,6 +65,27 @@ public final class RoomProgressStore {
         } catch (SQLException exception) { throw new AuctionRepositoryException("Cannot load full-session statistics", exception); }
     }
 
+    public List<vn.ptit.btl16.server.auction.model.RoomAttendance> attendance(long room) {
+        String sql = """
+                SELECT actor_id, MIN(occurred_at) AS first_joined, MAX(occurred_at) AS last_joined,
+                    COUNT(*) AS visits FROM room_events
+                WHERE auction_id = ? AND event_type = 'JOINED' AND actor_id IS NOT NULL
+                GROUP BY actor_id ORDER BY first_joined, actor_id
+                """;
+        try (var connection = factory.openDatabase(); var query = connection.prepareStatement(sql)) {
+            query.setLong(1, room);
+            try (var rows = query.executeQuery()) {
+                List<vn.ptit.btl16.server.auction.model.RoomAttendance> result = new ArrayList<>();
+                while (rows.next()) {
+                    result.add(new vn.ptit.btl16.server.auction.model.RoomAttendance(rows.getLong("actor_id"),
+                            rows.getTimestamp("first_joined").toInstant(), rows.getTimestamp("last_joined").toInstant(),
+                            rows.getLong("visits")));
+                }
+                return result;
+            }
+        } catch (SQLException exception) { throw new AuctionRepositoryException("Cannot load room attendance", exception); }
+    }
+
     public static RoomProgress.Stats stats(Connection connection, long room) throws SQLException {
         String sql = """
                 SELECT a.current_price - a.start_price AS increase,

@@ -101,6 +101,9 @@ public final class JdbcAuctionRepository implements AuctionRepository {
     @Override public List<vn.ptit.btl16.server.auction.model.RoomProgress.Event> findRoomEvents(long room, long before, long after, int limit) {
         return new RoomProgressStore(connectionFactory).events(room, before, after, limit);
     }
+    @Override public List<vn.ptit.btl16.server.auction.model.RoomAttendance> roomAttendance(long room) {
+        return new RoomProgressStore(connectionFactory).attendance(room);
+    }
     @Override public void appendPresence(long room, String type, long user, Instant time) {
         new RoomProgressStore(connectionFactory).presence(room, type, user, time);
     }
@@ -123,7 +126,7 @@ public final class JdbcAuctionRepository implements AuctionRepository {
             """;
 
     private static final String AUCTION_SELECT = """
-            SELECT a.auction_id, a.host_user_id, host.username AS host_username,
+            SELECT a.auction_id, a.room_code, a.host_user_id, host.username AS host_username,
                    a.product_id, p.created_by AS product_owner_id,
                    owner.username AS product_owner_username,
                    p.code AS product_code, p.name AS product_name,
@@ -679,6 +682,7 @@ public final class JdbcAuctionRepository implements AuctionRepository {
                         throw new SQLException("Database did not return auction_id");
                     }
                     long auctionId = keys.getLong(1);
+                    RoomCodeStore.allocate(connection, auctionId);
                     RoomProgressStore.append(connection, auctionId, "CREATED", commit.getHostUserId(), null, "", Instant.now());
                     return auctionId;
                 }
@@ -1264,6 +1268,6 @@ public final class JdbcAuctionRepository implements AuctionRepository {
                 resultSet.getString("room_password_salt"),
                 resultSet.getInt("room_password_iterations"),
                 resultSet.getTimestamp("hard_end_time").toInstant(), resultSet.getBoolean("anonymous_guests"),
-                resultSet.getInt("max_participants"), resultSet.getBigDecimal("deposit_amount"));
+                resultSet.getInt("max_participants"), resultSet.getBigDecimal("deposit_amount"), resultSet.getString("room_code"));
     }
 }

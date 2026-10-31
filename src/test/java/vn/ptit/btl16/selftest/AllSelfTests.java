@@ -7,6 +7,7 @@ public final class AllSelfTests {
     public static void main(String[] args) throws Exception {
         ProtocolCodecSelfTest.run();
         JsonWireMessageCodecSelfTest.run();
+        ClientMessagesSelfTest.run();
         ClientSoundsSelfTest.run();
         ClientBackgroundMusicSelfTest.run();
         ClientBidVoiceSelfTest.run();
@@ -21,6 +22,8 @@ public final class AllSelfTests {
         WalletStorageMigrationSelfTest.run();
         AuctionRulesSelfTest.run();
         ProductCodesSelfTest.run();
+        vn.ptit.btl16.server.auction.repository.RoomCodeStoreSelfTest.run();
+        RoomCodesSelfTest.run();
         FriendsSelfTest.run();
         AccountTagsSelfTest.run();
         ProductRestorationSelfTest.run();
@@ -37,6 +40,7 @@ public final class AllSelfTests {
         RoomInteractionSelfTest.run();
         RoomProgressSelfTest.run();
         RoomProgressStorageSelfTest.run();
+        AuctionSessionsSelfTest.run();
         AuctionReceiptSelfTest.run();
         AuctionFinishSelfTest.run();
         SellerRevenueSelfTest.run();

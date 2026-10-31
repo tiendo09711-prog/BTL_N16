@@ -3,8 +3,10 @@ package vn.ptit.btl16.server.fx;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.application.Platform;
+import javafx.beans.binding.Bindings;
+import javafx.beans.property.IntegerProperty;
+import javafx.beans.property.SimpleIntegerProperty;
 import javafx.geometry.Insets;
-import javafx.geometry.Orientation;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.stage.Stage;
@@ -40,11 +42,13 @@ public final class ServerWalletWindow extends ServerAdminPage {
     private final Button rejectWithdrawal = new Button("Từ chối");
     private final TextField withdrawalRejectionReason = new TextField("Yêu cầu rút mô phỏng chưa được xác nhận");
     private long refreshGeneration;
+    private final IntegerProperty expandedSection = new SimpleIntegerProperty(-1);
 
     public ServerWalletWindow(Window owner, Supplier<ServerApplication> server, Executor worker) {
         super(owner);
         this.server = server; this.worker = worker;
-        setId("server-wallet-page"); setPadding(new Insets(16, 28, 16, 28));
+        setId("server-wallet-page"); setPadding(new Insets(6, 24, 16, 24));
+        getStyleClass().add("admin-workspace");
         WalletUi.column(accounts, "ID", value -> Long.toString(value.userId()), 65);
         WalletUi.column(accounts, "T\u00c0I KHO\u1ea2N", WalletAccount::username, 140);
         WalletUi.column(accounts, "H\u1ecc T\u00caN", WalletAccount::displayName, 170);
@@ -71,39 +75,60 @@ public final class ServerWalletWindow extends ServerAdminPage {
         approveWithdrawal.setOnAction(event -> reviewWithdrawal(true)); rejectWithdrawal.setOnAction(event -> reviewWithdrawal(false));
         approve.getStyleClass().add("teal"); reject.getStyleClass().add("danger");
         approve.setOnAction(event -> review(true)); reject.setOnAction(event -> review(false));
-        TabPane history = new TabPane(new Tab("Lịch sử nạp", userRequests), new Tab("Lịch sử rút", userWithdrawals),
-                new Tab("Biến động ví / thanh toán", entries));
+        AdminUi.table(accounts,3,4,5); AdminUi.table(pending,1); AdminUi.table(pendingWithdrawals,1);
+        AdminUi.table(userRequests,0); AdminUi.table(userWithdrawals,0); AdminUi.table(entries,1,2,3);
+        for (TableView<?> data : java.util.List.of(accounts,pending,pendingWithdrawals,userRequests,userWithdrawals,entries)) {
+            data.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        }
+        ScrollPane accountScroll = new ScrollPane(); accountScroll.setId("server-wallet-account-scroll");
+        TabPane history = new TabPane(new Tab("Lịch sử nạp", accountTable(userRequests,1)),
+                new Tab("Lịch sử rút", accountTable(userWithdrawals,1)), new Tab("Biến động ví", accountTable(entries,1)));
         history.setId("server-wallet-history-tabs");
         history.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
         history.getStyleClass().addAll("admin-tabs", "admin-history-tabs");
-        history.setMinHeight(150); VBox.setVgrow(history, Priority.ALWAYS);
+        var historyTables = java.util.List.of(userRequests,userWithdrawals,entries);
+        history.prefHeightProperty().bind(Bindings.createDoubleBinding(() ->
+                historyTables.get(Math.max(0,history.getSelectionModel().getSelectedIndex())).getPrefHeight(),
+                history.getSelectionModel().selectedIndexProperty(),userRequests.prefHeightProperty(),
+                userWithdrawals.prefHeightProperty(),entries.prefHeightProperty()));
+        history.minHeightProperty().bind(Bindings.when(expandedSection.isEqualTo(1)).then(140.0).otherwise(Region.USE_PREF_SIZE));
+        VBox.setVgrow(history, Priority.ALWAYS);
         profile.setWrapText(true); profile.getStyleClass().add("admin-profile");
         profile.setMinHeight(Region.USE_PREF_SIZE);
         profile.setMaxWidth(Double.MAX_VALUE);
-        VBox accountList = new VBox(10, DesktopTheme.label("Danh sách tài khoản", "section-title"), accounts);
-        accountList.getStyleClass().addAll("card", "admin-account-card");
-        accountList.setMinHeight(140); VBox.setVgrow(accounts, Priority.ALWAYS);
-        VBox details = new VBox(10, profile, history);
-        details.getStyleClass().addAll("card", "admin-account-card");
-        SplitPane accountSplit = new SplitPane(accountList, details);
-        accountSplit.setOrientation(Orientation.VERTICAL); accountSplit.setDividerPositions(0.44);
-        accountSplit.getStyleClass().add("admin-account-split");
-        ScrollPane accountScroll = new ScrollPane(accountSplit);
+        HBox accountHeading = new HBox(12,SessionUi.heading("Danh sách tài khoản", "users"),DesktopTheme.spacer(),
+                expandButton("server-wallet-expand-accounts",0,accountScroll));
+        accountHeading.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+        VBox accountList = SessionUi.card(accountHeading,accountTable(accounts,0));
+        accountList.setId("server-wallet-accounts-card");
+        accountList.getStyleClass().add("admin-account-card");
+        HBox profileRow = new HBox(12,ServerIcons.icon("user"),profile,
+                expandButton("server-wallet-expand-history",1,accountScroll));
+        profileRow.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+        profileRow.getStyleClass().add("admin-profile-row"); HBox.setHgrow(profile,Priority.ALWAYS);
+        VBox details = SessionUi.card(profileRow,AdminUi.navigation(history,"server-wallet-history-nav","wallet","wallet","cash"),history);
+        details.setId("server-wallet-history-card"); details.getStyleClass().add("admin-account-card");
+        accountList.visibleProperty().bind(expandedSection.isNotEqualTo(1));
+        details.visibleProperty().bind(expandedSection.isNotEqualTo(0));
+        for (VBox card : java.util.List.of(accountList,details)) {
+            card.managedProperty().bind(card.visibleProperty());
+            card.minHeightProperty().bind(Bindings.when(expandedSection.isEqualTo(-1))
+                    .then(Region.USE_PREF_SIZE).otherwise(Region.USE_COMPUTED_SIZE));
+            VBox.setVgrow(card,Priority.ALWAYS);
+        }
+        VBox accountStack = new VBox(16,accountList,details); accountStack.getStyleClass().add("admin-account-stack");
+        accountScroll.setContent(accountStack);
         accountScroll.setFitToWidth(true); accountScroll.setFitToHeight(true);
         accountScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
         VBox accountContent = new VBox(accountScroll);
         accountContent.getStyleClass().add("admin-account-content");
         VBox.setVgrow(accountScroll, Priority.ALWAYS);
         rejectionReason.setPromptText("Lý do từ chối"); withdrawalRejectionReason.setPromptText("Lý do từ chối");
-        VBox pendingContent = new VBox(14, DesktopTheme.label("Yêu cầu nạp · Mô phỏng", "section-title"),
-                pending, new Label("Lý do từ chối"), rejectionReason, new HBox(10, approve, reject));
-        pendingContent.getStyleClass().add("admin-review"); pending.setMinHeight(80); VBox.setVgrow(pending, Priority.ALWAYS);
+        VBox pendingContent = reviewContent("Yêu cầu nạp · Mô phỏng",pending,rejectionReason,approve,reject);
         Tab accountTab = new Tab("T\u00e0i kho\u1ea3n & giao d\u1ecbch", accountContent); accountTab.setId("server-accounts-tab");
         Tab pendingTab = new Tab("Duy\u1ec7t n\u1ea1p demo", pendingContent); accountTab.setClosable(false); pendingTab.setClosable(false);
         pendingTab.setId("server-topup-tab");
-        VBox withdrawalContent = new VBox(14, DesktopTheme.label("Yêu cầu rút · Mô phỏng", "section-title"),
-                pendingWithdrawals, new Label("Lý do từ chối"), withdrawalRejectionReason, new HBox(10, approveWithdrawal, rejectWithdrawal));
-        withdrawalContent.getStyleClass().add("admin-review"); pendingWithdrawals.setMinHeight(80); VBox.setVgrow(pendingWithdrawals, Priority.ALWAYS);
+        VBox withdrawalContent = reviewContent("Yêu cầu rút · Mô phỏng",pendingWithdrawals,withdrawalRejectionReason,approveWithdrawal,rejectWithdrawal);
         Tab withdrawalTab = new Tab("Duyệt rút tiền", withdrawalContent); withdrawalTab.setId("server-withdrawal-tab"); withdrawalTab.setClosable(false);
         TabPane tabs = new TabPane(accountTab, pendingTab, withdrawalTab); setCenter(tabs);
         tabs.setId("server-wallet-tabs"); tabs.getStyleClass().addAll("admin-tabs", "admin-subtabs");
@@ -118,11 +143,48 @@ public final class ServerWalletWindow extends ServerAdminPage {
         Button refresh = new Button("L\u00e0m m\u1edbi"); refresh.setOnAction(event -> refresh());
         refresh.setId("server-wallet-refresh"); pendingCount.setWrapText(true); pendingCount.setMinWidth(0);
         refresh.setGraphic(ServerIcons.icon("refresh"));
+        refresh.getStyleClass().add("admin-secondary-button");
         HBox heading = new HBox(14, pendingCount, DesktopTheme.spacer(), refresh);
-        heading.getStyleClass().add("admin-page-heading"); setTop(heading);
+        heading.getStyleClass().add("admin-page-heading");
+        VBox top = new VBox(12,heading,AdminUi.navigation(tabs,"server-wallet-nav","users","wallet","cash"));
+        top.getStyleClass().add("admin-wallet-heading"); setTop(top);
         message.getStyleClass().add("admin-status"); message.setWrapText(true); setBottom(message);
         message.visibleProperty().bind(message.textProperty().isNotEmpty()); message.managedProperty().bind(message.visibleProperty());
         poll.setCycleCount(Timeline.INDEFINITE); controls();
+    }
+
+    private StackPane accountTable(TableView<?> table, int section) {
+        table.prefHeightProperty().bind(Bindings.createDoubleBinding(() ->
+                62.0 + 48.0 * Math.max(4,Math.min(6,table.getItems().size())),table.getItems()));
+        table.minHeightProperty().bind(Bindings.when(expandedSection.isEqualTo(section))
+                .then(140.0).otherwise(Region.USE_PREF_SIZE));
+        StackPane frame = AdminUi.tableFrame(table); frame.setMinHeight(Region.USE_COMPUTED_SIZE); return frame;
+    }
+
+    private Button expandButton(String id, int section, ScrollPane scroll) {
+        Button button = new Button(); button.setId(id); button.getStyleClass().add("admin-secondary-button");
+        button.setMinWidth(Region.USE_PREF_SIZE);
+        button.textProperty().bind(Bindings.when(expandedSection.isEqualTo(section)).then("Thu gọn").otherwise("Phóng to"));
+        button.setGraphic(ServerIcons.icon("expand"));
+        button.setTooltip(new Tooltip("Xem riêng khung này trong toàn bộ vùng nội dung; thu gọn để trở lại hai khung."));
+        expandedSection.addListener((observable,before,after) -> button.setGraphic(ServerIcons.icon(after.intValue()==section ? "collapse" : "expand")));
+        button.setOnAction(event -> {
+            expandedSection.set(expandedSection.get()==section ? -1 : section);
+            scroll.setVvalue(0); scroll.setHvalue(0);
+        });
+        return button;
+    }
+
+    private VBox reviewContent(String title, TableView<?> queue, TextField reason, Button accept, Button decline) {
+        VBox requests = SessionUi.card(SessionUi.heading(title,"wallet"),AdminUi.tableFrame(queue));
+        requests.setMinHeight(150); VBox.setVgrow(requests,Priority.ALWAYS);
+        accept.setGraphic(ServerIcons.icon("shield")); accept.getStyleClass().add("admin-primary-button");
+        decline.getStyleClass().add("admin-decline-button");
+        HBox controls = new HBox(10,reason,accept,decline); controls.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+        reason.setMinWidth(100); HBox.setHgrow(reason,Priority.ALWAYS);
+        VBox form = SessionUi.card(SessionUi.text("Lý do từ chối","session-field-label"),controls);
+        form.getStyleClass().add("admin-review-form");
+        VBox content = new VBox(14,requests,form); content.getStyleClass().add("admin-review"); return content;
     }
     public void show() {
         if (stage == null) { stage = createWindow("Quản lý tài khoản & ví demo", 1140, 800); }

@@ -88,6 +88,7 @@ public final class ClientViewportUiSelfTest {
         }
         fx(() -> {
             var pane = dialog.getDialogPane(); ((TextField) pane.lookup("#auction-create-price")).setText("123456");
+            ((TextField) pane.lookup("#auction-create-max-participants")).setText("100");
             ((Button) pane.lookup("#auction-create-next")).fire(); return null;
         });
         compact((Stage) dialog.getDialogPane().getScene().getWindow(), 640, 480);

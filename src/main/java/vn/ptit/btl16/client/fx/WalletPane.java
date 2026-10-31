@@ -37,10 +37,10 @@ public final class WalletPane extends BorderPane implements AutoCloseable {
     private final Label available = DesktopTheme.label("0 \u20ab", "stat-value");
     private final TabPane moneyActions = new TabPane();
     private final Label message = DesktopTheme.label("", "muted");
-    private final Label qrHint = DesktopTheme.label("Ch\u1ecdn s\u1ed1 ti\u1ec1n v\u00e0 b\u1ea5m Hi\u1ec7n QR demo.", "muted");
+    private final Label qrHint = DesktopTheme.label("Ch\u1ecdn s\u1ed1 ti\u1ec1n v\u00e0 b\u1ea5m Hi\u1ec7n QR thử nghiệm.", "muted");
     private final TextField amount = new TextField("100000");
     private final ImageView qr = new ImageView();
-    private final Button generate = new Button("Hi\u1ec7n QR demo");
+    private final Button generate = new Button("Hi\u1ec7n QR thử nghiệm");
     private final Button confirm = new Button("Đã nạp");
     private final TableView<TopUpRequest> requests = WalletUi.requests(false);
     private final Timeline poll = new Timeline(new KeyFrame(Duration.seconds(2), event -> refresh()));
@@ -50,7 +50,7 @@ public final class WalletPane extends BorderPane implements AutoCloseable {
     private final TextField withdrawalAmount = new TextField("100000");
     private final Button withdraw = AccountUi.button("Gửi yêu cầu rút", "exchange");
     private final TableView<WithdrawalRequest> withdrawals = WalletUi.withdrawals(false);
-    private final Label withdrawalHint = DesktopTheme.label("Chỉ trừ tiền khi Server duyệt yêu cầu.", "account-note");
+    private final Label withdrawalHint = DesktopTheme.label("Chỉ trừ tiền khi máy chủ duyệt yêu cầu.", "account-note");
     private boolean withdrawing, withdrawalPending;
     private BigDecimal availableFunds, withdrawalRequestedAmount;
     private String withdrawalRequestId;
@@ -69,10 +69,10 @@ public final class WalletPane extends BorderPane implements AutoCloseable {
         retry.setOnAction(event -> refresh());
         Label explanation = DesktopTheme.label("Số dư khả dụng dùng để đấu giá hoặc rút tiền mô phỏng. Xem lịch sử cộng/trừ tiền tại mục Giao dịch.", "account-note");
         HBox refreshRow = new HBox(16, retry, explanation); refreshRow.setAlignment(javafx.geometry.Pos.CENTER_LEFT); HBox.setHgrow(explanation, Priority.ALWAYS);
-        VBox heading = new VBox(12, AccountUi.banner("Ví của " + username, "MÔ PHỎNG HỌC TẬP - KHÔNG CHUYỂN TIỀN THẬT", "Quản lý số dư\nTham gia đấu giá dễ dàng"), stats, refreshRow);
+        VBox heading = new VBox(12, AccountUi.banner("Ví của " + username, "Mô phỏng học tập - không chuyển tiền thật", "Quản lý số dư\nTham gia đấu giá dễ dàng"), stats, refreshRow);
         heading.getStyleClass().add("wallet-heading"); setTop(heading);
         qr.setFitWidth(180); qr.setFitHeight(180); qr.setSmooth(false); qr.setId("wallet-qr-image");
-        VBox placeholder = new VBox(14, AccountUi.emblem("qr", 76), DesktopTheme.label("QR thanh toán (demo)", "account-section-title"), DesktopTheme.label("Sẽ hiển thị mã QR mẫu ở đây", "account-note"));
+        VBox placeholder = new VBox(14, AccountUi.emblem("qr", 76), DesktopTheme.label("QR thanh toán (thử nghiệm)", "account-section-title"), DesktopTheme.label("Sẽ hiển thị mã QR mẫu ở đây", "account-note"));
         placeholder.setAlignment(javafx.geometry.Pos.CENTER); placeholder.visibleProperty().bind(qr.imageProperty().isNull()); placeholder.managedProperty().bind(placeholder.visibleProperty());
         StackPane qrFrame = new StackPane(placeholder, qr); qrFrame.getStyleClass().add("wallet-qr-frame"); qrFrame.setMinHeight(210); qrFrame.setPrefHeight(230); qrFrame.setMaxHeight(240);
         confirm.setText("Đã nạp"); confirm.setGraphic(MarketplaceIcons.icon("check", 14, "#92602a")); confirm.getStyleClass().add("account-button");
@@ -82,8 +82,8 @@ public final class WalletPane extends BorderPane implements AutoCloseable {
         Label currency = DesktopTheme.label("₫", "wallet-currency"); HBox amountBox = new HBox(amount, currency); amountBox.setAlignment(javafx.geometry.Pos.CENTER_LEFT); amountBox.getStyleClass().add("wallet-amount-box");
         HBox depositActions = new HBox(9, generate, confirm); generate.setMaxWidth(Double.MAX_VALUE); confirm.setMaxWidth(Double.MAX_VALUE); HBox.setHgrow(generate, Priority.ALWAYS); HBox.setHgrow(confirm, Priority.ALWAYS);
         qrHint.getStyleClass().add("account-note"); qrHint.setWrapText(true);
-        VBox deposit = AccountUi.card(AccountUi.sectionHeading("Nạp tiền giả lập", "Nhập số tiền để tạo yêu cầu nạp (demo)", "wallet"), amountBox, depositActions, qrFrame,
-                AccountUi.hint("Chọn số tiền và bấm Hiện QR demo.\nQR chỉ chứa mã demo. Bấm Đã nạp để gửi yêu cầu; số dư chỉ tăng khi Server duyệt."), qrHint);
+        VBox deposit = AccountUi.card(AccountUi.sectionHeading("Nạp tiền giả lập", "Nhập số tiền để tạo yêu cầu nạp (thử nghiệm)", "wallet"), amountBox, depositActions, qrFrame,
+                AccountUi.hint("Chọn số tiền và bấm Hiện QR thử nghiệm.\nQR chỉ chứa mã thử nghiệm. Bấm Đã nạp để gửi yêu cầu; số dư chỉ tăng khi máy chủ duyệt."), qrHint);
         deposit.setPrefWidth(290); deposit.setMinWidth(290); deposit.setMaxWidth(300); deposit.setId("wallet-deposit");
         withdrawalAmount.setId("wallet-withdrawal-amount"); withdrawalAmount.setPromptText("1.000 - 1.000.000.000 đồng");
         withdrawalAmount.setMinWidth(0); HBox.setHgrow(withdrawalAmount, Priority.ALWAYS);
@@ -91,7 +91,7 @@ public final class WalletPane extends BorderPane implements AutoCloseable {
         withdrawalAmountBox.setAlignment(javafx.geometry.Pos.CENTER_LEFT); withdrawalAmountBox.getStyleClass().add("wallet-amount-box");
         withdraw.setId("wallet-withdraw"); withdraw.getStyleClass().add("account-gold"); withdraw.setMaxWidth(Double.MAX_VALUE); withdraw.setDisable(true);
         withdraw.setOnAction(event -> submitWithdrawal()); withdrawalHint.setWrapText(true);
-        VBox withdrawalCard = AccountUi.card(AccountUi.sectionHeading("Rút tiền giả lập", "Gửi yêu cầu để Server duyệt rút tiền", "exchange"),
+        VBox withdrawalCard = AccountUi.card(AccountUi.sectionHeading("Rút tiền giả lập", "Gửi yêu cầu để máy chủ duyệt rút tiền", "exchange"),
                 withdrawalAmountBox, withdraw, AccountUi.hint("Tiền chỉ bị trừ sau khi được duyệt. Không thể rút khoản đang giữ chỗ đấu giá."), withdrawalHint);
         withdrawalCard.setId("wallet-withdrawal");
         withdrawalAmount.textProperty().addListener((observable, before, now) -> {
@@ -179,7 +179,7 @@ public final class WalletPane extends BorderPane implements AutoCloseable {
             BigDecimal value = new BigDecimal(amount.getText().trim()).setScale(2, RoundingMode.UNNECESSARY);
             if (value.compareTo(new BigDecimal("1000")) < 0 || value.compareTo(new BigDecimal("1000000000")) > 0) { throw new IllegalArgumentException(); }
             requestId = UUID.randomUUID().toString(); requestedAmount = value; renderQr(); confirm.setDisable(false);
-            qrHint.setText("Demo " + WalletUi.money(value) + " cho " + username + ". Qu\u00e9t QR ho\u1eb7c b\u1ea5m Đã nạp \u0111\u1ec3 gi\u1ea3 l\u1eadp.");
+            qrHint.setText("Thử nghiệm " + WalletUi.money(value) + " cho " + username + ". Qu\u00e9t QR ho\u1eb7c b\u1ea5m Đã nạp \u0111\u1ec3 gi\u1ea3 l\u1eadp.");
         } catch (RuntimeException exception) { message.setText("Nh\u1eadp s\u1ed1 t\u1eeb 1.000 \u0111\u1ebfn 1.000.000.000; t\u1ed1i \u0111a 2 ch\u1eef s\u1ed1 th\u1eadp ph\u00e2n."); }
     }
     private void renderQr() {
@@ -190,15 +190,15 @@ public final class WalletPane extends BorderPane implements AutoCloseable {
                 image.getPixelWriter().setArgb(column, row, matrix.get(column, row) ? 0xff183d43 : 0xffffffff);
             } }
             qr.setImage(image);
-        } catch (com.google.zxing.WriterException exception) { throw new IllegalStateException("Cannot create demo QR", exception); }
+        } catch (com.google.zxing.WriterException exception) { throw new IllegalStateException("Cannot create thử nghiệm QR", exception); }
     }
     private void submit() {
         if (!active() || submitting || withdrawing || pending || requestId == null) { return; }
         walletGeneration++; submitting = true; controls(); message.setText("\u0110ang g\u1eedi y\u00eau c\u1ea7u...");
         api.submit(requestId, requestedAmount).whenComplete((response, error) -> Platform.runLater(() -> {
             submitting = false; if (!active()) { return; }
-            if (error != null || response == null || !response.isSuccess()) { message.setText(error == null && response != null ? response.getErrorCode() + ": " + response.getMessageText() : "Ch\u01b0a nh\u1eadn ph\u1ea3n h\u1ed3i. B\u1ea5m l\u1ea1i Đã nạp \u0111\u1ec3 th\u1eed l\u1ea1i c\u00f9ng m\u00e3, kh\u00f4ng n\u1ea1p tr\u00f9ng."); controls(); }
-            else { apply(response); message.setText("\u0110\u00e3 g\u1eedi. Ch\u1edd ng\u01b0\u1eddi v\u1eadn h\u00e0nh server ch\u1ea5p nh\u1eadn y\u00eau c\u1ea7u demo."); }
+            if (error != null || response == null || !response.isSuccess()) { message.setText(error == null && response != null ? response.getUserMessage() : "Ch\u01b0a nh\u1eadn ph\u1ea3n h\u1ed3i. B\u1ea5m l\u1ea1i Đã nạp \u0111\u1ec3 th\u1eed l\u1ea1i c\u00f9ng m\u00e3, kh\u00f4ng n\u1ea1p tr\u00f9ng."); controls(); }
+            else { apply(response); message.setText("\u0110\u00e3 g\u1eedi. Ch\u1edd ng\u01b0\u1eddi v\u1eadn h\u00e0nh máy chủ ch\u1ea5p nh\u1eadn y\u00eau c\u1ea7u thử nghiệm."); }
         }));
     }
     private void refresh() {
@@ -206,7 +206,7 @@ public final class WalletPane extends BorderPane implements AutoCloseable {
         long generation = walletGeneration;
         api.get().whenComplete((response, error) -> Platform.runLater(() -> {
             loading = false; if (!active() || generation != walletGeneration) { return; }
-            if (error != null || response == null || !response.isSuccess()) { message.setText("Kh\u00f4ng t\u1ea3i \u0111\u01b0\u1ee3c v\u00ed. Ki\u1ec3m tra k\u1ebft n\u1ed1i server."); return; }
+            if (error != null || response == null || !response.isSuccess()) { message.setText("Kh\u00f4ng t\u1ea3i \u0111\u01b0\u1ee3c v\u00ed. Ki\u1ec3m tra k\u1ebft n\u1ed1i máy chủ."); return; }
             apply(response);
         }));
     }
@@ -232,10 +232,10 @@ public final class WalletPane extends BorderPane implements AutoCloseable {
         boolean wasPending = pending; pending = waiting != null;
         if (pending) {
             requestId = waiting.id(); requestedAmount = waiting.amount(); renderQr();
-            qrHint.setText("\u0110ang ch\u1edd server duy\u1ec7t " + WalletUi.money(waiting.amount()) + ". Kh\u00f4ng c\u1ea7n qu\u00e9t l\u1ea1i.");
+            qrHint.setText("\u0110ang ch\u1edd máy chủ duy\u1ec7t " + WalletUi.money(waiting.amount()) + ". Kh\u00f4ng c\u1ea7n qu\u00e9t l\u1ea1i.");
         } else if (wasPending) {
             requestId = null; requestedAmount = null; qr.setImage(null); qrHint.setText("Y\u00eau c\u1ea7u \u0111\u00e3 \u0111\u01b0\u1ee3c x\u1eed l\u00fd. Xem tr\u1ea1ng th\u00e1i trong b\u1ea3ng.");
-            message.setText("S\u1ed1 d\u01b0 \u0111\u00e3 \u0111\u1ed3ng b\u1ed9 t\u1eeb server.");
+            message.setText("S\u1ed1 d\u01b0 \u0111\u00e3 \u0111\u1ed3ng b\u1ed9 t\u1eeb máy chủ.");
         }
         controls();
     }
@@ -259,10 +259,10 @@ public final class WalletPane extends BorderPane implements AutoCloseable {
         api.withdraw(withdrawalRequestId, withdrawalRequestedAmount).whenComplete((response, error) -> Platform.runLater(() -> {
             withdrawing = false; if (!active()) { return; }
             if (error != null || response == null || !response.isSuccess()) {
-                message.setText(error == null && response != null ? response.getMessageText() : "Chưa nhận phản hồi. Bấm gửi lại để thử cùng mã, không tạo yêu cầu trùng.");
+                message.setText(error == null && response != null ? response.getUserMessage() : "Chưa nhận phản hồi. Bấm gửi lại để thử cùng mã, không tạo yêu cầu trùng.");
                 controls();
             } else {
-                apply(response); message.setText("Đã gửi yêu cầu rút. Chỉ trừ tiền khi Server duyệt.");
+                apply(response); message.setText("Đã gửi yêu cầu rút. Chỉ trừ tiền khi máy chủ duyệt.");
             }
         }));
     }

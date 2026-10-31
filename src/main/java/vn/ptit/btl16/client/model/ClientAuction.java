@@ -6,6 +6,7 @@ import java.time.Instant;
 /** Immutable auction state received from the authoritative server. */
 public final class ClientAuction {
     private final long auctionId;
+    private final String roomCode;
     private final long productId;
     private final String productCode;
     private final String productName;
@@ -124,6 +125,22 @@ public final class ClientAuction {
             boolean hasImage, String imageMime, long imageVersion, Instant hardEndTime,
             boolean anonymousGuests, long selfParticipantId, int maxParticipants, BigDecimal depositAmount,
             long occupancyVersion) {
+        this(auctionId, productId, productCode, productName, description, hostUserId, hostUsername,
+                startPrice, minBidIncrement, currentPrice, currentWinnerId, currentWinnerUsername,
+                startTime, endTime, status, endedAt, version, watcherCount, visibility, requiresPassword,
+                hasImage, imageMime, imageVersion, hardEndTime, anonymousGuests, selfParticipantId,
+                maxParticipants, depositAmount, occupancyVersion, "");
+    }
+
+    public ClientAuction(long auctionId, long productId, String productCode, String productName,
+            String description, long hostUserId, String hostUsername, BigDecimal startPrice,
+            BigDecimal minBidIncrement, BigDecimal currentPrice, Long currentWinnerId,
+            String currentWinnerUsername, Instant startTime, Instant endTime, String status,
+            Instant endedAt, long version, int watcherCount, String visibility, boolean requiresPassword,
+            boolean hasImage, String imageMime, long imageVersion, Instant hardEndTime,
+            boolean anonymousGuests, long selfParticipantId, int maxParticipants, BigDecimal depositAmount,
+            long occupancyVersion, String roomCode) {
+        this.roomCode = text(roomCode);
         this.maxParticipants = maxParticipants;
         this.depositAmount = depositAmount;
         this.occupancyVersion = occupancyVersion;
@@ -184,19 +201,20 @@ public final class ClientAuction {
                 requiresPassword,
                 hasImage,
                 imageMime,
-                imageVersion, hardEndTime, anonymousGuests, selfParticipantId, maxParticipants, depositAmount, occupancyVersion);
+                imageVersion, hardEndTime, anonymousGuests, selfParticipantId, maxParticipants, depositAmount, occupancyVersion, roomCode);
     }
 
     public ClientAuction withOccupancy(int count, long revision) {
         return new ClientAuction(auctionId, productId, productCode, productName, description, hostUserId, hostUsername,
                 startPrice, minBidIncrement, currentPrice, currentWinnerId, currentWinnerUsername, startTime, endTime,
                 status, endedAt, version, count, visibility, requiresPassword, hasImage, imageMime, imageVersion,
-                hardEndTime, anonymousGuests, selfParticipantId, maxParticipants, depositAmount, revision);
+                hardEndTime, anonymousGuests, selfParticipantId, maxParticipants, depositAmount, revision, roomCode);
     }
 
     private String text(String value) { return value == null ? "" : value; }
 
     public long getAuctionId() { return auctionId; }
+    public String getRoomCode() { return roomCode; }
     public long getProductId() { return productId; }
     public String getProductCode() { return productCode; }
     public String getProductName() { return productName; }

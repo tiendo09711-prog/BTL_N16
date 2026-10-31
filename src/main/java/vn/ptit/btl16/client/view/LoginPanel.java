@@ -31,7 +31,7 @@ public final class LoginPanel extends JPanel {
         c.gridx = 0;
         c.gridy = 0;
         c.gridwidth = 2;
-        add(new JLabel("HỆ THỐNG ĐẤU GIÁ TRỰC TUYẾN THỜI GIAN THỰC", JLabel.CENTER), c);
+        add(new JLabel("Hệ thống đấu giá trực tuyến thời gian thực", JLabel.CENTER), c);
 
         c.gridy++;
         add(new JLabel("Java TCP - Nhóm 16", JLabel.CENTER), c);
@@ -39,7 +39,7 @@ public final class LoginPanel extends JPanel {
         c.gridwidth = 1;
         c.gridy++;
         c.gridx = 0;
-        add(new JLabel("Username:"), c);
+        add(new JLabel("Tên đăng nhập:"), c);
         c.gridx = 1;
         add(usernameField, c);
 

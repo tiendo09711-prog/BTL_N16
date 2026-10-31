@@ -97,6 +97,21 @@ public final class CompletionUiSelfTest {
                 TestSupport.check(!((Button) field(controller, "joinButton")).isDisabled(), "join enabled at scheduled start");
                 model.replaceAuctions(List.of(), now); invoke(controller, "renderAuctions", new Class<?>[0]); return null;
             });
+            fx(() -> {
+                var now = model.serverNow();
+                var full = new LinkedHashMap<>(Map.of("auctionId", "102", "hostUserId", Long.toString(model.getUserId()),
+                        "maxParticipants", "5", "watcherCount", "5", "status", "OPEN",
+                        "startTime", now.minusSeconds(1).toString(), "endTime", now.plusSeconds(300).toString()));
+                var join = (Button) field(controller, "joinButton");
+                invoke(controller, "updateHostButtons", new Class<?>[]{ClientAuction.class}, ClientWireParser.auction(full, ""));
+                TestSupport.check(!join.isDisabled(), "host can join when all five buyer slots are occupied");
+                TestSupport.equals("Vào phòng", join.getText(), "full buyer capacity does not block the host action");
+                full.put("hostUserId", "1");
+                invoke(controller, "updateHostButtons", new Class<?>[]{ClientAuction.class}, ClientWireParser.auction(full, ""));
+                TestSupport.check(join.isDisabled(), "another buyer cannot join a full room");
+                invoke(controller, "updateHostButtons", new Class<?>[]{ClientAuction.class}, (Object) null);
+                return null;
+            });
             eligibilityNotice(controller, network);
             fx(() -> { invoke(controller, "showCreateAuction", new Class<?>[0]); invoke(controller, "showCreateAuction", new Class<?>[0]); return null; });
             TestSupport.equals(1, network.count(MessageType.MY_PRODUCTS), "create guard prevents duplicate product form load");
@@ -107,7 +122,7 @@ public final class CompletionUiSelfTest {
                 TestSupport.check(!scene.lookup("#auction-create-deposit").isVisible() || !scene.lookup("#auction-create-deposit").getParent().getParent().isVisible(), "immediate rooms do not show deposit");
                 dialogButton(ButtonBar.ButtonData.OK_DONE).fire();
                 TestSupport.check(scene.lookup("#auction-create-error").isVisible(), "capacity is required before review");
-                ((TextField) scene.lookup("#auction-create-max-participants")).setText("12");
+                ((TextField) scene.lookup("#auction-create-max-participants")).setText("5");
                 TestSupport.equals(0, mode.getSelectionModel().getSelectedIndex(), "immediate start remains default");
                 TestSupport.check(scene.lookup("#auction-start-date").isDisabled(), "date disabled for immediate start");
                 TestSupport.equals(4, scene.getRoot().lookupAll(".auction-create-section").size(), "creation fields are grouped into four sections");
@@ -121,9 +136,14 @@ public final class CompletionUiSelfTest {
             fx(() -> {
                 var scene = dialogButton(ButtonBar.ButtonData.OK_DONE).getScene();
                 TestSupport.check(scene.lookup("#auction-create-review") != null, "creation opens a styled summary before submission");
+                var reviewValues = scene.lookup("#auction-create-review").lookupAll(".auction-review-value").stream()
+                        .map(node -> ((Label) node).getText()).toList();
+                TestSupport.check(reviewValues.contains("5 người"), "capacity review displays exactly five people without an annotation");
+                TestSupport.check(reviewValues.stream().noneMatch(value -> value.contains("chủ phòng")), "capacity review has no host annotation");
                 screenshot(scene.getRoot(), "target/auction-create-review.png");
                 dialogButton(ButtonBar.ButtonData.CANCEL_CLOSE).fire();
                 TestSupport.equals("150000", ((TextField) scene.lookup("#auction-create-price")).getText(), "back keeps the edited price");
+                TestSupport.equals("5", ((TextField) scene.lookup("#auction-create-max-participants")).getText(), "back keeps buyer capacity");
                 ((RadioButton) scene.lookup("#auction-create-private")).fire();
                 var password = (PasswordField) scene.lookup("#auction-create-password");
                 var repeat = (PasswordField) scene.lookup("#auction-create-password-confirm");

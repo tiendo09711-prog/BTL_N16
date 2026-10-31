@@ -26,6 +26,7 @@
 - Phòng ẩn danh che tài khoản khách ngay trong gói tin gửi tới client, áp dụng cả chủ phòng: danh sách phòng, snapshot/resync, lịch sử giá, lượt trả giá, người dẫn trước, thông báo vượt giá, kết quả và kick.
 - Khách có mã công khai âm theo thứ tự riêng trong từng phòng, không phải ID tài khoản. Mã được lưu trong MySQL, không đổi khi rời/vào lại hay khởi động lại server. Chủ phòng vẫn là chủ sở hữu công khai của sản phẩm; trong chat phòng ẩn danh chỉ hiện nhãn **Chủ phòng** và avatar trống.
 - API xem hồ sơ từ chối mọi yêu cầu trong phòng ẩn danh, kể cả yêu cầu tự viết hoặc do chủ phòng gửi. API kick bằng username bị vô hiệu hóa trong phòng ẩn danh để tránh dò tài khoản.
+- Số trong nhãn **Khách #1**, **Khách #2**... chỉ tính khách, không tính chủ phòng và không lấy trực tiếp từ mã công khai âm. Số được giữ nguyên khi khách rời/vào lại, không đánh lại theo số người đang trực tuyến.
 - Đây là ẩn danh giữa người dùng, không phải ẩn danh đối với quản trị cơ sở dữ liệu: server vẫn giữ ID thật cho xác thực, ví và xử lý đấu giá.
 - Nội dung chat do người dùng tự nhập: hệ thống không thể bảo đảm ẩn danh nếu người dùng tự viết tên, số điện thoại hoặc thông tin nhận diện. Giao diện nhắc không chia sẻ thông tin cá nhân.
 

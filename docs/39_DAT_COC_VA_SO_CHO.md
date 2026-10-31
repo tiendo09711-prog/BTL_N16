@@ -32,18 +32,20 @@
 
 ## So cho va cap nhat realtime
 
-- Mot tai khoan dang co mat tinh mot cho, ke ca chu phong va nguoi chi xem.
-  Nhieu ket noi cua cung tai khoan khong chiem nhieu cho.
+- Mot tai khoan nguoi mua dang co mat tinh mot cho, ke ca nguoi chi xem.
+  Chu phong khong chiem cho. Nhieu ket noi cua cung tai khoan khong chiem
+  nhieu cho. Xac nhan tao phong chi hien thi so luong, vi du `5 nguoi`.
 - Khong tinh theo lich su dat gia hay danh sach nguoi da coc. Tai khoan chi
   het chiem cho khi ket noi cuoi cung cua tai khoan roi phong.
 - Kiem tra va cap cho la thao tac nguyen tu: hai nguoi tranh cho cuoi cung
-  khong the cung vao thanh cong. Chu phong khong vuot gioi han.
-- Roi phong, dang xuat, mat ket noi hoac kick giai phong cho. Sanh va phong
+  khong the cung vao thanh cong. Chu phong van vao duoc khi du so nguoi mua.
+- Nguoi mua roi phong, dang xuat, mat ket noi hoac bi kick giai phong cho.
+  Chu phong vao/roi khong thay doi so cho. Sanh va phong
   nhan `ROOM_OCCUPANCY_CHANGED` voi `auctionId`, `watcherCount`,
   `occupancyVersion`; khong gui danh tinh nguoi tham gia ra sanh.
 - Client giu ban cap nhat co version moi nhat; snapshot/danh sach cu den
   muon khong ghi de so nguoi moi. Khong can bam tai lai sanh de thay cho trong.
-- `watcherCount` tren wire la so tai khoan dang co mat. So lieu ky thuat
+- `watcherCount` tren wire la so tai khoan nguoi mua dang co mat. So lieu ky thuat
   `watcherConnectionCount` van dem ket noi theo nghia cu.
 
 ## Database va nang cap

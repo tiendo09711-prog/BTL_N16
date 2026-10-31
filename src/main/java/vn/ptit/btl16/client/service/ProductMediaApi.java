@@ -32,7 +32,7 @@ public final class ProductMediaApi {
 
     public static CompletableFuture<ProductMediaApi> connect(AuctionApi api, ClientTransport transport, ClientAppModel model) {
         return api.mediaEndpoint().thenApply(response -> {
-            if (!response.isSuccess()) { throw new CompletionException(new IOException(response.getMessageText())); }
+            if (!response.isSuccess()) { throw new CompletionException(new IOException(response.getUserMessage())); }
             String endpoint = transport.getEndpoint();
             URI address = URI.create(endpoint.contains("://") ? endpoint : "tcp://" + endpoint);
             try {
@@ -94,14 +94,13 @@ public final class ProductMediaApi {
             if (error != null) { result.completeExceptionally(error); return; }
             try {
                 JsonNode data = JSON.readTree(response.body());
-                if (response.statusCode() != 200) { throw new IOException(data.path("message").asText("Không thể tải ảnh/video") + " [" + data.path("errorCode").asText() + "]"); }
+                if (response.statusCode() != 200) { throw new IOException(ClientMessages.error(data.path("errorCode").asText(), data.path("message").asText())); }
                 result.complete(data);
             } catch (Exception exception) { result.completeExceptionally(exception); }
         });
         return result;
     }
     public static String message(Throwable error) {
-        while (error.getCause() != null) { error = error.getCause(); }
-        return error.getMessage() == null ? "Không thể kết nối kênh ảnh/video. Kiểm tra cổng ảnh/video trên Server." : error.getMessage();
+        return ClientMessages.message(error);
     }
 }

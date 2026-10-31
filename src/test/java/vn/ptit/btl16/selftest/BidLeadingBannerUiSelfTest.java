@@ -89,11 +89,13 @@ public final class BidLeadingBannerUiSelfTest {
         fx(() -> {
             view.banner().dismiss(); event(view, update);
             TestSupport.check(!view.banner().isVisible(), "duplicate never reopens banner");
-            event(view, bid(1, "6000000.25", -7));
-            TestSupport.equals("Khách #7", text(view, "bid-leading-user").getText(), "anonymous rooms retain public guest ID");
+            var anonymousBid = bid(1, "6000000.25", -7);
+            anonymousBid.put("bid.username", "Khách #1");
+            event(view, anonymousBid);
+            TestSupport.equals("Khách #1", text(view, "bid-leading-user").getText(), "anonymous guest number comes from the server label, not the public ID");
             TestSupport.equals("6.000.000,25 ₫", text(view, "bid-leading-amount").getText(), "decimal amount remains exact");
             event(view, update);
-            TestSupport.equals("Khách #7", text(view, "bid-leading-user").getText(), "late previous bid cannot replace newest bidder");
+            TestSupport.equals("Khách #1", text(view, "bid-leading-user").getText(), "late previous bid cannot replace newest bidder");
             screenshot(view, "target/bid-leading-anonymous.png"); return null;
         });
     }

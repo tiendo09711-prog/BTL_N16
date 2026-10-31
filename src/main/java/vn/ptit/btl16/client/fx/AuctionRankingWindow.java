@@ -44,10 +44,10 @@ public final class AuctionRankingWindow {
 
     public AuctionRankingWindow(Window owner, ClientTransport transport, BooleanSupplier sameSession) {
         this.transport = transport; this.sameSession = sameSession;
-        stage.initOwner(owner); stage.initModality(Modality.WINDOW_MODAL); stage.setTitle("Top doanh thu");
+        stage.initOwner(owner); stage.initModality(Modality.WINDOW_MODAL); stage.setTitle("Xếp hạng doanh thu");
         refresh.getStyleClass().add("revenue-refresh"); refresh.setId("revenue-ranking-refresh"); refresh.setMinWidth(132);
         Button close = AccountUi.close(stage::close); close.setId("revenue-ranking-close");
-        Label title = DesktopTheme.label("Top doanh thu", "revenue-title");
+        Label title = DesktopTheme.label("Xếp hạng doanh thu", "revenue-title");
         Label description = DesktopTheme.label("10 người bán có doanh thu trước phí cao nhất trong kỳ. Chỉ tính phiên đã thanh toán; không tính phòng ẩn danh.", "revenue-description");
         description.setWrapText(true);
         period.setId("revenue-ranking-period"); period.getItems().setAll(RevenuePeriod.values()); period.setValue(RevenuePeriod.DEFAULT);
@@ -69,7 +69,7 @@ public final class AuctionRankingWindow {
         ScrollPane scroll = new ScrollPane(rows); scroll.setId("revenue-ranking-scroll"); scroll.setFitToWidth(true); scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER); scroll.getStyleClass().add("revenue-scroll");
         rows.setId("revenue-ranking-rows"); rows.setPadding(new Insets(5, 8, 8, 5));
         Label fee = DesktopTheme.label("Phí sàn trên giá chốt: đến 1 tỷ đồng 10% · Trên 1 tỷ đồng 15%", "revenue-fee-note");
-        Label benefits = DesktopTheme.label("Ưu đãi theo Top 1 tháng: Top 1 −5 điểm % · Top 2 −4 · Top 3 −3 · Top 4–5 −2 · Top 6–10 −1", "revenue-benefits");
+        Label benefits = DesktopTheme.label("Ưu đãi theo xếp hạng tháng: hạng 1 −5 điểm % · hạng 2 −4 · hạng 3 −3 · hạng 4–5 −2 · hạng 6–10 −1", "revenue-benefits");
         Label timing = DesktopTheme.label("Mốc thời gian tính lùi từ hiện tại (GMT+7). Ưu đãi phí lấy hạng 1 tháng ngay trước lúc chốt, không thay đổi theo bộ lọc đang xem. Bằng doanh thu: phiên thành công đầu tiên trong kỳ sớm hơn, rồi mã tài khoản.", "revenue-footnote");
         fee.setWrapText(true); benefits.setWrapText(true); timing.setWrapText(true);
         VBox footer = new VBox(4, fee, benefits, timing); footer.getStyleClass().add("revenue-footer");
@@ -129,7 +129,7 @@ public final class AuctionRankingWindow {
         String display = value.get("displayName").isBlank() ? username : value.get("displayName");
         Label name = DesktopTheme.label(username, "revenue-name"); name.setWrapText(false); name.setMinWidth(0); name.setTooltip(new Tooltip(display + " (@" + username + ")"));
         Label badge = DesktopTheme.label(new BigDecimal(value.get("discountRate")).signum()==0 ? "Chưa có ưu đãi phí sàn" : "−" + percent(value.get("discountRate")) + " điểm % phí sàn", "revenue-discount");
-        badge.setTooltip(new Tooltip("Ưu đãi theo Top doanh thu 1 tháng, không theo bộ lọc đang xem"));
+        badge.setTooltip(new Tooltip("Ưu đãi theo xếp hạng doanh thu tháng, không theo bộ lọc đang xem"));
         FlowPane identity = new FlowPane(8, 4, name, badge); identity.setAlignment(Pos.CENTER_LEFT); identity.setMinWidth(0); identity.setPrefWrapLength(220);
         Label seller = DesktopTheme.label(display + "  ·  Mã #" + value.get("sellerId"), "revenue-metadata"); seller.setWrapText(false); seller.setMinWidth(0);
         HBox sales = new HBox(7, MarketplaceIcons.icon("gavel", 14, "#9f794d"), DesktopTheme.label(value.get("saleCount") + " phiên bán thành công", "revenue-metadata")); sales.setAlignment(Pos.CENTER_LEFT);

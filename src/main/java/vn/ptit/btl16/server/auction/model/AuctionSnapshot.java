@@ -7,6 +7,7 @@ import java.util.Objects;
 
 public final class AuctionSnapshot {
     private final long auctionId;
+    private final String roomCode;
     private final Product product;
     private final long hostUserId;
     private final String hostUsername;
@@ -138,6 +139,20 @@ public final class AuctionSnapshot {
             AuctionStatus status, Instant endedAt, long version, RoomVisibility visibility,
             String roomPasswordHash, String roomPasswordSalt, int roomPasswordIterations,
             Instant hardEndTime, boolean anonymousGuests, int maxParticipants, BigDecimal depositAmount) {
+        this(auctionId, product, hostUserId, hostUsername, startPrice, minBidIncrement, currentPrice,
+                currentWinnerId, currentWinnerUsername, startTime, endTime, status, endedAt, version,
+                visibility, roomPasswordHash, roomPasswordSalt, roomPasswordIterations, hardEndTime,
+                anonymousGuests, maxParticipants, depositAmount, "");
+    }
+
+    public AuctionSnapshot(long auctionId, Product product, long hostUserId, String hostUsername,
+            BigDecimal startPrice, BigDecimal minBidIncrement, BigDecimal currentPrice,
+            Long currentWinnerId, String currentWinnerUsername, Instant startTime, Instant endTime,
+            AuctionStatus status, Instant endedAt, long version, RoomVisibility visibility,
+            String roomPasswordHash, String roomPasswordSalt, int roomPasswordIterations,
+            Instant hardEndTime, boolean anonymousGuests, int maxParticipants, BigDecimal depositAmount,
+            String roomCode) {
+        this.roomCode = roomCode == null ? "" : roomCode;
         this.maxParticipants = maxParticipants;
         this.depositAmount = Objects.requireNonNull(depositAmount, "depositAmount");
         this.anonymousGuests = anonymousGuests;
@@ -163,6 +178,7 @@ public final class AuctionSnapshot {
     }
 
     public long getAuctionId() { return auctionId; }
+    public String getRoomCode() { return roomCode; }
     public Product getProduct() { return product; }
     public long getHostUserId() { return hostUserId; }
     public String getHostUsername() { return hostUsername; }

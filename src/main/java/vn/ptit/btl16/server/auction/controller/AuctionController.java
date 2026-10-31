@@ -240,6 +240,11 @@ public final class AuctionController {
                         Instant.now()));
     }
 
+    public void handleFindByCode(RequestContext context) throws Exception {
+        context.replySuccess(MessageType.AUCTION_CODE_RESULT,
+                AuctionWireData.snapshot(queries.findByRoomCode(context.value("roomCode")), List.of(), rooms, Instant.now()));
+    }
+
     public void handleLeave(RequestContext context) throws Exception {
         long auctionId = auctionId(context);
         rooms.leave(auctionId, context.getConnection().getConnectionId());

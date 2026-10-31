@@ -74,6 +74,8 @@ CREATE TABLE IF NOT EXISTS product_media (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS auctions (
+    room_code VARCHAR(6) NULL,
+    UNIQUE KEY uq_auction_room_code (room_code),
     auction_id BIGINT PRIMARY KEY AUTO_INCREMENT,
     host_user_id BIGINT NOT NULL,
     product_id BIGINT NOT NULL,

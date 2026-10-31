@@ -242,7 +242,7 @@ public final class AuctionMarketplacePane extends ScrollPane implements AutoClos
             boolean starting = auction.getStartTime() != null && instant.isBefore(auction.getStartTime());
             long seconds = auction.getEndTime() == null ? 0 : Math.max(0, java.time.Duration.between(instant, auction.getEndTime()).getSeconds());
             status.setText(!auction.isOpen() ? "Đã kết thúc" : starting ? "Bắt đầu " + java.time.format.DateTimeFormatter.ofPattern("dd/MM HH:mm").withZone(java.time.ZoneId.systemDefault()).format(auction.getStartTime()) : seconds == 0 ? "Đang chốt kết quả" : "Còn " + String.format("%02d:%02d", seconds / 60, seconds % 60));
-            state.setText(!auction.isOpen() ? "ĐÃ KẾT THÚC" : starting ? "SẮP DIỄN RA" : "ĐANG ĐẤU GIÁ");
+            state.setText(!auction.isOpen() ? "ĐÃ KẾT THÚC" : starting ? "SẮP DIỄN RA" : "Đang đấu giá");
             state.pseudoClassStateChanged(PseudoClass.getPseudoClass("upcoming"), starting);
             state.pseudoClassStateChanged(PseudoClass.getPseudoClass("ended"), !auction.isOpen());
             enter.setText(auction.isOpen() && !starting ? "Vào phòng" : "Xem phiên");

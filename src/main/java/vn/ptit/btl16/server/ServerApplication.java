@@ -58,6 +58,7 @@ public final class ServerApplication implements AutoCloseable {
     private final MediaService media;
     private final WalletRepository wallets;
     private final AuctionRepository auctionRepository;
+    private final vn.ptit.btl16.server.dashboard.AuctionSessionService auctionSessions;
     private final AtomicBoolean started = new AtomicBoolean(false);
     private final AtomicBoolean disposed = new AtomicBoolean(false);
 
@@ -74,7 +75,8 @@ public final class ServerApplication implements AutoCloseable {
             AuctionTimerService auctionTimer,
             MediaHttpServer mediaServer,
             MediaService media,
-            WalletRepository wallets, AuctionRepository auctionRepository) {
+            WalletRepository wallets, AuctionRepository auctionRepository,
+            vn.ptit.btl16.server.dashboard.AuctionSessionService auctionSessions) {
         this.config = config;
         this.sessions = sessions;
         this.connections = connections;
@@ -89,6 +91,7 @@ public final class ServerApplication implements AutoCloseable {
         this.media = media;
         this.wallets = wallets;
         this.auctionRepository = auctionRepository;
+        this.auctionSessions = auctionSessions;
     }
 
     public static ServerApplication create(ServerConfig config) {
@@ -235,7 +238,8 @@ public final class ServerApplication implements AutoCloseable {
                 timer,
                 mediaServer,
                 media,
-                wallets, auctionRepository);
+                wallets, auctionRepository, new vn.ptit.btl16.server.dashboard.AuctionSessionService(
+                        auctions, auctionRepository, users, socialStore));
     }
 
     public void start() throws IOException {
@@ -290,6 +294,9 @@ public final class ServerApplication implements AutoCloseable {
 
     public List<AuctionSnapshot> auctionSnapshots() {
         return auctions.snapshots();
+    }
+    public vn.ptit.btl16.server.dashboard.AuctionSessionService auctionSessions() {
+        return auctionSessions;
     }
     public List<java.util.Map<String, String>> operationEvents(Long room, String type, java.time.Instant from, java.time.Instant to, long before) {
         return auctionRepository.operationEvents(room, type, from, to, before, 51);

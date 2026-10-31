@@ -79,9 +79,22 @@ public final class MediaUiSelfTest {
                 Label status = (Label) field(gallery, "status");
                 TestSupport.check(gallery.imagePane().localToScene(gallery.imagePane().getBoundsInLocal()).getMinY()
                         >= status.localToScene(status.getBoundsInLocal()).getMaxY(), "compact image preview never overlaps toolbar/status");
+                TestSupport.check(gallery.imagePane().getHeight() >= 120, "compact image preview remains usable instead of collapsing into a strip");
                 return null;
             });
+            MediaGalleryPane compactPreview = fx(() -> (MediaGalleryPane) field(editor, "preview"));
+            waitFor(() -> compactPreview.imagePane().getImage() != null && compactPreview.imagePane().getImage().getProgress() == 1
+                    && !compactPreview.imagePane().getImage().isError(), "compact preview image loads before screenshot");
             snapshot((Stage) field(editor, "stage"), "editor-compact-validation.png");
+            fx(() -> { ((ScrollPane) ((Stage) field(editor, "stage")).getScene().lookup("#product-editor-preview-scroll")).setVvalue(1); return null; });
+            snapshot((Stage) field(editor, "stage"), "editor-compact-tools.png");
+            fx(() -> {
+                Stage window = (Stage) field(editor, "stage");
+                ToggleButton crop = (ToggleButton) field(editor, "crop");
+                TestSupport.check(crop.localToScene(crop.getBoundsInLocal()).getMaxY()
+                        <= ((Button) field(editor, "save")).localToScene(((Button) field(editor, "save")).getBoundsInLocal()).getMinY(), "scrolling exposes editing tools above the fixed footer");
+                ((ScrollPane) window.getScene().lookup("#product-editor-preview-scroll")).setVvalue(0); return null;
+            });
             TestSupport.check(ticks.get()-before>=4,"FX heartbeat continues during large image upload/conversion");
             fx(() -> { invoke(editor,"addFiles",new Class<?>[]{List.class,String.class,boolean.class},List.of(directory.resolve("fixture.mp4").toFile()),"VIDEO",false); return null; });
             waitFor(() -> ready(editor,3),"video preview uploaded before product save");
@@ -129,7 +142,10 @@ public final class MediaUiSelfTest {
             MediaGalleryPane pane=fx(()->(MediaGalleryPane)gallery.getScene().getRoot());
             waitFor(()->pane.imagePane().getImage()!=null && pane.imagePane().getImage().getProgress()==1,"viewer gallery loads first image");
             fx(()->{pane.select(1);pane.imagePane().zoom(2);gallery.setFullScreenExitHint("");gallery.setFullScreen(true);return null;});
-            waitFor(gallery::isFullScreen,"fullscreen gallery");fx(()->{gallery.setFullScreen(false);return null;});snapshot(gallery,"viewer-media-gallery.png");
+            waitFor(gallery::isFullScreen,"fullscreen gallery");fx(()->{gallery.setFullScreen(false);return null;});
+            waitFor(() -> !gallery.isFullScreen() && pane.imagePane().getImage() != null
+                    && pane.imagePane().getImage().getProgress() == 1 && !pane.imagePane().getImage().isError(), "viewer renders selected image after fullscreen exit");
+            snapshot(gallery,"viewer-media-gallery.png");
             fx(()->{gallery.close();return null;});
             Path heic = directory.resolve("PHONE.HEIC");
             try (var input = MediaUiSelfTest.class.getResourceAsStream("/media/tiled-phone.heic")) { Files.copy(input, heic); }

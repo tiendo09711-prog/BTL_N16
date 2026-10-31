@@ -42,6 +42,28 @@ public interface AuctionRepository {
         return java.util.Map.of("count", "0", "hasMore", "false", "nextBeforeId", "0");
     }
     List<vn.ptit.btl16.server.auction.model.RoomProgress.Event> findRoomEvents(long auctionId, long before, long after, int limit);
+
+    default List<vn.ptit.btl16.server.auction.model.RoomAttendance> roomAttendance(long auctionId) {
+        var members = new java.util.LinkedHashMap<Long, vn.ptit.btl16.server.auction.model.RoomAttendance>();
+        long before = Long.MAX_VALUE;
+        while (true) {
+            var page = findRoomEvents(auctionId, before, 0, 500);
+            if (page.isEmpty()) { break; }
+            for (var event : page) {
+                if (!"JOINED".equals(event.type()) || event.userId() == null) { continue; }
+                members.compute(event.userId(), (userId, previous) -> previous == null
+                        ? new vn.ptit.btl16.server.auction.model.RoomAttendance(userId, event.time(), event.time(), 1)
+                        : new vn.ptit.btl16.server.auction.model.RoomAttendance(userId,
+                                event.time().isBefore(previous.firstJoinedAt()) ? event.time() : previous.firstJoinedAt(),
+                                event.time().isAfter(previous.lastJoinedAt()) ? event.time() : previous.lastJoinedAt(), previous.visits() + 1));
+            }
+            long next = page.stream().mapToLong(vn.ptit.btl16.server.auction.model.RoomProgress.Event::id).min().orElse(0);
+            if (next >= before) { throw new IllegalStateException("Room event cursor did not advance"); }
+            before = next;
+        }
+        return members.values().stream().sorted(java.util.Comparator.comparing(
+                vn.ptit.btl16.server.auction.model.RoomAttendance::firstJoinedAt)).toList();
+    }
     void appendPresence(long auctionId, String type, long userId, java.time.Instant time);
     vn.ptit.btl16.server.auction.model.RoomProgress.Stats roomStats(long auctionId);
     List<vn.ptit.btl16.server.auction.model.RoomProgress.HistoryBid> bidPage(long auctionId, long before, long through, Long userId, int limit);

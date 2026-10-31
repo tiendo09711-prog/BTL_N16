@@ -74,7 +74,7 @@ public final class MediaGalleryPane extends BorderPane implements AutoCloseable 
             Button tile = new Button(item.path("kind").asText().equals("VIDEO") ? "Video" : index == 0 ? "\u0110\u1ea1i di\u1ec7n" : "\u1ea2nh " + (index + 1), image);
             tile.setContentDisplay(ContentDisplay.TOP); tile.setOnAction(event -> select(choice)); thumbnails.getChildren().add(tile);
         }
-        if (items.isEmpty()) { stop(); selected = -1; imagePane.setImage(null); status.setText("Ch\u01b0a c\u00f3 media"); }
+        if (items.isEmpty()) { stop(); selected = -1; imagePane.setImage(null); status.setText("Chưa có ảnh hoặc video"); }
         else { select(Math.max(0, Math.min(selected, items.size() - 1))); }
     }
     public void select(int index) {

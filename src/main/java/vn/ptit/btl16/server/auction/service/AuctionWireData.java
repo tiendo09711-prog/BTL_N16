@@ -228,6 +228,7 @@ public final class AuctionWireData {
             AuctionSnapshot value,
             int watcherCount) {
         data.put(prefix + "auctionId", Long.toString(value.getAuctionId()));
+        data.put(prefix + "roomCode", value.getRoomCode());
         data.put(prefix + "productId", Long.toString(value.getProduct().getProductId()));
         data.put(prefix + "productCode", value.getProduct().getCode());
         data.put(prefix + "productName", value.getProduct().getName());

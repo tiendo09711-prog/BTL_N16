@@ -382,7 +382,8 @@ public final class AuctionManagementService {
             }
             synchronized (rooms) {
                 requireCurrentSession(session, connectionId);
-                rooms.join(auctionId, connectionId, session.getUserId(), session.getUsername(), snapshot.getMaxParticipants());
+                rooms.join(auctionId, connectionId, session.getUserId(), session.getUsername(),
+                        snapshot.getMaxParticipants(), snapshot.isHostedBy(session.getUserId()));
                 if (snapshot.getVisibility() == RoomVisibility.PRIVATE) { sessions.grantPrivateRoomAccess(session, auctionId); }
             }
             return runtime.snapshot();

@@ -66,6 +66,7 @@ public final class ServerFxApp extends Application {
     private final Label clock = DesktopTheme.label("", "muted");
     private final ComboBox<String> addresses = new ComboBox<>();
     private final TableView<AuctionSnapshot> table = new TableView<>();
+    private final Label overviewRoomCount = DesktopTheme.label("", "muted");
     private final Button toggle = new Button("Đang khởi động…");
     private final Button copyCode = new Button("Sao chép mã");
     private final Button copyAddress = new Button("Sao chép địa chỉ");
@@ -134,7 +135,7 @@ public final class ServerFxApp extends Application {
                         DesktopTheme.label("LAN", "pill")), code, addresses,
                 new HBox(8, copyCode, copyAddress));
         invitation.getStyleClass().add("connection-card");
-        invitation.setMinWidth(300);
+        invitation.setMinWidth(0);
         HBox.setHgrow(invitation, Priority.ALWAYS);
 
         graph.setAlignment(Pos.BOTTOM_CENTER);
@@ -145,28 +146,45 @@ public final class ServerFxApp extends Application {
                 new HBox(10, DesktopTheme.label("Lưu trữ", "muted"), DesktopTheme.spacer(), storage));
         traffic.getStyleClass().add("card");
         HBox.setHgrow(traffic, Priority.ALWAYS);
-        HBox networkRow = new HBox(16, invitation, traffic);
+        var networkRow = SessionUi.columns(invitation, traffic, 50, 760);
 
-        column("Phiên", item -> "#" + item.getAuctionId(), 70);
-        column("Sản phẩm", item -> item.getProduct().getName(), 200);
-        column("Chủ phòng", item -> item.hasAnonymousGuests() ? "Ẩn danh" : item.getHostUsername(), 130);
-        column("Giá hiện tại", item -> money(item.getCurrentPrice()), 160);
-        column("Dẫn đầu", item -> item.getCurrentWinnerId() == null
-                ? "—" : item.hasAnonymousGuests() ? "Ẩn danh" : item.getCurrentWinnerUsername(), 130);
-        column("Trạng thái", item -> switch (item.getStatus().name()) {
-            case "OPEN" -> "Đang mở";
-            case "CANCELLED" -> "Đã hủy";
-            default -> "Kết thúc";
-        }, 105);
+        column("Mã phòng", AuctionSessionsPage::roomCode, 150);
+        column("Sản phẩm", item -> item.getProduct().getName(), 240);
+        column("Giá hiện tại", item -> money(item.getCurrentPrice()), 165);
+        var statusColumn = column("Trạng thái", AuctionSessionsPage::state, 135);
+        statusColumn.setCellFactory(ignored -> new javafx.scene.control.TableCell<>() {
+            @Override protected void updateItem(String value, boolean empty) {
+                super.updateItem(value, empty); setText(null); setGraphic(null);
+                if (!empty && value != null) {
+                    Label badge = DesktopTheme.label(value,"pill");
+                    badge.getStyleClass().add(value.equals("Đang diễn ra") ? "admin-status-open" : "admin-status-ended");
+                    setGraphic(badge);
+                }
+            }
+        });
+        column("", item -> "Chi tiết  →", 120).getStyleClass().add("admin-room-link");
+        table.setId("server-overview-auctions"); AdminUi.table(table,2);
+        table.setRowFactory(ignored -> {
+            var row = new javafx.scene.control.TableRow<AuctionSnapshot>();
+            row.setOnMouseClicked(event -> {
+                if (!row.isEmpty() && event.getButton() == javafx.scene.input.MouseButton.PRIMARY) { openSession(row.getItem().getAuctionId()); }
+            });
+            return row;
+        });
+        table.setOnKeyPressed(event -> {
+            if (event.getCode() == javafx.scene.input.KeyCode.ENTER && table.getSelectionModel().getSelectedItem() != null) {
+                openSession(table.getSelectionModel().getSelectedItem().getAuctionId()); event.consume();
+            }
+        });
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         table.setPlaceholder(DesktopTheme.label("Chưa có phiên đấu giá", "muted"));
-        table.setPrefHeight(260);
-        table.setMinHeight(200);
-        VBox roomCard = new VBox(15, new HBox(10, DesktopTheme.label("Các phiên đấu giá", "section-title"),
-                DesktopTheme.spacer()), table);
-        roomCard.getStyleClass().add("card");
-        VBox.setVgrow(roomCard, Priority.ALWAYS);
-        VBox.setVgrow(table, Priority.ALWAYS);
+        table.setPrefHeight(100); table.setMinHeight(100);
+        Button allRooms = new Button("Xem tất cả",ServerIcons.icon("arrow")); allRooms.setId("server-overview-all-sessions");
+        allRooms.getStyleClass().add("admin-secondary-button"); allRooms.setOnAction(event -> sessionsPage().showListing());
+        HBox roomHeading = new HBox(12,SessionUi.heading("Phiên gần đây","auction"),DesktopTheme.spacer(),allRooms);
+        roomHeading.setAlignment(Pos.CENTER_LEFT);
+        VBox roomCard = SessionUi.card(roomHeading,overviewRoomCount,AdminUi.tableFrame(table));
+        roomCard.setId("server-overview-session-card");
 
         VBox activityCard = new VBox(12, DesktopTheme.label("Hoạt động gần đây", "section-title"), activity);
         activityCard.getStyleClass().add("card");
@@ -174,6 +192,7 @@ public final class ServerFxApp extends Application {
         content.getStyleClass().add("admin-overview");
         ScrollPane scroll = new ScrollPane(content);
         scroll.setFitToWidth(true);
+        scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER); scroll.getStyleClass().add("admin-overview-scroll");
         adminTabs.setId("server-admin-tabs");
         adminTabs.getStyleClass().add("admin-tabs");
         adminTabs.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
@@ -184,8 +203,8 @@ public final class ServerFxApp extends Application {
         wallets.setId("server-wallet-tab");
         Tab cashFlow = new Tab("Dòng tiền sàn");
         cashFlow.setId("server-cash-flow-tab");
-        Tab operations = new Tab("Nhật ký vận hành");
-        operations.setId("server-operations-tab");
+        Tab operations = new Tab("Phiên đấu giá");
+        operations.setId("server-auction-sessions-tab");
         adminTabs.getTabs().addAll(overview, wallets, cashFlow, operations);
         adminTabs.getSelectionModel().selectedItemProperty().addListener((observable, before, selected) -> selectPage(selected));
         VBox sidebar = buildSidebar(overview, wallets, cashFlow, operations);
@@ -209,7 +228,7 @@ public final class ServerFxApp extends Application {
                 navigationButton(overview, "Tổng quan", "server-overview-open", "overview"),
                 navigationButton(wallets, "Tài khoản & ví", "server-wallet-open", "wallet"),
                 navigationButton(cashFlow, "Dòng tiền", "server-cash-flow-open", "cash"),
-                navigationButton(operations, "Nhật ký", "server-operations-open", "log"));
+                navigationButton(operations, "Phiên đấu giá", "server-auction-sessions-open", "auction"));
         sidebar.getStyleClass().addAll("sidebar", "admin-sidebar");
         Region filler = new Region();
         VBox.setVgrow(filler, Priority.ALWAYS);
@@ -249,7 +268,7 @@ public final class ServerFxApp extends Application {
             ServerAdminPage page = switch (selected.getId()) {
                 case "server-wallet-tab" -> new ServerWalletWindow(stage, () -> application, worker);
                 case "server-cash-flow-tab" -> new ServerCashFlowWindow(stage, () -> application, worker);
-                case "server-operations-tab" -> new OperationLogWindow(stage, () -> application, worker);
+                case "server-auction-sessions-tab" -> new AuctionSessionsPage(stage, () -> application, worker);
                 default -> throw new IllegalArgumentException("Unknown admin tab: " + selected.getId());
             };
             pages.put(selected, page);
@@ -285,16 +304,27 @@ public final class ServerFxApp extends Application {
         if (accent) {
             box.getStyleClass().add("accent");
         }
-        box.setMaxWidth(Double.MAX_VALUE);
+        box.setMinWidth(0); box.setMaxWidth(Double.MAX_VALUE);
         HBox.setHgrow(box, Priority.ALWAYS);
         return box;
     }
 
-    private void column(String title, Function<AuctionSnapshot, String> value, double width) {
+    private TableColumn<AuctionSnapshot, String> column(String title, Function<AuctionSnapshot, String> value, double width) {
         TableColumn<AuctionSnapshot, String> column = new TableColumn<>(title);
         column.setCellValueFactory(item -> new SimpleStringProperty(value.apply(item.getValue())));
         column.setPrefWidth(width);
         table.getColumns().add(column);
+        return column;
+    }
+
+    private AuctionSessionsPage sessionsPage() {
+        Tab tab = adminTabs.getTabs().stream().filter(item -> item.getId().equals("server-auction-sessions-tab")).findFirst().orElseThrow();
+        adminTabs.getSelectionModel().select(tab);
+        return (AuctionSessionsPage) tab.getContent();
+    }
+
+    private void openSession(long roomId) {
+        if (application != null && !busy && !closing) { sessionsPage().open(roomId); }
     }
 
     private void startServer() {
@@ -388,7 +418,12 @@ public final class ServerFxApp extends Application {
         long seconds = java.time.Duration.between(startedAt, Instant.now()).getSeconds();
         uptime.setText(String.format("%02d:%02d:%02d", seconds / 3600, seconds / 60 % 60, seconds % 60));
         var selected = table.getSelectionModel().getSelectedItem();
-        table.getItems().setAll(running.auctionSnapshots());
+        var allAuctions = running.auctionSnapshots();
+        var recent = allAuctions.stream().sorted(java.util.Comparator.comparingLong(AuctionSnapshot::getAuctionId).reversed()).limit(4).toList();
+        if (!table.getItems().equals(recent)) { table.getItems().setAll(recent); }
+        double listHeight = 46 + Math.max(1,recent.size()) * 48;
+        table.setPrefHeight(listHeight); table.setMinHeight(listHeight); table.setMaxHeight(listHeight);
+        overviewRoomCount.setText("Hiển thị " + recent.size() + " / " + allAuctions.size() + " phiên · Bấm một dòng để xem chi tiết");
         if (selected != null) {
             table.getItems().stream().filter(item -> item.getAuctionId() == selected.getAuctionId())
                     .findFirst().ifPresent(item -> table.getSelectionModel().select(item));

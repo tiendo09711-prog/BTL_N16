@@ -120,6 +120,11 @@ public final class RoomSocialStorageSelfTest {
             TestSupport.equals(projected.get("bid.username"), projected.get("bid.displayName"), "live display name is replaced with anonymous alias");
             TestSupport.check(!projected.get("bid.displayName").equals("Alice"), "voice cannot expose anonymous bidder display name");
             TestSupport.equals(Long.toString(-alice), projected.get("selfParticipantId"), "viewer identity masked");
+            TestSupport.equals("Kh\u00e1ch #" + alice, projected.get("winnerUsername"), "guests allocated before the host keep their original numbers");
+            store.ordinal(room, 1, true);
+            WireMessage afterHost = social.project("buyer", WireMessage.event(MessageType.AUCTION_ENDED, 15, raw));
+            TestSupport.equals(projected.get("winnerUsername"), afterHost.get("winnerUsername"), "a later host identity does not renumber earlier guests");
+            TestSupport.equals(projected.get("winnerId"), afterHost.get("winnerId"), "a later host identity does not change public IDs");
             TestSupport.check(projected.get("newLeader").startsWith("Kh\u00e1ch #"), "outbid name masked");
             TestSupport.equals(15L, projected.getServerSequence(), "projection preserves sequence");
             rejected(() -> social.project("viewer", WireMessage.event(MessageType.ROOM_CHAT_MESSAGE, 16,

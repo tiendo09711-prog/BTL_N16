@@ -189,7 +189,7 @@ public final class BidExperienceUiSelfTest {
             if (entry.getKey().startsWith("bid.")) { snapshot.put(entry.getKey().replace("bid.", "bid.0."), entry.getValue()); }
         }
         finishSync(view, snapshot);
-        TestSupport.check(fx(() -> feedback(view).contains("Server \u0111\u00e3 x\u00e1c nh\u1eadn")), "accepted history confirms amount without claiming win");
+        TestSupport.check(fx(() -> feedback(view).contains("Máy chủ đã xác nhận")), "accepted history confirms amount in Vietnamese without claiming win");
         TestSupport.check(fx(() -> button(view, "bidButton").isDisabled()), "confirmed leader cannot self-raise");
         fx(() -> { set(view.controller(), "lastRoomSignal", System.nanoTime() - TimeUnit.SECONDS.toNanos(20));
             invoke(view.controller(), "refreshBidControls");
@@ -206,6 +206,7 @@ public final class BidExperienceUiSelfTest {
                     .filter(auction -> auction.getAuctionId() == 3).findFirst().orElseThrow());
             invoke(view.controller(), "joinSelected"); return null;
         });
+        view.network().take(MessageType.LEAVE_AUCTION).reply(MessageType.LEAVE_AUCTION_RESULT, Map.of("success", "true")); drain();
         view.network().take(MessageType.JOIN_AUCTION).reply(MessageType.AUCTION_SNAPSHOT, data(3, "500", null, 1)); drain();
         view.network().take(MessageType.GET_WALLET).reply(MessageType.WALLET_RESULT, funds(3, "9000", "0")); drain();
         old.reply(MessageType.BID_ACCEPTED, accepted(2, "110", 2, 2)); drain();

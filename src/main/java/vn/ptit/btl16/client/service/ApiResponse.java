@@ -16,6 +16,7 @@ public final class ApiResponse {
 
     public String getErrorCode() { return message.getOrDefault("errorCode", ""); }
     public String getMessageText() { return message.getOrDefault("message", ""); }
+    public String getUserMessage() { return ClientMessages.error(getErrorCode(), getMessageText()); }
     public String get(String key) { return message.getOrDefault(key, ""); }
     public MessageType getType() { return message.getType(); }
     public WireMessage getWireMessage() { return message; }

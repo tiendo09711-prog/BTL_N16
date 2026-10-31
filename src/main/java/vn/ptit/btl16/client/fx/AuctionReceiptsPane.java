@@ -221,7 +221,7 @@ public final class AuctionReceiptsPane extends BorderPane implements AutoCloseab
         badge.setGraphic(MarketplaceIcons.icon(won ? "trophy" : "close", 12, won ? "#267236" : cancelled ? "#806748" : "#be3f40")); return badge;
     }
     private static Label roleBadge(String raw, boolean full) {
-        String text = full || "WINNER".equals(raw) || "NOT_WON".equals(raw) ? roleText(raw) : "HOST".equals(raw) ? "Chủ phòng" : "Theo dõi";
+        String text = full || "WINNER".equals(raw) ? roleText(raw) : "HOST".equals(raw) ? "Chủ phòng" : "Theo dõi";
         Label badge = DesktopTheme.label(text, "receipt-badge"); badge.getStyleClass().add("WINNER".equals(raw) ? "receipt-badge-green" : "receipt-badge-neutral");
         if ("WINNER".equals(raw) && full) { badge.setGraphic(MarketplaceIcons.icon("trophy", 12, "#267236")); } return badge;
     }
@@ -242,11 +242,11 @@ public final class AuctionReceiptsPane extends BorderPane implements AutoCloseab
     private void reload() {
         long generation = ++listGeneration; next.setDisable(true); previousPage.setDisable(pageIndex == 0); pageNumber.setText(Integer.toString(pageIndex + 1));
         if (!active()) { return; }
-        history.getItems().clear(); message.setText("\u0110ang t\u1ea3i l\u1ecbch s\u1eed t\u1eeb server...");
+        history.getItems().clear(); message.setText("\u0110ang t\u1ea3i l\u1ecbch s\u1eed t\u1eeb máy chủ...");
         if (!transport.isConnected()) { message.setText("M\u1ea5t k\u1ebft n\u1ed1i. K\u1ebft n\u1ed1i l\u1ea1i v\u00e0 b\u1ea5m L\u00e0m m\u1edbi; ch\u01b0a x\u00e1c nh\u1eadn k\u1ebft qu\u1ea3."); return; }
         api.list(scope.getValue(), outcome.getValue(), search.getText().trim(), before).whenComplete((response, error) -> Platform.runLater(() -> {
             if (!active() || generation != listGeneration) { return; }
-            if (error != null || !response.isSuccess()) { message.setText(error != null ? "Ch\u01b0a t\u1ea3i \u0111\u01b0\u1ee3c. B\u1ea5m L\u00e0m m\u1edbi \u0111\u1ec3 th\u1eed l\u1ea1i." : response.getMessageText()); return; }
+            if (error != null || !response.isSuccess()) { message.setText(error != null ? "Ch\u01b0a t\u1ea3i \u0111\u01b0\u1ee3c. B\u1ea5m L\u00e0m m\u1edbi \u0111\u1ec3 th\u1eed l\u1ea1i." : response.getUserMessage()); return; }
             var data = response.getWireMessage().getData(); int count = number(data, "count");
             List<Map<String, String>> rows = new ArrayList<>();
             for (int index = 0; index < count; index++) {
@@ -262,13 +262,13 @@ public final class AuctionReceiptsPane extends BorderPane implements AutoCloseab
         if (!active()) { return; }
         selectedRoom = room; long generation = ++receiptGeneration;
         drawer.setVisible(true); drawer.setManaged(true); detailScroll.setVvalue(0);
-        detail.getChildren().setAll(new Label("\u0110ang ch\u1edd bi\u00ean nh\u1eadn server x\u00e1c nh\u1eadn cho #" + room));
+        detail.getChildren().setAll(new Label("\u0110ang ch\u1edd bi\u00ean nh\u1eadn máy chủ x\u00e1c nh\u1eadn cho #" + room));
         Button retry = new Button("Th\u1eed l\u1ea1i bi\u00ean nh\u1eadn"); retry.setOnAction(event -> loadReceipt(room)); detail.getChildren().add(retry);
         if (!transport.isConnected()) { detail.getChildren().add(new Label("M\u1ea5t k\u1ebft n\u1ed1i; kh\u00f4ng suy ra th\u1eafng hay thanh to\u00e1n t\u1eeb d\u1eef li\u1ec7u c\u0169.")); return; }
         api.get(room).whenComplete((response, error) -> Platform.runLater(() -> {
             if (!active() || generation != receiptGeneration) { return; }
             if (error != null || !response.isSuccess()) {
-                detail.getChildren().setAll(new Label(error != null ? "Ch\u01b0a x\u00e1c nh\u1eadn \u0111\u01b0\u1ee3c k\u1ebft qu\u1ea3. H\u00e3y th\u1eed l\u1ea1i." : response.getMessageText()), retry); return;
+                detail.getChildren().setAll(new Label(error != null ? "Ch\u01b0a x\u00e1c nh\u1eadn \u0111\u01b0\u1ee3c k\u1ebft qu\u1ea3. H\u00e3y th\u1eed l\u1ea1i." : response.getUserMessage()), retry); return;
             }
             render(response.getWireMessage().getData());
         }));
@@ -300,7 +300,7 @@ public final class AuctionReceiptsPane extends BorderPane implements AutoCloseab
                 String base = new BigDecimal(data.get("baseFeeRate")).multiply(BigDecimal.valueOf(100)).stripTrailingZeros().toPlainString();
                 String reduction = new BigDecimal(data.get("feeDiscountRate")).multiply(BigDecimal.valueOf(100)).stripTrailingZeros().toPlainString();
                 payment.getChildren().add(field("Tỷ lệ phí sàn ban đầu:", new Label(base + "%")));
-                payment.getChildren().add(field("Ưu đãi doanh thu:", new Label("0".equals(data.get("revenueRank")) ? "Chưa thuộc Top 10" : "Top " + data.get("revenueRank") + " · Giảm " + reduction + " điểm %")));
+                payment.getChildren().add(field("Ưu đãi doanh thu:", new Label("0".equals(data.get("revenueRank")) ? "Chưa thuộc 10 hạng đầu" : "Hạng " + data.get("revenueRank") + " · Giảm " + reduction + " điểm %")));
             }
             payment.getChildren().addAll(field("Phí sàn thực thu (" + percent + "%):", new Label(money(data.get("platformFee")))),
                     field("Người mua thanh toán:", new Label(money(data.get("finalPrice")))),

@@ -36,6 +36,15 @@ public final class RoomProgressStorageSelfTest {
             TestSupport.check(!repository.extendAuction(new ExtendAuctionCommit(room, end.minusSeconds(10), end.plusSeconds(10))), "stale manual extension rejected");
             TestSupport.equals(count, (long) repository.findRoomEvents(room, Long.MAX_VALUE, 0, 1000).size(), "failed mutation adds no event");
             Instant now = Instant.now().truncatedTo(ChronoUnit.MILLIS);
+            repository.appendPresence(room, "JOINED", 2, now.minusSeconds(20));
+            repository.appendPresence(room, "LEFT", 2, now.minusSeconds(10));
+            repository.appendPresence(room, "JOINED", 2, now.minusSeconds(1));
+            repository.appendPresence(room, "JOINED", 3, now);
+            var attendance = repository.roomAttendance(room);
+            TestSupport.equals(2, attendance.size(), "JDBC historical attendance includes departed and rejoined users once");
+            TestSupport.equals(now.minusSeconds(20), attendance.getFirst().firstJoinedAt(), "JDBC preserves first entry time");
+            TestSupport.equals(now.minusSeconds(1), attendance.getFirst().lastJoinedAt(), "JDBC preserves last entry time");
+            TestSupport.equals(2L, attendance.getFirst().visits(), "JDBC aggregates all joins");
             for (int index = 0; index < 135; index++) {
                 if (index == 10) { end = end.plusSeconds(10); }
                 repository.commitAcceptedBid(new BidCommit(room, BigDecimal.valueOf(100 + index * 10L), index % 2 == 0 ? 2 : 3,

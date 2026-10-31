@@ -9,6 +9,8 @@ import vn.ptit.btl16.common.protocol.*;
 import vn.ptit.btl16.server.ServerApplication;
 import vn.ptit.btl16.server.account.repository.JdbcConnectionFactory;
 import vn.ptit.btl16.server.auction.repository.*;
+import vn.ptit.btl16.server.auction.service.AuctionException;
+import vn.ptit.btl16.server.auction.service.RoomManager;
 import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.time.Instant;
@@ -20,6 +22,7 @@ public final class RoomAdmissionSelfTest {
     public static void main(String[] args) throws Exception { run(); }
 
     public static void run() throws Exception {
+        buyerCapacity();
         occupancyOrdering();
         String oldConfig = System.getProperty("btl16.server.config"), oldData = System.getProperty("btl16.dataDir");
         var directory = Files.createTempDirectory("btl16-admission-"); var settings = directory.resolve("server.properties");
@@ -56,6 +59,7 @@ public final class RoomAdmissionSelfTest {
                     error("VALIDATION_ERROR", host.sendRequest(MessageType.CREATE_AUCTION, raw).thenApply(ApiResponse::new));
 
                     long immediate = room(seller, product, null, 1, "0", false);
+                    TestSupport.equals("0", ok(seller.join(immediate)).get("watcherCount"), "host does not consume buyer capacity");
                     var race = raceJoin(buyer, rival, immediate, "");
                     TestSupport.equals(1L, race.stream().filter(ApiResponse::isSuccess).count(), "one last-slot winner");
                     TestSupport.equals(1L, race.stream().filter(value -> "ROOM_FULL".equals(value.getErrorCode())).count(), "one full rejection");
@@ -63,6 +67,9 @@ public final class RoomAdmissionSelfTest {
                     AuctionApi waiting = admitted == buyer ? rival : buyer;
                     long admittedId = admitted == buyer ? firstId : secondId;
                     ok(admitted.join(immediate));
+                    ok(seller.leave(immediate));
+                    TestSupport.equals("1", ok(seller.join(immediate)).get("watcherCount"), "host can rejoin a full room without changing occupancy");
+                    ok(seller.leave(immediate));
                     error("ROOM_FULL", waiting.join(immediate));
                     ok(admitted.bid(immediate, money("110"))); ok(admitted.leave(immediate));
                     amount("110", server.wallets().account(admittedId).reserved(), "leaving releases slot, not funded bid");
@@ -101,6 +108,9 @@ public final class RoomAdmissionSelfTest {
                     waiting = admitted == buyer ? rival : buyer;
                     admittedId = admitted == buyer ? firstId : secondId;
                     long waitingId = admitted == buyer ? secondId : firstId;
+                    TestSupport.equals("1", ok(seller.join(scheduled)).get("watcherCount"), "scheduled host needs neither deposit nor a buyer slot");
+                    ok(seller.leave(scheduled));
+                    error("ROOM_FULL", waiting.join(scheduled, "secret"));
                     ok(admitted.bid(scheduled, money("110")));
                     amount("110", server.wallets().account(admittedId).reserved(), "deposit included in bid, not held twice");
                     ok(admitted.leave(scheduled)); ok(waiting.join(scheduled, "secret"));
@@ -150,6 +160,39 @@ public final class RoomAdmissionSelfTest {
             }
         } finally { restore("btl16.server.config", oldConfig); restore("btl16.dataDir", oldData); }
         System.out.println("[PASS] RoomAdmissionSelfTest: strict creation, concurrent capacity, presence, deposit gates, escrow, settlement, cancellation and restart");
+    }
+
+    private static void buyerCapacity() {
+        try (var rooms = new RoomManager()) {
+            rooms.join(1, "host", 1, "host", 5, true);
+            TestSupport.equals(0, rooms.participantCount(1), "host alone leaves all five buyer slots available");
+            for (long buyerId = 2; buyerId <= 6; buyerId++) {
+                rooms.join(1, "buyer-" + buyerId, buyerId, "buyer-" + buyerId, 5);
+            }
+            TestSupport.equals(5, rooms.participantCount(1), "capacity five admits five buyers plus the host");
+            TestSupport.equals(6, rooms.subscriberCount(1), "host still receives room broadcasts");
+            long revision = rooms.occupancyVersion(1);
+            rooms.leave(1, "host");
+            TestSupport.equals(5, rooms.participantCount(1), "host departure cannot free a buyer slot");
+            rooms.join(1, "host-return", 1, "host", 5, true);
+            TestSupport.check(rooms.isMember(1, "host-return"), "host can enter a full room");
+            TestSupport.equals(revision, rooms.occupancyVersion(1), "host arrival and departure do not change buyer occupancy");
+            try {
+                rooms.join(1, "sixth-buyer", 7, "sixth-buyer", 5);
+                throw new AssertionError("A sixth buyer must not enter a room with five buyer slots");
+            } catch (AuctionException error) {
+                TestSupport.equals(ErrorCode.ROOM_FULL, error.getErrorCode(), "sixth buyer is rejected");
+            }
+            rooms.join(1, "buyer-2-extra", 2, "buyer-2", 5);
+            rooms.leave(1, "buyer-2");
+            TestSupport.equals(5, rooms.participantCount(1), "a buyer with another connection still occupies one slot");
+            rooms.removeConnection("buyer-2-extra");
+            TestSupport.equals(4, rooms.participantCount(1), "last buyer connection leaving frees exactly one slot");
+            rooms.join(1, "sixth-buyer", 7, "sixth-buyer", 5);
+            TestSupport.equals(5, rooms.participantCount(1), "another buyer takes the freed slot while the host remains present");
+            rooms.removeConnection("host-return");
+            TestSupport.equals(5, rooms.participantCount(1), "host disconnect does not change buyer occupancy");
+        }
     }
 
     private static void occupancyOrdering() {

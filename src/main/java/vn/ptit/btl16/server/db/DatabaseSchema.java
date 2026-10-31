@@ -18,6 +18,7 @@ public final class DatabaseSchema {
         createTables(factory);
         vn.ptit.btl16.server.account.repository.AccountTags.initialize(factory);
         upgradeAuctionManagementSchema(factory);
+        vn.ptit.btl16.server.auction.repository.RoomCodeStore.initialize(factory);
         vn.ptit.btl16.server.auction.repository.ProductCodeStore.initialize(factory);
         vn.ptit.btl16.server.auction.repository.ProductDeletionStore.initialize(factory);
         vn.ptit.btl16.server.media.JdbcMediaStorage.initialize(factory);

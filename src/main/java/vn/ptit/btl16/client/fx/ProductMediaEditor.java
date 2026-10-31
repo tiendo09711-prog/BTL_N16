@@ -94,16 +94,21 @@ public final class ProductMediaEditor {
         Label descriptionHint = new Label("Điền thông tin thật vào mẫu; vẫn áp dụng kiểm tra 50-2000 ký tự hiện có.");
         descriptionHint.setWrapText(true); descriptionHint.setMaxWidth(Double.MAX_VALUE);
         descriptionHint.setMinHeight(Region.USE_PREF_SIZE);
-        VBox information = new VBox(9, DesktopTheme.label("TH\u00d4NG TIN S\u1ea2N PH\u1ea8M", "eyebrow"),
+        VBox information = new VBox(9, DesktopTheme.label("Thông tin sản phẩm", "eyebrow"),
                 new Label("Mã sản phẩm (hệ thống cấp)"), code, new Label("T\u00ean s\u1ea3n ph\u1ea9m *"), name,
                 new Label("M\u00f4 t\u1ea3 *"), descriptionTemplate, description, characters,
                 descriptionHint, new Separator(),
                 new HBox(8, addImages, addVideo), counts, list,
                 new FlowPane(6, 6, remove, replace, cover, left, right));
         information.setPadding(new Insets(18)); information.setPrefWidth(340);
+        information.getStyleClass().add("product-editor-form-card");
         ScrollPane form = new ScrollPane(information); form.setFitToWidth(true); form.setMinWidth(300);
+        form.getStyleClass().add("product-editor-form-scroll");
         form.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER); form.setMinHeight(0);
-        VBox gallery = new VBox(10, preview, editTools); VBox.setVgrow(preview, Priority.ALWAYS); gallery.setPadding(new Insets(8));
+        VBox gallery = new VBox(12, DesktopTheme.label("Xem trước & chỉnh sửa", "eyebrow"), preview, editTools);
+        gallery.getStyleClass().add("product-editor-preview-card");
+        preview.setMinHeight(400);
+        VBox.setVgrow(preview, Priority.ALWAYS); gallery.setPadding(new Insets(16));
         ScrollPane galleryScroll = DesktopTheme.viewport(gallery); galleryScroll.setId("product-editor-preview-scroll");
         SplitPane split = new SplitPane(form, galleryScroll); split.setDividerPositions(0.32); split.setMinHeight(0);
         validation.setWrapText(true); validation.setMaxWidth(Double.MAX_VALUE); validation.getStyleClass().add("validation-hint");
@@ -115,8 +120,8 @@ public final class ProductMediaEditor {
         save.setId("product-editor-save");
         HBox actions = new HBox(12, feedback, cancel, save); actions.setAlignment(Pos.CENTER_LEFT);
         actions.getStyleClass().add("editor-footer"); cancel.setMinWidth(65); save.setMinWidth(145);
-        VBox heading = new VBox(5, DesktopTheme.label(product == null ? "\u0110\u0103ng s\u1ea3n ph\u1ea9m" : "Ch\u1ec9nh s\u1eeda s\u1ea3n ph\u1ea9m", "section-title"),
-                DesktopTheme.label("\u1ea2nh \u0111\u01b0\u1ee3c t\u1ea3i l\u00ean m\u00e1y ch\u1ee7. Ch\u1ec9 ho\u00e0n t\u1ea5t khi b\u1ea1n b\u1ea5m L\u01b0u s\u1ea3n ph\u1ea9m.", "muted"));
+        HBox heading = AccountUi.heading(product == null ? "\u0110\u0103ng s\u1ea3n ph\u1ea9m" : "Ch\u1ec9nh s\u1eeda s\u1ea3n ph\u1ea9m",
+                "\u1ea2nh \u0111\u01b0\u1ee3c t\u1ea3i l\u00ean m\u00e1y ch\u1ee7. Ch\u1ec9 ho\u00e0n t\u1ea5t khi b\u1ea1n b\u1ea5m L\u01b0u s\u1ea3n ph\u1ea9m.", "image", null);
         heading.setPadding(new Insets(16, 20, 12, 20));
         BorderPane root = new BorderPane(split); root.setTop(heading); root.setBottom(actions); root.getStyleClass().add("product-editor");
         Scene scene = new Scene(root, 1180, 720); DesktopTheme.apply(scene);
@@ -228,7 +233,7 @@ public final class ProductMediaEditor {
         counts.setText(images + "/5 \u1ea3nh \u00b7 " + videos + "/1 video \u00b7 \u1ea3nh \u0111\u1ea7u l\u00e0 \u0111\u1ea1i di\u1ec7n");
         String reason = validationMessage();
         validation.setText(busy ? "\u0110ang t\u1ea3i / x\u1eed l\u00fd. Vui l\u00f2ng ch\u1edd ho\u00e0n t\u1ea5t."
-                : draft == null ? "Ch\u01b0a k\u1ebft n\u1ed1i kho \u1ea3nh tr\u00ean server."
+                : draft == null ? "Ch\u01b0a k\u1ebft n\u1ed1i kho \u1ea3nh tr\u00ean máy chủ."
                 : reason.isEmpty() ? "\u0110\u1ee7 \u0111i\u1ec1u ki\u1ec7n. B\u1ea5m L\u01b0u s\u1ea3n ph\u1ea9m \u0111\u1ec3 ho\u00e0n t\u1ea5t." : reason);
         characters.getStyleClass().removeAll("error-text", "muted");
         characters.getStyleClass().add(length < 50 || length > 2000 ? "error-text" : "muted");

@@ -53,10 +53,19 @@ public final class AuctionButtonsUiSelfTest {
             long product = Long.parseLong(ok(TestMedia.create(hostApi, "BUTTON_ITEM", "Button camera", TestMedia.DESCRIPTION)).get("productId"));
             pressText(host, "T\u1ea1o ph\u00f2ng \u0111\u1ea5u gi\u00e1");
             DialogPane create = dialog("T\u1ea1o ph\u00f2ng \u0111\u1ea5u gi\u00e1");
-            fx(() -> { textRow(create, 1).setText("100"); textRow(create, 2).setText("10"); submit(create); return null; });
+            fx(() -> {
+                ((TextField) create.lookup("#auction-create-price")).setText("100");
+                TestSupport.check(((Label) create.lookup(".auction-create-title")).getFont().getSize() <= 13, "creation prompt uses regular text size");
+                ((TextField) create.lookup("#auction-create-increment")).setText("10");
+                ((TextField) create.lookup("#auction-create-max-participants")).setText("100");
+                ((Button) create.lookup("#auction-create-next")).fire(); return null;
+            });
             DialogPane review = dialog(null);
             TestSupport.equals(0, host.model().auctionSnapshot().size(), "review does not create before confirmation");
-            fx(() -> { ((Button) review.lookupButton(ButtonType.YES)).fire(); return null; });
+            fx(() -> {
+                TestSupport.check(((Label) review.lookup(".auction-review-title")).getFont().getSize() <= 13, "review prompt uses regular text size");
+                ((Button) review.lookup("#auction-create-confirm")).fire(); return null;
+            });
             waitFor(() -> host.model().auctionSnapshot().size() == 1, "create-room button publishes a room");
             long room = fx(() -> host.model().auctionSnapshot().get(0).getAuctionId()); select(host, room);
             press(host, "joinButton"); waitFor(() -> host.model().getJoinedAuctionId() != null, "host joins to receive live room events");
@@ -71,9 +80,12 @@ public final class AuctionButtonsUiSelfTest {
                 AuctionApi api = new AuctionApi(watcher); ok(api.join(room));
                 var kicked = new java.util.concurrent.CountDownLatch(1);
                 watcher.addEventListener(event -> { if (event.getType() == vn.ptit.btl16.common.protocol.MessageType.AUCTION_KICKED) { kicked.countDown(); } });
-                press(host, "kickButton"); DialogPane kick = dialog("Kick user");
-                fx(() -> { ((TextInputControl) kick.lookup(".text-field")).setText("buttons_watcher"); submit(kick); return null; });
+                press(host, "kickButton"); DialogPane kick = dialog("Qu\u1ea3n l\u00fd ng\u01b0\u1eddi tham gia");
+                waitFor(() -> !((ListView<?>) kick.lookup("#room-kick-list")).getItems().isEmpty(), "participant list loaded");
+                fx(() -> { ((CheckBox) kick.lookup("#room-kick-select-all")).fire(); ((Button) kick.lookup("#room-kick-submit")).fire(); return null; });
                 TestSupport.check(kicked.await(10, TimeUnit.SECONDS), "kick button sends a real event to a non-bidder");
+                waitFor(() -> !((Button) kick.lookup("#room-kick-reload")).isDisabled(), "batch removal completed");
+                fx(() -> { ((Button) kick.lookupButton(kick.getButtonTypes().stream().filter(type -> type.getButtonData() == ButtonBar.ButtonData.CANCEL_CLOSE).findFirst().orElseThrow())).fire(); return null; });
                 ApiResponse denied = api.join(room).get(10, TimeUnit.SECONDS);
                 TestSupport.equals("USER_BLOCKED_FROM_AUCTION", denied.getErrorCode(), "kicked watcher cannot rejoin");
             }
@@ -81,10 +93,11 @@ public final class AuctionButtonsUiSelfTest {
             AccountApi buyerAccount = new AccountApi(buyer.transport());
             ok(buyerAccount.register("buttons_buyer", "Password123!", "Buttons Buyer", "", "")); login(buyer, "buttons_buyer");
             TestMedia.fundWallets(server.wallets());
-            pressText(buyer, "L\u00e0m m\u1edbi"); waitFor(() -> buyer.model().auctionSnapshot().size() == 1, "refresh button loads rooms"); select(buyer, room);
+            pressId(buyer, "marketplace-refresh"); waitFor(() -> buyer.model().auctionSnapshot().size() == 1, "refresh button loads rooms"); select(buyer, room);
             fx(() -> { ((TextField) field(buyer.controller(), "searchField")).setText("Button camera"); return null; });
-            pressText(buyer, "T\u00ecm ki\u1ebfm"); waitFor(() -> table(buyer).getItems().size() == 1, "search button");
-            pressText(buyer, "X\u00f3a l\u1ecdc");
+            fx(() -> { ((TextField) field(buyer.controller(), "searchField")).fireEvent(new javafx.event.ActionEvent()); return null; });
+            waitFor(() -> table(buyer).getItems().size() == 1, "search field submits on Enter");
+            fx(() -> { var search = (TextField) field(buyer.controller(), "searchField"); search.clear(); search.fireEvent(new javafx.event.ActionEvent()); return null; });
             TestSupport.check(fx(() -> button(buyer, "bidButton").isDisabled()), "cannot bid before joining");
             press(buyer, "joinButton"); waitFor(() -> buyer.model().getJoinedAuctionId() != null, "join button");
             waitFor(() -> !button(buyer, "bidButton").isDisabled(), "bid waits for room and private wallet sync");
@@ -94,7 +107,7 @@ public final class AuctionButtonsUiSelfTest {
             waitFor(() -> button(buyer, "bidButton").isDisabled(), "leader cannot self-raise in UI");
             waitFor(() -> button(host, "endButton").isDisabled() && button(host, "cancelButton").isDisabled()
                     && button(host, "extendButton").isDisabled(), "host mutations disabled after accepted bid");
-            press(buyer, "historyButton"); DialogPane history = dialog("L\u1ecbch s\u1eed bid ph\u00f2ng #" + room);
+            press(buyer, "historyButton"); DialogPane history = dialog("L\u1ecbch s\u1eed \u0111\u1eb7t gi\u00e1 \u00b7 Ph\u00f2ng #" + room);
             waitFor(() -> ((TableView<?>) history.lookup("#bid-history-table")).getItems().toString().contains("buttons_buyer"), "history table loads real server bid");
             fx(() -> { TestSupport.equals(4, ((TableView<?>) history.lookup("#bid-history-table")).getColumns().size(), "history has time, bidder, amount and increase"); ((Button) history.lookupButton(ButtonType.CLOSE)).fire(); return null; });
             try (var rival = new WebSocketClientTransport(endpoint, 2097152, 5000, 10000)) {
@@ -105,10 +118,10 @@ public final class AuctionButtonsUiSelfTest {
                 waitFor(() -> !button(buyer, "bidButton").isDisabled(), "outbid buyer can compete again");
             }
             press(buyer, "leaveButton"); waitFor(() -> buyer.model().getJoinedAuctionId() == null, "leave button");
-            pressText(buyer, "T\u00e0i kho\u1ea3n"); DialogPane profile = dialog("H\u1ed3 s\u01a1 t\u00e0i kho\u1ea3n");
-            fx(() -> { textRow(profile, 1).setText("Updated Buyer"); submit(profile); return null; });
+            pressId(buyer, "account-profile-navigation"); DialogPane profile = dialog("H\u1ed3 s\u01a1 t\u00e0i kho\u1ea3n");
+            fx(() -> { ((TextField) profile.lookup("#profile-display-name")).setText("Updated Buyer"); submit(profile); return null; });
             waitFor(() -> buyer.model().getDisplayName().equals("Updated Buyer"), "profile save button persists identity");
-            pressText(buyer, "T\u00e0i kho\u1ea3n"); DialogPane passwordProfile = dialog("H\u1ed3 s\u01a1 t\u00e0i kho\u1ea3n");
+            pressId(buyer, "account-profile-navigation"); DialogPane passwordProfile = dialog("H\u1ed3 s\u01a1 t\u00e0i kho\u1ea3n");
             Platform.runLater(() -> { ButtonType change = passwordProfile.getButtonTypes().stream().filter(value -> value.getButtonData() == ButtonBar.ButtonData.OTHER).findFirst().orElseThrow();
                 ((Button) passwordProfile.lookupButton(change)).fire(); });
             DialogPane password = dialog("\u0110\u1ed5i m\u1eadt kh\u1ea9u");
@@ -124,7 +137,8 @@ public final class AuctionButtonsUiSelfTest {
             for (boolean cancel : new boolean[]{true, false}) {
                 long anotherProduct = Long.parseLong(ok(TestMedia.create(hostApi, cancel ? "BUTTON_CANCEL" : "BUTTON_END", "Empty room", TestMedia.DESCRIPTION)).get("productId"));
                 long anotherRoom = Long.parseLong(ok(hostApi.createAuction(anotherProduct, new BigDecimal("100"), new BigDecimal("10"), 1)).get("auctionId"));
-                pressText(host, "L\u00e0m m\u1edbi"); waitFor(() -> host.model().auctionSnapshot().stream().anyMatch(value -> value.getAuctionId() == anotherRoom), "host sees new empty room");
+                pressId(host, "account-marketplace-navigation");
+                pressId(host, "marketplace-refresh"); waitFor(() -> host.model().auctionSnapshot().stream().anyMatch(value -> value.getAuctionId() == anotherRoom), "host sees new empty room");
                 select(host, anotherRoom); press(host, "joinButton");
                 waitFor(() -> java.util.Objects.equals(host.model().getJoinedAuctionId(), anotherRoom), "host joins empty room before managing");
                 press(host, cancel ? "cancelButton" : "endButton"); DialogPane confirmation = dialog(null);
@@ -163,6 +177,12 @@ public final class AuctionButtonsUiSelfTest {
         Button button = fx(() -> user.stage().getScene().getRoot().lookupAll(".button").stream().filter(Button.class::isInstance).map(Button.class::cast)
                 .filter(value -> value.getText().endsWith(text)).findFirst().orElseThrow(() -> new AssertionError("Missing button: " + text)));
         Platform.runLater(button::fire);
+    }
+    private static void pressId(UserUi user, String id) throws Exception {
+        waitFor(() -> user.stage().getScene().lookup("#" + id) != null, "button is rendered: " + id);
+        Button button = fx(() -> (Button) user.stage().getScene().lookup("#" + id));
+        TestSupport.check(button != null, "button exists: " + id);
+        waitFor(() -> !button.isDisabled(), "button is enabled: " + id); Platform.runLater(button::fire);
     }
     private static DialogPane dialog(String title) throws Exception {
         CompletableFuture<DialogPane> found = new CompletableFuture<>();

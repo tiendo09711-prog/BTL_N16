@@ -198,12 +198,12 @@ public final class AccountScreensUiSelfTest {
                 && entries.getItems().size() == 1, "transactions page displays the funded wallet history");
         TestSupport.check(fx(() -> ((javafx.animation.Timeline) field(firstWallet, "poll")).getStatus() == javafx.animation.Animation.Status.STOPPED), "leaving wallet stops polling");
         TestSupport.check(fx(() -> Window.getWindows().stream().filter(Window::isShowing).count()) == 1, "transactions stays in the main window");
-        TestSupport.equals(List.of("", "TOPUP", "WITHDRAWAL", "PURCHASE", "SALE"), fx(() -> List.copyOf(((ComboBox<?>) owner.getScene().lookup("#transactions-type")).getItems())), "transaction filters match the supported money lifecycle");
+        TestSupport.equals(List.of("", "TOPUP", "WITHDRAWAL", "PURCHASE", "SALE", "ROOM_DEPOSIT", "DEPOSIT_RELEASE"), fx(() -> List.copyOf(((ComboBox<?>) owner.getScene().lookup("#transactions-type")).getItems())), "transaction filters match the supported money lifecycle");
         TestSupport.equals(5, fx(() -> ((TableView<?>) owner.getScene().lookup("#transactions-entries")).getColumns().size()), "history contains only the current wallet columns");
         selectTransactionsType(owner, "TOPUP", 1);
         screenshot(owner.getScene().getRoot(), "target/account-transactions-topup.png");
         selectTransactionsType(owner, "", 1);
-        for (String type : List.of("WITHDRAWAL", "PURCHASE", "SALE")) { selectTransactionsType(owner, type, 0); }
+        for (String type : List.of("WITHDRAWAL", "PURCHASE", "SALE", "ROOM_DEPOSIT", "DEPOSIT_RELEASE")) { selectTransactionsType(owner, type, 0); }
         selectTransactionsType(owner, "", 1);
         screenshot(owner.getScene().getRoot(), "target/account-transactions.png");
         TransactionsPane oldTransactions = (TransactionsPane) fx(() -> owner.getScene().lookup("#account-transactions"));

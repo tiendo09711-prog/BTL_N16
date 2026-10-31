@@ -15,6 +15,7 @@ public final class AuctionReceiptStore {
                     AND variant = 'thumbnail.jpg' AND chunk_no = 0), product.image_data) AS product_thumbnail
             FROM auction_receipt_summaries s
             JOIN auction_personal_receipts p ON p.auction_id = s.auction_id
+                AND p.personal_role IN ('HOST', 'WINNER', 'NOT_WON')
             JOIN auctions a ON a.auction_id = s.auction_id
             JOIN products product ON product.product_id = a.product_id
             """;
@@ -67,6 +68,7 @@ public final class AuctionReceiptStore {
     public static void initialize(JdbcConnectionFactory factory) {
         try (var connection = factory.openDatabase(); var statement = connection.createStatement()) {
             statement.executeUpdate(SUMMARY_SCHEMA); statement.executeUpdate(PERSONAL_SCHEMA);
+            statement.executeUpdate("DELETE FROM auction_personal_receipts WHERE personal_role = 'WATCHED'");
         } catch (SQLException exception) { throw new AuctionRepositoryException("Cannot initialize receipts", exception); }
         List<Long> legacy = new ArrayList<>();
         try (var connection = factory.openDatabase(); var query = connection.prepareStatement("""
@@ -126,16 +128,13 @@ public final class AuctionReceiptStore {
                 }
             }
         }
-        Set<Long> participants = new LinkedHashSet<>(); Set<Long> bidders = new HashSet<>(); participants.add(host);
+        Set<Long> participants = new LinkedHashSet<>(); participants.add(host);
         try (var query = connection.prepareStatement("SELECT DISTINCT user_id FROM bids WHERE auction_id = ?")) {
-            query.setLong(1, room); try (var rows = query.executeQuery()) { while (rows.next()) { bidders.add(rows.getLong(1)); } }
-        }
-        participants.addAll(bidders);
-        try (var query = connection.prepareStatement("SELECT DISTINCT actor_id FROM room_events WHERE auction_id = ? AND event_type = 'JOINED' AND actor_id IS NOT NULL")) {
             query.setLong(1, room); try (var rows = query.executeQuery()) { while (rows.next()) { participants.add(rows.getLong(1)); } }
         }
+        if ("WON".equals(outcome) && winner != null) { participants.add(winner); }
         for (long user : participants) {
-            String role = user == host ? "HOST" : "WON".equals(outcome) && Objects.equals(winner, user) ? "WINNER" : bidders.contains(user) ? "NOT_WON" : "WATCHED";
+            String role = user == host ? "HOST" : "WON".equals(outcome) && Objects.equals(winner, user) ? "WINNER" : "NOT_WON";
             try (var insert = connection.prepareStatement("INSERT INTO auction_personal_receipts(auction_id, user_id, personal_role) VALUES (?, ?, ?)")) {
                 insert.setLong(1, room); insert.setLong(2, user); insert.setString(3, role); insert.executeUpdate();
             }
@@ -144,16 +143,22 @@ public final class AuctionReceiptStore {
 
     private static String alias(Connection connection, long room, long user, long host) throws SQLException {
         if (user == host) { return "Ch\u1ee7 ph\u00f2ng"; }
+        long ordinal = 0;
         try (var query = connection.prepareStatement("SELECT ordinal_no FROM room_participants WHERE auction_id = ? AND user_id = ?")) {
             query.setLong(1, room); query.setLong(2, user);
-            try (var rows = query.executeQuery()) { if (rows.next()) { return "Kh\u00e1ch #" + rows.getLong(1); } }
+            try (var rows = query.executeQuery()) { if (rows.next()) { ordinal = rows.getLong(1); } }
         }
-        long ordinal;
-        try (var query = connection.prepareStatement("SELECT COALESCE(MAX(ordinal_no), 0) + 1 FROM room_participants WHERE auction_id = ?")) {
-            query.setLong(1, room); try (var rows = query.executeQuery()) { rows.next(); ordinal = rows.getLong(1); }
+        if (ordinal == 0) {
+            try (var query = connection.prepareStatement("SELECT COALESCE(MAX(ordinal_no), 0) + 1 FROM room_participants WHERE auction_id = ?")) {
+                query.setLong(1, room); try (var rows = query.executeQuery()) { rows.next(); ordinal = rows.getLong(1); }
+            }
+            try (var insert = connection.prepareStatement("INSERT INTO room_participants(auction_id, user_id, ordinal_no) VALUES (?, ?, ?)")) {
+                insert.setLong(1, room); insert.setLong(2, user); insert.setLong(3, ordinal); insert.executeUpdate();
+            }
         }
-        try (var insert = connection.prepareStatement("INSERT INTO room_participants(auction_id, user_id, ordinal_no) VALUES (?, ?, ?)")) {
-            insert.setLong(1, room); insert.setLong(2, user); insert.setLong(3, ordinal); insert.executeUpdate();
+        try (var query = connection.prepareStatement("SELECT ordinal_no FROM room_participants WHERE auction_id = ? AND user_id = ?")) {
+            query.setLong(1, room); query.setLong(2, host);
+            try (var rows = query.executeQuery()) { if (rows.next() && rows.getLong(1) < ordinal) { ordinal--; } }
         }
         return "Kh\u00e1ch #" + ordinal;
     }
@@ -177,7 +182,7 @@ public final class AuctionReceiptStore {
         if (!Set.of("PARTICIPATED", "WON", "HOSTED").contains(scope) || !Set.of("ALL", "WON", "NO_BIDS", "CANCELLED").contains(outcome)) {
             throw new IllegalArgumentException("Invalid receipt filter");
         }
-        String role = switch (scope) { case "WON" -> "p.personal_role = 'WINNER'"; case "HOSTED" -> "p.personal_role = 'HOST'"; default -> "p.personal_role <> 'HOST'"; };
+        String role = switch (scope) { case "WON" -> "p.personal_role = 'WINNER'"; case "HOSTED" -> "p.personal_role = 'HOST'"; default -> "p.personal_role IN ('WINNER', 'NOT_WON')"; };
         String sql = RECEIPT_SELECT + " WHERE p.user_id = ? AND s.auction_id < ? AND "
                 + role + " AND (? = 'ALL' OR s.outcome = ?) AND (LOWER(s.product_name) LIKE ? OR LOWER(s.product_code) LIKE ? OR CAST(s.auction_id AS CHAR(20)) = ?) ORDER BY s.auction_id DESC LIMIT ?";
         try (var connection = factory.openDatabase(); var query = connection.prepareStatement(sql)) {

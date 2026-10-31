@@ -9,6 +9,7 @@ import vn.ptit.btl16.client.network.ConnectionState;
 import vn.ptit.btl16.client.network.NetworkClient;
 import vn.ptit.btl16.client.service.AccountApi;
 import vn.ptit.btl16.client.service.ApiResponse;
+import vn.ptit.btl16.client.service.ClientMessages;
 import vn.ptit.btl16.client.service.AuctionApi;
 import vn.ptit.btl16.client.view.AuctionPanel;
 import vn.ptit.btl16.client.view.LoginPanel;
@@ -85,7 +86,7 @@ public final class ClientController implements AutoCloseable {
                     @Override
                     public void onExhausted(String lastError) {
                         onEdt(() -> view.showError(
-                                "Không thể kết nối lại Server: " + lastError));
+                                "Không thể kết nối lại máy chủ: " + lastError));
                     }
                 });
         this.clockTimer = new Timer(250, event -> {
@@ -140,7 +141,7 @@ public final class ClientController implements AutoCloseable {
                 .whenComplete((ignored, error) -> onEdt(() -> {
                     setLoginBusy(false);
                     if (error != null) {
-                        view.showError("Không kết nối được Server: " + rootMessage(error));
+                        view.showError("Không kết nối được máy chủ: " + rootMessage(error));
                     }
                 }));
     }
@@ -586,7 +587,7 @@ public final class ClientController implements AutoCloseable {
             view.getAuctionPanel().clearAmount();
             view.renderAuction(model);
             view.getAuctionPanel().appendNotification(
-                    "Server chấp nhận lượt ra giá " + amount.toPlainString() + " VND");
+                    "máy chủ chấp nhận lượt ra giá " + amount.toPlainString() + " VND");
         }));
     }
 
@@ -675,7 +676,7 @@ public final class ClientController implements AutoCloseable {
             model.clearIdentity();
             view.showLogin();
             if (error != null) {
-                view.showError("Phiên đăng nhập cục bộ đã xóa, Server trả lời lỗi: " + rootMessage(error));
+                view.showError("Phiên đăng nhập cục bộ đã xóa, máy chủ trả lời lỗi: " + rootMessage(error));
             }
         }));
     }
@@ -887,20 +888,11 @@ public final class ClientController implements AutoCloseable {
     }
 
     private String failure(ApiResponse response) {
-        String code = response.getErrorCode();
-        String message = response.getMessageText();
-        return (code.isBlank() ? response.getType().name() : code)
-                + (message.isBlank() ? "" : ": " + message);
+        return response == null ? "Máy chủ chưa phản hồi. Vui lòng thử lại." : response.getUserMessage();
     }
 
     private String rootMessage(Throwable throwable) {
-        Throwable current = throwable;
-        while (current.getCause() != null) {
-            current = current.getCause();
-        }
-        return current.getMessage() == null
-                ? current.getClass().getSimpleName()
-                : current.getMessage();
+        return ClientMessages.message(throwable);
     }
 
     private void onEdt(Runnable task) {

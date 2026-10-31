@@ -50,9 +50,13 @@ public final class RoomManager implements AutoCloseable {
     }
 
     public synchronized void join(long auctionId, String connectionId, long userId, String username, int maxParticipants) {
+        join(auctionId, connectionId, userId, username, maxParticipants, false);
+    }
+
+    public synchronized void join(long auctionId, String connectionId, long userId, String username, int maxParticipants, boolean host) {
         var existing = membersByAuction.get(auctionId);
         boolean sameUser = membersSnapshot(auctionId).stream().anyMatch(member -> member.getUserId() == userId);
-        if (!sameUser && participantCount(auctionId) >= maxParticipants) {
+        if (!host && !sameUser && participantCount(auctionId) >= maxParticipants) {
             throw new AuctionException(vn.ptit.btl16.common.protocol.ErrorCode.ROOM_FULL,
                     "Phòng đã đủ số lượng người tham gia. Hãy chờ có người rời phòng.");
         }
@@ -63,11 +67,11 @@ public final class RoomManager implements AutoCloseable {
         if (!alreadyPresent) { presence.changed(auctionId, "JOINED", userId, java.time.Instant.now()); }
         membersByAuction
                 .computeIfAbsent(auctionId, key -> new ConcurrentHashMap<>())
-                .put(connectionId, new RoomMember(connectionId, userId, username));
+                .put(connectionId, new RoomMember(connectionId, userId, username, host));
         auctionsByConnection
                 .computeIfAbsent(connectionId, key -> ConcurrentHashMap.newKeySet())
                 .add(auctionId);
-        if (!alreadyPresent) { changed(auctionId); }
+        if (!alreadyPresent && !host) { changed(auctionId); }
     }
 
     public synchronized void leave(long auctionId, String connectionId) {
@@ -186,7 +190,8 @@ public final class RoomManager implements AutoCloseable {
     }
 
     public int participantCount(long auctionId) {
-        return (int) membersSnapshot(auctionId).stream().map(RoomMember::getUserId).distinct().count();
+        return (int) membersSnapshot(auctionId).stream().filter(member -> !member.isHost())
+                .map(RoomMember::getUserId).distinct().count();
     }
 
     public java.util.List<RoomMember> membersSnapshot(long auctionId) {

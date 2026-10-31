@@ -14,6 +14,7 @@ import vn.ptit.btl16.client.model.ClientWireParser;
 import vn.ptit.btl16.client.network.ClientTransport;
 import vn.ptit.btl16.client.service.*;
 import vn.ptit.btl16.common.fx.DesktopTheme;
+import vn.ptit.btl16.client.service.ClientMessages;
 
 import java.io.ByteArrayInputStream;
 import java.nio.file.Files;
@@ -46,7 +47,10 @@ public final class RoomSocialPane extends VBox {
     private final Label counter = DesktopTheme.label("0/500", "muted");
     private final Label announcement = DesktopTheme.label("", "room-announcement-text");
     private final Button editAnnouncement = new Button("Ghim / S\u1eeda th\u00f4ng b\u00e1o");
-    private final VBox announcementBox = new VBox(5, announcement, editAnnouncement);
+    private final Label announcementMeta = DesktopTheme.label("", "room-announcement-meta");
+    private final Button expandAnnouncement = new Button();
+    private final VBox announcementBox = new VBox(8);
+    private boolean announcementExpanded;
     private final Label muteStatus = DesktopTheme.label("", "muted");
     private final Label replyPreview = DesktopTheme.label("", "muted");
     private final Button cancelReply = new Button("H\u1ee7y tr\u1ea3 l\u1eddi");
@@ -94,7 +98,9 @@ public final class RoomSocialPane extends VBox {
         setMinHeight(Region.USE_PREF_SIZE);
         chatTitle.setId("room-chat-title");
         privacy.setWrapText(true); feedback.setWrapText(true);
-        scroll.setFitToWidth(true); scroll.setPrefHeight(145); scroll.setMinHeight(100); scroll.setMaxHeight(145);
+        setMinWidth(0);
+        scroll.setFitToWidth(true); scroll.setPrefHeight(280); scroll.setMinHeight(145); scroll.setMaxHeight(Double.MAX_VALUE);
+        scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
         scroll.getStyleClass().add("social-scroll"); chatRows.setFillWidth(true);
         input.setPromptText("Tr\u00f2 chuy\u1ec7n c\u00f9ng m\u1ecdi ng\u01b0\u1eddi..."); input.setId("room-chat-input");
         send.setId("room-chat-send"); send.getStyleClass().add("primary");
@@ -106,7 +112,10 @@ public final class RoomSocialPane extends VBox {
         input.setOnAction(event -> send()); send.setOnAction(event -> send());
         replyPreview.setWrapText(true); HBox.setHgrow(replyPreview, Priority.ALWAYS);
         replyBox.setId("room-chat-reply-preview"); cancelReply.setId("room-chat-cancel-reply"); cancelReply.setOnAction(event -> cancelReply()); show(replyBox, false);
-        VBox chat = new VBox(8, scroll, unread, replyBox, composer, new HBox(10, counter, feedback));
+        HBox composerStatus = new HBox(10, feedback, DesktopTheme.spacer(), counter);
+        HBox.setHgrow(feedback, Priority.ALWAYS); feedback.setMinWidth(0);
+        VBox chat = new VBox(8, scroll, unread, replyBox, composer, composerStatus);
+        chat.getStyleClass().add("room-chat-body"); VBox.setVgrow(chat, Priority.ALWAYS);
         chat.setMinHeight(0); VBox.setVgrow(scroll, Priority.ALWAYS);
         memberStatus.setId("room-members-status"); memberStatus.setWrapText(true);
         Button retryMembers = new Button("T\u1ea3i l\u1ea1i"); retryMembers.setOnAction(event -> refresh());
@@ -116,9 +125,16 @@ public final class RoomSocialPane extends VBox {
         memberPane.expandedProperty().addListener((observable, before, after) -> { if (!after && viewingBottom()) { resetUnread(); } });
         announcement.setWrapText(true); announcement.setId("room-announcement"); announcementBox.getStyleClass().add("room-announcement");
         editAnnouncement.setId("room-announcement-edit"); editAnnouncement.getStyleClass().add("ghost"); editAnnouncement.setOnAction(event -> editAnnouncement());
+        Label pinTitle = DesktopTheme.label("Thông báo ghim", "room-announcement-caption");
+        HBox pinHeading = new HBox(8, pinTitle, DesktopTheme.spacer()); pinHeading.setAlignment(Pos.CENTER_LEFT);
+        expandAnnouncement.setId("room-announcement-expand"); expandAnnouncement.getStyleClass().add("room-text-action");
+        expandAnnouncement.setOnAction(event -> { announcementExpanded = !announcementExpanded; renderAnnouncement(); });
+        announcementBox.getChildren().setAll(pinHeading, announcement, announcementMeta, expandAnnouncement);
+        HBox heading = new HBox(8, chatTitle, DesktopTheme.spacer(), editAnnouncement); heading.setAlignment(Pos.CENTER_LEFT);
+        chatTitle.setMinWidth(0);
         muteStatus.setWrapText(true); muteStatus.setId("room-chat-mute-status"); interactionFeedback.setWrapText(true); interactionFeedback.setId("room-interaction-status");
         retryInteraction.setId("room-interaction-retry"); retryInteraction.setOnAction(event -> { if (failedInteraction != null) { mutate(failedInteraction); } }); show(retryInteraction, false);
-        getChildren().setAll(chatTitle, privacy, announcementBox, muteStatus,
+        getChildren().setAll(heading, privacy, announcementBox, muteStatus,
                 new HBox(8, interactionFeedback, retryInteraction), chat, memberPane);
         setAuctionPanels(null, null);
         updateInput();
@@ -150,7 +166,7 @@ public final class RoomSocialPane extends VBox {
         auction = value; actualUserId = userId;
         privacy.setText(value.hasAnonymousGuests()
                 ? "Kh\u00e1ch \u1ea9n danh \u00b7 Avatar tr\u1ed1ng, ch\u1ec9 hi\u1ec7n s\u1ed1 th\u1ee9 t\u1ef1. Kh\u00f4ng chia s\u1ebb th\u00f4ng tin c\u00e1 nh\u00e2n trong chat."
-                : "Kh\u00e1ch th\u01b0\u1eddng \u00b7 B\u1ea5m avatar \u0111\u1ec3 xem h\u1ed3 s\u01a1 c\u00f4ng khai.");
+                : "Kh\u00e1ch th\u01b0\u1eddng \u00b7 B\u1ea5m ảnh đại diện \u0111\u1ec3 xem h\u1ed3 s\u01a1 c\u00f4ng khai.");
         progress.setRoom(value.getAuctionId());
         updateInput(); if (changed) { refresh(); }
     }
@@ -184,7 +200,7 @@ public final class RoomSocialPane extends VBox {
         if (auction != null && transport.isConnected() && System.nanoTime() - lastRefresh > 3_000_000_000L) { refresh(); }
     }
 
-    private void refresh() {
+    public void refresh() {
         if (auction == null || loading || !transport.isConnected()) { return; }
         loading = true; lastRefresh = System.nanoTime(); long token = generation;
         memberStatus.setText("\u0110ang t\u1ea3i ng\u01b0\u1eddi tham gia...");
@@ -256,7 +272,11 @@ public final class RoomSocialPane extends VBox {
         double previousScroll = scroll.getVvalue();
         suppressRead = true;
         chatRows.getChildren().clear(); memberRows.getChildren().clear(); reactionBars.clear(); chatActions.clear(); hostActions.clear();
-        if (messages.isEmpty()) { chatRows.getChildren().add(DesktopTheme.label("Ch\u01b0a c\u00f3 tin nh\u1eafn. H\u00e3y b\u1eaft \u0111\u1ea7u cu\u1ed9c tr\u00f2 chuy\u1ec7n!", "muted")); }
+        if (messages.isEmpty()) {
+            VBox empty = new VBox(8, DesktopTheme.label("Cu\u1ed9c tr\u00f2 chuy\u1ec7n b\u1eaft \u0111\u1ea7u t\u1eeb b\u1ea1n", "social-name"),
+                    DesktopTheme.label("G\u1eedi l\u1eddi ch\u00e0o v\u00e0 trao \u0111\u1ed5i c\u00f9ng m\u1ecdi ng\u01b0\u1eddi trong phi\u00ean.", "muted"));
+            empty.getStyleClass().add("room-empty-state"); empty.setAlignment(Pos.CENTER); chatRows.getChildren().add(empty);
+        }
         for (Chat message : messages.values()) {
             Label name = DesktopTheme.label(message.person().toString(), "social-name"); name.setWrapText(true);
             Label time = DesktopTheme.label(message.time() == null ? "" : TIME.format(message.time()), "muted");
@@ -275,20 +295,26 @@ public final class RoomSocialPane extends VBox {
         }
         memberPane.setText("Người trong phòng (" + memberTotal + ")");
         for (Person person : members) {
-            Label name = new Label(person.toString()); name.setWrapText(true); HBox.setHgrow(name, Priority.ALWAYS);
-            HBox row = new HBox(10, avatar(person), name); row.setAlignment(Pos.CENTER_LEFT);
+            Label name = DesktopTheme.label(person.toString(), "social-name");
+            VBox identity = new VBox(8, name); identity.setMinWidth(0); HBox.setHgrow(identity, Priority.ALWAYS);
+            HBox row = new HBox(10, avatar(person), identity); row.setAlignment(Pos.TOP_LEFT);
+            row.getStyleClass().add("room-member-row");
             if (auction != null && auction.isHostedBy(actualUserId)) {
+                FlowPane actions = new FlowPane(6, 6);
                 Button kick = new Button("M\u1eddi ra"); kick.getStyleClass().add("ghost"); kick.setOnAction(event -> kick(person));
-                kick.setDisable(!person.canKick() || !transport.isConnected());
+                kick.setDisable(!person.canKick() || !canInteract());
                 Label reason = new Label(kickReason(person)); reason.setWrapText(true); reason.getStyleClass().add("muted");
-                row.getChildren().add(new VBox(3, kick, reason));
+                if (!person.host()) { actions.getChildren().add(kick); }
                 if (!person.host()) {
                     Button mute = new Button(person.mutedUntil() != null && Instant.now().isBefore(person.mutedUntil()) ? "B\u1ecf t\u1eaft ti\u1ebfng" : "T\u1eaft ti\u1ebfng");
                     mute.setId("room-mute-" + person.id()); mute.getStyleClass().add("ghost"); mute.setOnAction(event -> editMute(person));
                     mute.setDisable(!canInteract() || mutating);
                     hostActions.add(mute);
                     Label note = new Label(person.mutedUntil() == null ? "" : "\u0110\u1ebfn " + TIME.format(person.mutedUntil()) + ": " + person.muteReason()); note.setWrapText(true);
-                    row.getChildren().add(new VBox(3, mute, note));
+                    actions.getChildren().add(mute);
+                    identity.getChildren().add(actions);
+                    if (!reason.getText().isBlank()) { identity.getChildren().add(reason); }
+                    if (!note.getText().isBlank()) { identity.getChildren().add(note); }
                 }
             }
             memberRows.getChildren().add(row);
@@ -355,7 +381,7 @@ public final class RoomSocialPane extends VBox {
             if (transport.isConnected() && ok(response, error)) { onMessage(response.getWireMessage().getData()); input.clear(); cancelReply(); retryBody = ""; retryNonce = ""; feedback.setText(""); }
             else {
                 sound.accept(error == null && response != null && !response.isSuccess() ? ClientSounds.Cue.ERROR : ClientSounds.Cue.WARNING, "chat-error:" + retryNonce);
-                feedback.setText((error == null && response != null && !response.isSuccess() ? response.getMessageText() : "Ch\u01b0a x\u00e1c nh\u1eadn tin \u0111\u00e3 g\u1eedi.") + " B\u1ea5m Th\u1eed l\u1ea1i \u0111\u1ec3 g\u1eedi l\u1ea1i an to\u00e0n.");
+                feedback.setText((error == null && response != null && !response.isSuccess() ? response.getUserMessage() : "Ch\u01b0a x\u00e1c nh\u1eadn tin \u0111\u00e3 g\u1eedi.") + " B\u1ea5m Th\u1eed l\u1ea1i \u0111\u1ec3 g\u1eedi l\u1ea1i an to\u00e0n.");
             }
             updateInput();
         }));
@@ -374,7 +400,9 @@ public final class RoomSocialPane extends VBox {
         reactionBars.values().forEach(bar -> bar.setDisable(!writable || mutating));
         editAnnouncement.setDisable(!canInteract() || mutating);
         show(editAnnouncement, auction != null && auction.isHostedBy(actualUserId));
-        show(announcementBox, !announcementBody.isBlank() || (auction != null && auction.isHostedBy(actualUserId)));
+        editAnnouncement.setText(announcementBody.isBlank() ? "Ghim th\u00f4ng b\u00e1o" : "S\u1eeda ghim");
+        show(announcementBox, !announcementBody.isBlank());
+        show(interactionFeedback.getParent(), !interactionFeedback.getText().isBlank() || retryInteraction.isVisible());
         retryInteraction.setDisable(!canInteract() || mutating);
         muteStatus.setText(muted ? "Chat b\u1ecb t\u1eaft ti\u1ebfng \u0111\u1ebfn " + DateTimeFormatter.ofPattern("dd/MM HH:mm:ss").withZone(ZoneId.systemDefault()).format(mutedUntil) + ": " + muteReason + " \u00b7 V\u1eabn \u0111\u01b0\u1ee3c \u0111\u1eb7t gi\u00e1." : "");
         show(muteStatus, muted);
@@ -401,9 +429,12 @@ public final class RoomSocialPane extends VBox {
         interactionRevision = revision;
         serverCanInteract = Boolean.parseBoolean(data.get("canInteract")); serverCanChat = serverCanInteract;
         mutedUntil = ClientWireParser.instant(data, "selfMute.until"); muteReason = data.getOrDefault("selfMute.reason", "");
-        announcementBody = data.getOrDefault("announcement.body", "");
-        announcement.setText(announcementBody.isBlank() ? "" : "\ud83d\udccc " + shorten(announcementBody, 180));
-        announcement.setTooltip(announcementBody.isBlank() ? null : new Tooltip(announcementBody));
+        String nextAnnouncement = data.getOrDefault("announcement.body", "");
+        if (!announcementBody.equals(nextAnnouncement)) { announcementExpanded = false; }
+        announcementBody = nextAnnouncement;
+        Instant updated = ClientWireParser.instant(data, "announcement.updatedAt");
+        announcementMeta.setText(updated == null ? "T\u1eeb ch\u1ee7 ph\u00f2ng" : "Ch\u1ee7 ph\u00f2ng \u00b7 C\u1eadp nh\u1eadt " + TIME.format(updated));
+        renderAnnouncement();
         for (int index = 0; index < ClientWireParser.integer(data, "reactionCount", 0); index++) {
             String prefix = "reaction." + index + "."; long id = ClientWireParser.longValue(data, prefix + "chatId", 0);
             Map<String, Reaction> next = new HashMap<>();
@@ -434,7 +465,7 @@ public final class RoomSocialPane extends VBox {
                 applyInteraction(response.getWireMessage().getData()); failedInteraction = null; interactionFeedback.setText("\u0110\u00e3 x\u00e1c nh\u1eadn"); show(retryInteraction, false); onInteraction(response.getWireMessage().getData());
                 sound.accept(ClientSounds.Cue.SUCCESS, "interaction:" + auction.getAuctionId() + ":" + interactionRevision);
             } else {
-                interactionFeedback.setText(error == null && response != null && !response.isSuccess() ? response.getMessageText() : "Ch\u01b0a x\u00e1c nh\u1eadn thao t\u00e1c. Th\u1eed l\u1ea1i an to\u00e0n v\u1edbi c\u00f9ng m\u00e3 g\u1eedi."); show(retryInteraction, true);
+                interactionFeedback.setText(error == null && response != null && !response.isSuccess() ? response.getUserMessage() : "Ch\u01b0a x\u00e1c nh\u1eadn thao t\u00e1c. Th\u1eed l\u1ea1i an to\u00e0n v\u1edbi c\u00f9ng m\u00e3 g\u1eedi."); show(retryInteraction, true);
                 sound.accept(ClientSounds.Cue.ERROR, "interaction-error:" + generation + ":" + interactionRevision);
             }
             updateInput();
@@ -444,13 +475,14 @@ public final class RoomSocialPane extends VBox {
     private void editAnnouncement() {
         if (auction == null || !auction.isHostedBy(actualUserId) || !canInteract()) { return; }
         long room = auction.getAuctionId(), token = generation;
-        Dialog<String> dialog = new Dialog<>(); dialog.setTitle("Th\u00f4ng b\u00e1o ph\u00f2ng"); DesktopTheme.dialog(dialog, getScene() == null ? owner : getScene().getWindow());
-        TextArea text = new TextArea(announcementBody); text.setId("room-announcement-body"); text.setWrapText(true); text.setPrefRowCount(3);
-        dialog.getDialogPane().setContent(new VBox(8, new Label("T\u1ed1i \u0111a 500 k\u00fd t\u1ef1; \u0111\u1ec3 tr\u1ed1ng \u0111\u1ec3 b\u1ecf ghim."), text));
-        ButtonType save = new ButtonType("L\u01b0u", ButtonBar.ButtonData.OK_DONE), remove = new ButtonType("B\u1ecf ghim", ButtonBar.ButtonData.OTHER);
-        dialog.getDialogPane().getButtonTypes().addAll(save, remove, ButtonType.CANCEL);
-        dialog.setResultConverter(button -> button == save ? text.getText().strip() : button == remove ? "" : null);
-        dialog.showAndWait().ifPresent(body -> { if (token == generation) { String nonce = UUID.randomUUID().toString(); mutate(() -> api.announcement(room, body, nonce)); } });
+        Dialog<String> dialog = new RoomAnnouncementDialog(getScene() == null ? owner : getScene().getWindow(), announcementBody);
+        dialog.showAndWait().ifPresent(body -> { if (token == generation && canInteract()) { String nonce = UUID.randomUUID().toString(); mutate(() -> api.announcement(room, body, nonce)); } });
+    }
+
+    private void renderAnnouncement() {
+        announcement.setText(announcementExpanded ? announcementBody : shorten(announcementBody, 160));
+        show(expandAnnouncement, announcementBody.codePointCount(0, announcementBody.length()) > 160);
+        expandAnnouncement.setText(announcementExpanded ? "Thu g\u1ecdn" : "Xem \u0111\u1ea7y \u0111\u1ee7");
     }
 
     private void editMute(Person person) {
@@ -473,24 +505,18 @@ public final class RoomSocialPane extends VBox {
     private static String shorten(String text, int limit) { return text.codePointCount(0, text.length()) <= limit ? text : text.substring(0, text.offsetByCodePoints(0, limit)) + "..."; }
 
     public void chooseKick() {
-        if (auction == null || !auction.isHostedBy(actualUserId)) { return; }
-        List<Person> guests = members.stream().filter(Person::canKick).toList();
-        if (guests.isEmpty()) { feedback.setText("Ch\u01b0a c\u00f3 kh\u00e1ch \u0111\u1ec3 m\u1eddi ra."); return; }
-        ChoiceDialog<Person> dialog = new ChoiceDialog<>(guests.get(0), guests); dialog.setTitle("M\u1eddi kh\u00e1ch ra kh\u1ecfi ph\u00f2ng");
-        dialog.setHeaderText("Ng\u01b0\u1eddi \u0111\u00e3 \u0111\u1eb7t gi\u00e1 kh\u00f4ng th\u1ec3 b\u1ecb m\u1eddi ra.");
-        if (getScene() != null) { dialog.initOwner(getScene().getWindow()); }
-        dialog.showAndWait().ifPresent(this::kick);
+        chooseKick(null);
+    }
+
+    private void chooseKick(Long initial) {
+        if (auction == null || !auction.isHostedBy(actualUserId) || !canInteract()) { return; }
+        long token = generation;
+        new RoomParticipantsDialog(getScene() == null ? owner : getScene().getWindow(), transport, auction.getAuctionId(),
+                () -> token == generation && canInteract(), () -> { if (token == generation) { refresh(); } }, initial).showAndWait();
     }
 
     private void kick(Person person) {
-        if (auction == null || !person.canKick() || !transport.isConnected()) { return; }
-        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION, "M\u1eddi " + person.name() + " ra kh\u1ecfi ph\u00f2ng?", ButtonType.OK, ButtonType.CANCEL);
-        if (getScene() != null) { confirm.initOwner(getScene().getWindow()); }
-        if (confirm.showAndWait().orElse(ButtonType.CANCEL) != ButtonType.OK || auction == null) { return; }
-        long token = generation;
-        api.kick(auction.getAuctionId(), person.id()).whenComplete((response, error) -> Platform.runLater(() -> {
-            if (token != generation) { return; } if (ok(response, error)) { lastRefresh = 0; tick(); }
-        }));
+        if (person.canKick()) { chooseKick(person.id()); }
     }
 
     private static String kickReason(Person person) {
@@ -511,17 +537,17 @@ public final class RoomSocialPane extends VBox {
             TextArea biography = new TextArea(response.get("biography")); biography.setWrapText(true); biography.setPrefRowCount(4);
             ImageView preview = new ImageView(image(response.get("avatarBase64"))); preview.setFitWidth(80); preview.setFitHeight(80);
             String[] selected = { null }; Label errorLabel = new Label(); errorLabel.setWrapText(true);
-            Button upload = new Button("Ch\u1ecdn \u1ea3nh PNG/JPEG"); Button remove = new Button("X\u00f3a avatar");
+            Button upload = new Button("Ch\u1ecdn \u1ea3nh PNG/JPEG"); Button remove = new Button("X\u00f3a ảnh đại diện");
             upload.setOnAction(event -> {
                 FileChooser chooser = new FileChooser(); chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("PNG / JPEG", "*.png", "*.jpg", "*.jpeg"));
                 var file = chooser.showOpenDialog(dialog.getDialogPane().getScene().getWindow()); if (file == null) { return; }
                 try {
                     if (Files.size(file.toPath()) > 750 * 1024) { throw new IllegalArgumentException("Ch\u1ecdn \u1ea3nh kh\u00f4ng qu\u00e1 750 KB."); }
                     selected[0] = Base64.getEncoder().encodeToString(Files.readAllBytes(file.toPath())); preview.setImage(image(selected[0])); errorLabel.setText("");
-                } catch (Exception exception) { errorLabel.setText(exception.getMessage()); }
+                } catch (Exception exception) { errorLabel.setText(ClientMessages.message(exception)); }
             });
             remove.setOnAction(event -> { selected[0] = ""; preview.setImage(null); });
-            Label note = new Label("T\u1ed1i \u0111a 500 k\u00fd t\u1ef1. \u1ea2nh \u0111\u01b0\u1ee3c thu nh\u1ecf v\u00e0 lo\u1ea1i b\u1ecf metadata. Kh\u00f4ng hi\u1ec7n trong ph\u00f2ng \u1ea9n danh."); note.setWrapText(true);
+            Label note = new Label("T\u1ed1i \u0111a 500 k\u00fd t\u1ef1. \u1ea2nh \u0111\u01b0\u1ee3c thu nh\u1ecf v\u00e0 lo\u1ea1i b\u1ecf thông tin đi kèm. Kh\u00f4ng hi\u1ec7n trong ph\u00f2ng \u1ea9n danh."); note.setWrapText(true);
             Button publicPreview = new Button("Xem trước hồ sơ người khác thấy");
             publicPreview.setOnAction(event -> {
                 Dialog<Void> view = dialog("Hồ sơ công khai - xem trước");
@@ -540,7 +566,7 @@ public final class RoomSocialPane extends VBox {
                     if (token != generation || !dialog.isShowing()) { return; }
                     saveButton.setDisable(false);
                     if (saveError == null && saved != null && saved.isSuccess()) { profiles.clear(); lastRefresh = 0; dialog.close(); tick(); }
-                    else { errorLabel.setText(saveError == null && saved != null ? saved.getMessageText() : "Kh\u00f4ng th\u1ec3 l\u01b0u. H\u00e3y th\u1eed l\u1ea1i."); }
+                    else { errorLabel.setText(saveError == null && saved != null ? saved.getUserMessage() : "Kh\u00f4ng th\u1ec3 l\u01b0u. H\u00e3y th\u1eed l\u1ea1i."); }
                 }));
             }); dialog.show();
         }));
@@ -553,7 +579,7 @@ public final class RoomSocialPane extends VBox {
     }
     private boolean ok(ApiResponse response, Throwable error) {
         if (error == null && response != null && response.isSuccess()) { return true; }
-        feedback.setText(error == null && response != null ? response.getMessageText() : "Kh\u00f4ng th\u1ec3 k\u1ebft n\u1ed1i. H\u00e3y th\u1eed l\u1ea1i."); return false;
+        feedback.setText(error == null && response != null ? response.getUserMessage() : "Kh\u00f4ng th\u1ec3 k\u1ebft n\u1ed1i. H\u00e3y th\u1eed l\u1ea1i."); return false;
     }
     private boolean viewingBottom() {
         for (Node ancestor = this; ancestor != null; ancestor = ancestor.getParent()) {

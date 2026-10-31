@@ -1,6 +1,7 @@
 package vn.ptit.btl16.client.view;
 
 import vn.ptit.btl16.client.model.ClientAuction;
+import vn.ptit.btl16.client.service.ClientMessages;
 import vn.ptit.btl16.common.util.Money;
 import vn.ptit.btl16.common.util.Times;
 
@@ -54,7 +55,7 @@ final class AuctionTableModel extends AbstractTableModel {
             case 4 -> value.getCurrentWinnerUsername().isBlank()
                     ? "Chưa có" : value.getCurrentWinnerUsername();
             case 5 -> value.isOpen() ? Times.countdown(value.getEndTime(), serverNow) : "00:00";
-            case 6 -> value.getStatus();
+            case 6 -> ClientMessages.auctionStatus(value.getStatus());
             case 7 -> value.getWatcherCount();
             default -> "";
         };

@@ -75,21 +75,29 @@ public final class RoomSocialSelfTest {
                 ApiResponse joined = success(aliceAuctions.join(anonymous, "room-secret"), "anonymous join");
                 TestSupport.equals("true", joined.get("anonymousGuests"), "mode persisted in snapshot");
                 long alias = Long.parseLong(joined.get("selfParticipantId")); TestSupport.check(alias < 0, "negative room-local public id");
-                success(bobAuctions.join(anonymous, "room-secret"), "second anonymous join");
                 ApiResponse social = success(hostSocial.social(anonymous), "anonymous roster"); noIdentities(social.getWireMessage());
+                TestSupport.equals("2", social.get("memberCount"), "only host and first guest are present");
+                TestSupport.equals("Kh\u00e1ch #1", participantName(social, alias), "host does not consume the first guest number");
+                TestSupport.equals("Ch\u1ee7 ph\u00f2ng", participantName(social, hostView.getHostUserId()), "host keeps its separate label");
+                ApiResponse bobJoined = success(bobAuctions.join(anonymous, "room-secret"), "second anonymous join");
+                long bobAlias = Long.parseLong(bobJoined.get("selfParticipantId"));
+                TestSupport.equals("Kh\u00e1ch #2", participantName(success(hostSocial.social(anonymous), "two guest roster"), bobAlias), "second guest follows the first guest");
                 failure(hostSocial.profile(anonymous, 2), "ROOM_ACCESS_DENIED", "host cannot reveal profile");
                 failure(aliceSocial.profile(anonymous, 3), "ROOM_ACCESS_DENIED", "guest cannot reveal profile");
                 ApiResponse anonChat = success(aliceSocial.send(anonymous, "Thong diep an toan", "anonymous-message-1"), "anonymous chat"); noIdentities(anonChat.getWireMessage());
                 TestSupport.equals(Long.toString(alias), anonChat.get("chat.participantId"), "chat alias agrees with snapshot");
-                TestSupport.check(anonChat.get("chat.name").startsWith("Kh\u00e1ch #"), "numbered name");
+                TestSupport.equals("Kh\u00e1ch #1", anonChat.get("chat.name"), "chat uses guest-only numbering");
                 success(aliceAuctions.leave(anonymous), "anonymous leave");
                 ApiResponse rejoin = success(aliceAuctions.join(anonymous, "room-secret"), "anonymous rejoin");
                 TestSupport.equals(Long.toString(alias), rejoin.get("selfParticipantId"), "alias stable on rejoin");
+                ApiResponse rejoinedSocial = success(aliceSocial.social(anonymous), "anonymous roster after rejoin");
+                TestSupport.equals("Kh\u00e1ch #1", participantName(rejoinedSocial, alias), "guest number stable on rejoin");
+                TestSupport.equals("Kh\u00e1ch #2", participantName(rejoinedSocial, bobAlias), "remaining guest is not renumbered");
                 failure(hostAuctions.kickUser(anonymous, "bob"), "VALIDATION_ERROR", "anonymous username oracle blocked");
                 ApiResponse roster = success(hostSocial.social(anonymous), "roster before kick");
                 long otherAlias = 0;
                 for (int index = 0; index < Integer.parseInt(roster.get("memberCount")); index++) {
-                    long id = Long.parseLong(roster.get("member." + index + ".participantId")); if (id < 0 && id != alias) { otherAlias = id; }
+                    long id = Long.parseLong(roster.get("member." + index + ".participantId")); if (id == bobAlias) { otherAlias = id; }
                 }
                 TestSupport.check(otherAlias < 0, "other guest has distinct alias");
                 ApiResponse kicked = success(hostSocial.kick(anonymous, otherAlias), "kick by alias"); noIdentities(kicked.getWireMessage());
@@ -123,6 +131,13 @@ public final class RoomSocialSelfTest {
     }
     private static NetworkClient client(int port) throws Exception {
         var client = new NetworkClient(2_097_152, 3000, 6000); client.connect("127.0.0.1", port); return client;
+    }
+    private static String participantName(ApiResponse roster, long participantId) {
+        for (int index = 0; index < Integer.parseInt(roster.get("memberCount")); index++) {
+            String prefix = "member." + index + ".";
+            if (Long.toString(participantId).equals(roster.get(prefix + "participantId"))) { return roster.get(prefix + "name"); }
+        }
+        throw new AssertionError("Missing participant " + participantId);
     }
     private static ApiResponse success(CompletableFuture<ApiResponse> task, String label) throws Exception {
         ApiResponse response = task.get(15, TimeUnit.SECONDS); TestSupport.check(response.isSuccess(), label + ": " + response.getErrorCode() + " " + response.getMessageText()); return response;

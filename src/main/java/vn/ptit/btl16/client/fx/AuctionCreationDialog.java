@@ -21,6 +21,7 @@ import javafx.stage.Stage;
 import javafx.stage.StageStyle;
 import vn.ptit.btl16.client.model.ClientProduct;
 import vn.ptit.btl16.common.fx.DesktopTheme;
+import vn.ptit.btl16.client.service.ClientMessages;
 import vn.ptit.btl16.common.fx.WalletUi;
 import vn.ptit.btl16.common.util.Money;
 import vn.ptit.btl16.common.util.Times;
@@ -103,7 +104,7 @@ final class AuctionCreationDialog extends Dialog<AuctionCreationDialog.Draft> {
                 depositRow, depositNote);
         VBox privacy = section("Quyền riêng tư phòng", "Chọn chế độ hiển thị và thiết lập mật khẩu cho phòng riêng tư", "shield",
                 field("users", "Loại phòng", roomTypes), field("lock", "Mật khẩu", password), field("lock", "Xác nhận", repeatedPassword));
-        HBox privacyNote = note("Phòng ẩn danh che danh tính người bán và người mua; không xem hồ sơ và không tính vào Top doanh thu. Vẫn thanh toán và thu phí sàn bình thường. Không thể đổi chế độ sau khi tạo.");
+        HBox privacyNote = note("Phòng ẩn danh che danh tính người bán và người mua; không xem hồ sơ và không tính vào xếp hạng doanh thu. Vẫn thanh toán và thu phí sàn bình thường. Không thể đổi chế độ sau khi tạo.");
         privacyNote.getStyleClass().add("auction-create-privacy-note");
         editor.getChildren().setAll(section("Thông tin sản phẩm", "Chọn sản phẩm sẽ được đấu giá trong phòng", "box", field("box", "Sản phẩm", product)),
                 settings, privacy, section("Cài đặt khác", "Thiết lập danh tính người bán và người mua", "users", field("profile", "Danh tính phòng", identity), privacyNote));
@@ -154,7 +155,7 @@ final class AuctionCreationDialog extends Dialog<AuctionCreationDialog.Draft> {
                 summary("chart", "Bước giá", WalletUi.money(draft.increment())),
                 summary("play", "Bắt đầu", draft.startTime() == null ? "Ngay sau khi tạo" : Times.display(draft.startTime())),
                 summary("clock", "Thời lượng", draft.durationMinutes() + " phút"),
-                summary("users", "Số lượng tối đa", draft.maxParticipants() + " người (tính cả chủ phòng)"),
+                summary("users", "Số lượng tối đa", draft.maxParticipants() + " người"),
                 summary("coins", "Phí đặt cọc", draft.startTime() == null ? "Không áp dụng" : WalletUi.money(draft.depositAmount())),
                 summary("users", "Loại phòng", draft.visibility().equals("PRIVATE") ? "Riêng tư" : "Công khai"),
                 summary("shield", "Danh tính", draft.anonymousGuests() ? "Người bán và người mua ẩn danh" : "Tài khoản thường"));
@@ -206,7 +207,7 @@ final class AuctionCreationDialog extends Dialog<AuctionCreationDialog.Draft> {
     }
 
     private void showError(String message) {
-        error.setText(message); error.setVisible(true); error.setManaged(true);
+        error.setText(ClientMessages.text(message)); error.setVisible(true); error.setManaged(true);
     }
 
     private StackPane header(boolean review) {

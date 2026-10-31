@@ -41,7 +41,7 @@ public final class LiveAuctionRoom {
     private final HBox heading = new HBox(12);
     private final VBox insights = new VBox(10);
     private final VBox history = new VBox(10);
-    private final Label live = DesktopTheme.label("LIVE", "room-live-tag");
+    private final Label live = DesktopTheme.label("Trực tiếp", "room-live-tag");
     private final Label status = DesktopTheme.label("", "room-status-title");
     private final Label statusDetail = DesktopTheme.label("", "muted");
     private final Label viewers = DesktopTheme.label("", "room-presence");
@@ -147,11 +147,10 @@ public final class LiveAuctionRoom {
         mine.getStyleClass().add("ghost");
         mine.setOnAction(event -> renderHistory(true));
         Button all = new Button("M\u1edf l\u1ecbch s\u1eed");
-        all.getStyleClass().add("ghost");
+        all.setText("Xem to\u00e0n b\u1ed9 l\u1ecbch s\u1eed"); all.setId("room-history-open");
+        all.setMaxWidth(Double.MAX_VALUE); all.getStyleClass().add("ghost");
         all.setOnAction(event -> onHistory.run());
-        HBox historyHeading = new HBox(8, DesktopTheme.label("D\u00f2ng \u0111\u1eb7t gi\u00e1", "section-title"),
-                DesktopTheme.spacer(), mine);
-        historyHeading.setAlignment(Pos.CENTER_LEFT);
+        VBox historyHeading = new VBox(12, DesktopTheme.label("L\u1ecbch s\u1eed \u0111\u1eb7t gi\u00e1", "section-title"), mine);
         history.getStyleClass().addAll("card", "room-history");
         history.getChildren().setAll(historyHeading, historyNote, bidRows, all);
         historyNote.setWrapText(true);
@@ -178,7 +177,7 @@ public final class LiveAuctionRoom {
             plotted = List.of();
             historyKey = "";
             setStatistics(java.util.Map.of("state", "LOADING"));
-            notice.setText("Ch\u1ec9 l\u01b0\u1ee3t \u0111\u01b0\u1ee3c server ch\u1ea5p nh\u1eadn m\u1edbi xu\u1ea5t hi\u1ec7n t\u1ea1i \u0111\u00e2y.");
+            notice.setText("Ch\u1ec9 l\u01b0\u1ee3t \u0111\u01b0\u1ee3c máy chủ ch\u1ea5p nh\u1eadn m\u1edbi xu\u1ea5t hi\u1ec7n t\u1ea1i \u0111\u00e2y.");
         }
         viewers.setText(Math.max(0, value.getWatcherCount()) + " k\u1ebft n\u1ed1i theo d\u00f5i");
         renderChart();
@@ -194,12 +193,12 @@ public final class LiveAuctionRoom {
         String detail;
         String tone;
         if (!connected) {
-            title = "M\u1ea5t k\u1ebft n\u1ed1i v\u1edbi server";
-            detail = "\u0110\u00e2y l\u00e0 d\u1eef li\u1ec7u g\u1ea7n nh\u1ea5t. Ch\u1edd server x\u00e1c nh\u1eadn tr\u01b0\u1edbc khi \u0111\u1eb7t gi\u00e1 ti\u1ebfp.";
+            title = "M\u1ea5t k\u1ebft n\u1ed1i v\u1edbi máy chủ";
+            detail = "\u0110\u00e2y l\u00e0 d\u1eef li\u1ec7u g\u1ea7n nh\u1ea5t. Ch\u1edd máy chủ x\u00e1c nh\u1eadn tr\u01b0\u1edbc khi \u0111\u1eb7t gi\u00e1 ti\u1ebfp.";
             tone = "offline";
         } else if (!"READY".equals(dataState)) {
             title = "SYNCING".equals(dataState) ? "\u0110ang \u0111\u1ed3ng b\u1ed9 ph\u00f2ng" : "D\u1eef li\u1ec7u ph\u00f2ng \u0111\u00e3 c\u0169";
-            detail = "\u0110\u00e3 k\u1ebft n\u1ed1i nh\u01b0ng ch\u01b0a \u0111\u1ee7 d\u1eef li\u1ec7u h\u1ee3p l\u1ec7. T\u1ea1m kh\u00f3a \u0111\u1eb7t gi\u00e1 v\u00e0 qu\u1ea3n l\u00fd; ch\u1edd x\u00e1c nh\u1eadn t\u1eeb server.";
+            detail = "\u0110\u00e3 k\u1ebft n\u1ed1i nh\u01b0ng ch\u01b0a \u0111\u1ee7 d\u1eef li\u1ec7u h\u1ee3p l\u1ec7. T\u1ea1m kh\u00f3a \u0111\u1eb7t gi\u00e1 v\u00e0 qu\u1ea3n l\u00fd; ch\u1edd x\u00e1c nh\u1eadn t\u1eeb máy chủ.";
             tone = "offline";
         } else if (!auction.isOpen()) {
             boolean cancelled = "CANCELLED".equals(auction.getStatus());
@@ -213,8 +212,8 @@ public final class LiveAuctionRoom {
                             + WalletUi.money(auction.getCurrentPrice()) + ". Xem bi\u1ebfn \u0111\u1ed9ng trong v\u00ed.";
             tone = won && !cancelled ? "winning" : "finished";
         } else if (expired) {
-            title = "\u0110ang ch\u1edd server ch\u1ed1t phi\u00ean";
-            detail = "\u0110\u1ed3ng h\u1ed3 v\u1ec1 0 ch\u01b0a x\u00e1c nh\u1eadn ng\u01b0\u1eddi th\u1eafng. K\u1ebft qu\u1ea3 s\u1ebd \u0111\u01b0\u1ee3c server c\u1eadp nh\u1eadt.";
+            title = "\u0110ang ch\u1edd máy chủ ch\u1ed1t phi\u00ean";
+            detail = "\u0110\u1ed3ng h\u1ed3 v\u1ec1 0 ch\u01b0a x\u00e1c nh\u1eadn ng\u01b0\u1eddi th\u1eafng. K\u1ebft qu\u1ea3 s\u1ebd \u0111\u01b0\u1ee3c máy chủ c\u1eadp nh\u1eadt.";
             tone = "urgent";
         } else if (auction.isHostedBy(userId)) {
             title = "B\u1ea1n \u0111ang \u0111i\u1ec1u h\u00e0nh phi\u00ean";
@@ -240,8 +239,9 @@ public final class LiveAuctionRoom {
         if (!status.getText().equals(title)) { status.setText(title); DesktopTheme.reveal(status); }
         statusDetail.setText(detail);
         heading.getStyleClass().setAll("room-signal", "room-signal-" + tone);
-        live.setText(!connected ? "RECONNECTING".equals(dataState) ? "KẾT NỐI LẠI" : "OFFLINE"
-                : !"READY".equals(dataState) ? "SYNCING".equals(dataState) ? "ĐỒNG BỘ" : "DỮ LIỆU CŨ" : !auction.isOpen() ? "K\u1ebeT QU\u1ea2" : expired ? "CH\u1edc CH\u1ed0T" : "LIVE");
+        live.setText(!connected ? "RECONNECTING".equals(dataState) ? "Đang kết nối lại" : "Mất kết nối"
+                : !"READY".equals(dataState) ? "SYNCING".equals(dataState) ? "Đang đồng bộ" : "Dữ liệu cũ"
+                : !auction.isOpen() ? "Kết quả" : expired ? "Chờ kết quả" : "Trực tiếp");
         long remaining = auction.getEndTime() == null ? 0 : Math.max(0, Duration.between(now, auction.getEndTime()).toMillis());
         chartLive.setText(live.getText());
         long total = auction.getStartTime() == null || auction.getEndTime() == null ? 0
@@ -252,7 +252,7 @@ public final class LiveAuctionRoom {
         if (auction.isOpen() && remaining <= 30000) { timeProgress.getStyleClass().add("urgent"); }
         deadline.setText(auction.getEndTime() == null ? "Ch\u01b0a c\u00f3 m\u1ed1c th\u1eddi gian"
                 : (!auction.isOpen() ? "Phi\u00ean \u0111\u00e3 \u0111\u00f3ng" : expired ? "\u0110ang ch\u1edd k\u1ebft qu\u1ea3" : remaining <= 30000
-                ? "30 gi\u00e2y cu\u1ed1i \u00b7 Theo d\u00f5i gia h\u1ea1n t\u1eeb server" : "\u0110ang nh\u1eadn gi\u00e1")
+                ? "30 gi\u00e2y cu\u1ed1i \u00b7 Theo d\u00f5i gia h\u1ea1n t\u1eeb máy chủ" : "\u0110ang nh\u1eadn gi\u00e1")
                 + " \u00b7 H\u1ea1n " + TIME.format(auction.getEndTime()));
     }
 
@@ -270,7 +270,7 @@ public final class LiveAuctionRoom {
         boolean complete = Boolean.parseBoolean(data.get("extensionsComplete"));
         extensions.setText(data.getOrDefault("extensionCount", "...") + (complete ? "" : "+"));
         growth.setText("+" + WalletUi.money(vn.ptit.btl16.client.model.ClientWireParser.decimal(data, "priceIncrease")));
-        statisticsNote.setText(complete ? "Th\u1ed1ng k\u00ea to\u00e0n phi\u00ean t\u1eeb server; kh\u00f4ng ph\u1ea3i s\u1ed1 d\u00f2ng \u0111\u00e3 t\u1ea3i."
+        statisticsNote.setText(complete ? "Th\u1ed1ng k\u00ea to\u00e0n phi\u00ean t\u1eeb máy chủ; kh\u00f4ng ph\u1ea3i s\u1ed1 d\u00f2ng \u0111\u00e3 t\u1ea3i."
                 : "Phi\u00ean c\u0169: s\u1ed1 gia h\u1ea1n ch\u1ec9 ghi nh\u1eadn t\u1eeb khi n\u00e2ng c\u1ea5p, kh\u00f4ng bi\u1ebft t\u1ed5ng tr\u01b0\u1edbc \u0111\u00f3.");
     }
 
@@ -332,14 +332,16 @@ public final class LiveAuctionRoom {
         bidRows.getChildren().clear();
         List<ClientBid> selected = bids.stream().filter(bid -> !mine.isSelected() || bid.getUserId() == userId)
                 .sorted(BID_ORDER.reversed()).limit(6).toList();
-        historyNote.setText(selected.size() + " / " + bids.size() + " l\u01b0\u1ee3t \u0111\u00e3 t\u1ea3i"
-                + (mine.isSelected() ? " \u00b7 Ch\u1ec9 hi\u1ec3n th\u1ecb l\u01b0\u1ee3t c\u1ee7a b\u1ea1n" : " \u00b7 M\u1edbi nh\u1ea5t tr\u01b0\u1edbc"));
+        historyNote.setText(selected.size() + " l\u01b0\u1ee3t g\u1ea7n nh\u1ea5t"
+                + (mine.isSelected() ? " c\u1ee7a b\u1ea1n" : " \u00b7 M\u1edbi nh\u1ea5t tr\u01b0\u1edbc")
+                + "\nTrong " + bids.size() + " l\u01b0\u1ee3t \u0111\u00e3 t\u1ea3i, kh\u00f4ng ph\u1ea3i t\u1ed5ng to\u00e0n phi\u00ean.");
         if (selected.isEmpty()) {
             Label empty = DesktopTheme.label(mine.isSelected()
                     ? "Kh\u00f4ng c\u00f3 l\u01b0\u1ee3t c\u1ee7a b\u1ea1n trong l\u1ecbch s\u1eed g\u1ea7n \u0111\u00e2y \u0111\u00e3 t\u1ea3i."
-                    : "Ch\u01b0a c\u00f3 l\u01b0\u1ee3t \u0111\u1eb7t gi\u00e1. L\u01b0\u1ee3t \u0111\u01b0\u1ee3c server ch\u1ea5p nh\u1eadn s\u1ebd hi\u1ec7n \u1edf \u0111\u00e2y.", "muted");
+                    : "Ch\u01b0a c\u00f3 l\u01b0\u1ee3t \u0111\u1eb7t gi\u00e1. L\u01b0\u1ee3t \u0111\u01b0\u1ee3c máy chủ ch\u1ea5p nh\u1eadn s\u1ebd hi\u1ec7n \u1edf \u0111\u00e2y.", "muted");
             empty.setWrapText(true);
-            bidRows.getChildren().add(empty);
+            VBox emptyState = new VBox(8, DesktopTheme.label("Ch\u01b0a c\u00f3 l\u01b0\u1ee3t ph\u00f9 h\u1ee3p", "social-name"), empty);
+            emptyState.getStyleClass().add("room-empty-state"); bidRows.getChildren().add(emptyState);
             return;
         }
         for (ClientBid bid : selected) {
@@ -353,10 +355,12 @@ public final class LiveAuctionRoom {
             Label time = DesktopTheme.label(TIME.format(bid.getCreatedAt()) + (leader
                     ? auction.isOpen() ? " \u00b7 \u0110ang d\u1eabn \u0111\u1ea7u" : " \u00b7 Gi\u00e1 th\u1eafng" : " \u00b7 \u0110\u00e3 ch\u1ea5p nh\u1eadn"), "muted");
             time.setWrapText(true);
-            VBox identity = new VBox(4, name, time);
+            VBox identity = new VBox(4, name, time); identity.setMinWidth(0);
             HBox.setHgrow(identity, Priority.ALWAYS);
             Label amount = DesktopTheme.label(WalletUi.money(bid.getAmount()), "bid-amount");
-            HBox row = new HBox(10, avatar, identity, amount);
+            HBox bidder = new HBox(10, avatar, identity); bidder.setAlignment(Pos.CENTER_LEFT);
+            VBox details = new VBox(10, bidder, amount); details.setMinWidth(0); HBox.setHgrow(details, Priority.ALWAYS);
+            HBox row = new HBox(details);
             row.setAlignment(Pos.CENTER_LEFT);
             row.getStyleClass().add("room-live-bid");
             if (own) { row.getStyleClass().add("own"); }

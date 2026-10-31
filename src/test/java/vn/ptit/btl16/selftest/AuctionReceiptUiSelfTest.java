@@ -32,6 +32,8 @@ public final class AuctionReceiptUiSelfTest {
             fx(() -> {
                 pane.applyCss(); pane.layout();
                 var drawer = pane.lookup("#receipt-drawer"); var table = history(pane);
+                TestSupport.check(table.lookupAll(".receipt-badge").stream().filter(Label.class::isInstance).map(Label.class::cast)
+                        .anyMatch(label -> "Theo dõi".equals(label.getText())), "actual losing bidder shows follow badge in personal results");
                 TestSupport.check(drawer.localToScene(drawer.getLayoutBounds()).getMinX() >= table.localToScene(table.getLayoutBounds()).getMaxX(), "receipt detail opens to the right of the list");
                 TestSupport.equals(6, table.getColumns().size(), "receipt actions use one column");
                 ((Button) pane.lookup("#receipt-close-detail")).fire();
@@ -74,7 +76,7 @@ public final class AuctionReceiptUiSelfTest {
             TestSupport.check(paneLookup(pane, "#receipt-personal-result") == null, "old receipt response discarded");
             network.complete(MessageType.GET_PERSONAL_RECEIPT, receipt(14, "NOT_WON", "WON", "RELEASED")); drain();
             TestSupport.equals("B\u1ea1n kh\u00f4ng th\u1eafng", fx(() -> ((Label) pane.lookup("#receipt-personal-result")).getText()), "loser result distinct");
-            fx(() -> { pane.loadReceipt(15); return null; }); network.complete(MessageType.GET_PERSONAL_RECEIPT, receipt(15, "WATCHED", "NO_BIDS", "NONE")); drain();
+            fx(() -> { pane.loadReceipt(15); return null; }); network.complete(MessageType.GET_PERSONAL_RECEIPT, receipt(15, "HOST", "NO_BIDS", "NONE")); drain();
             TestSupport.check(fx(() -> labels(pane)).contains("không có lượt ra giá"), "no bids distinct from cancellation");
             fx(() -> { pane.loadReceipt(16); return null; }); network.complete(MessageType.GET_PERSONAL_RECEIPT, receipt(16, "HOST", "CANCELLED", "NONE")); drain();
             TestSupport.check(fx(() -> labels(pane)).contains("Phi\u00ean b\u1ecb h\u1ee7y"), "cancelled outcome rendered");
@@ -85,7 +87,7 @@ public final class AuctionReceiptUiSelfTest {
             TestSupport.check(fx(() -> labels(pane)).contains("M\u1ea5t k\u1ebft n\u1ed1i"), "offline receipt is not fabricated");
             network.connected = true;
             fx(() -> { pane.loadReceipt(18); return null; }); network.fail(MessageType.GET_PERSONAL_RECEIPT); drain();
-            TestSupport.check(fx(() -> labels(pane)).contains("Khong co quyen"), "server access denial remains visible");
+            TestSupport.check(fx(() -> labels(pane)).contains("Bạn không có quyền"), "server access denial remains visible in Vietnamese without its technical code");
             fx(() -> { pane.loadReceipt(19); session.set(false); return null; }); network.complete(MessageType.GET_PERSONAL_RECEIPT, receipt(19, "WINNER", "WON", "PAID")); drain();
             TestSupport.check(paneLookup(pane, "#receipt-personal-result") == null, "prior session cannot render private receipt");
             Thread.sleep(1200); drain(); TestSupport.check(!fx(() -> pane.getScene().getWindow().isShowing()), "logout closes and clears receipt window");
@@ -95,7 +97,7 @@ public final class AuctionReceiptUiSelfTest {
             var withFee = receipt(12, "WINNER", "WON", "PAID"); withFee.putAll(Map.of("baseFeeRate", "0.10", "feeDiscountRate", "0.05", "revenueRank", "1", "feeRate", "0.05", "platformFee", "61728.39", "sellerNet", "1172839.50"));
             network.complete(MessageType.GET_PERSONAL_RECEIPT, withFee); drain();
             TestSupport.check(fx(() -> labels(reopened)).contains("B\u1ea1n \u0111\u00e3 th\u1eafng"), "fresh window restores server receipt without room runtime");
-            TestSupport.check(fx(() -> labels(reopened)).contains("Top 1 · Giảm 5 điểm %"), "receipt explains frozen revenue discount");
+            TestSupport.check(fx(() -> labels(reopened)).contains("Hạng 1 · Giảm 5 điểm %"), "receipt explains frozen revenue discount");
             TestSupport.check(fx(() -> labels(reopened)).contains("Phí sàn thực thu (5%): 61.728,39"), "new receipt displays effective platform fee");
             fx(() -> { ((Stage) reopened.getScene().getWindow()).close(); return null; });
             System.out.println("[PASS] AuctionReceiptUiSelfTest: confirmed-only results, four personal roles, no-bid/cancel/reconciliation, detail drawer, offline/denial/retry, stale response/session guards, reopen and screenshot");
@@ -117,7 +119,8 @@ public final class AuctionReceiptUiSelfTest {
         Map<String, String> result = new LinkedHashMap<>(Map.of("count", "6", "nextBeforeId", "7", "hasMore", "false"));
         String[] names = {"Đồng hồ cổ điển", "Bình gốm men lam", "Tủ gỗ chạm khắc", "Ngựa đồng", "Tranh sơn dầu", "Lọ hoa cổ"};
         for (int index = 0; index < names.length; index++) {
-            String prefix = "receipt." + index + "."; var row = receipt(12 - index, index == 0 ? "WINNER" : "WATCHED", index == 3 ? "NO_BIDS" : index == 5 ? "CANCELLED" : "WON", "PAID");
+            String role = index == 0 ? "WINNER" : index == 3 || index == 5 ? "HOST" : "NOT_WON";
+            String prefix = "receipt." + index + "."; var row = receipt(12 - index, role, index == 3 ? "NO_BIDS" : index == 5 ? "CANCELLED" : "WON", "PAID");
             row.put("productName", names[index]); row.forEach((key, value) -> result.put(prefix + key, value));
         }
         return result;

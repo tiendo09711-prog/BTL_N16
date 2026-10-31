@@ -251,7 +251,7 @@ public final class FriendsPane extends VBox implements AutoCloseable {
                     status.setText(""); renderMessages(true, false); lastHistory = 0;
                 }
             } else if (current != null && current.id == target) {
-                status.setText(error == null && response != null ? response.getMessageText() : "Chưa xác nhận tin đã gửi. Bấm Gửi để thử lại an toàn.");
+                status.setText(error == null && response != null ? response.getUserMessage() : "Chưa xác nhận tin đã gửi. Bấm Gửi để thử lại an toàn.");
             }
             updateControls();
         }));
@@ -293,7 +293,7 @@ public final class FriendsPane extends VBox implements AutoCloseable {
     private boolean chatVisible() { return panel.isVisible() && chatMode && current != null; }
     private boolean success(ApiResponse response, Throwable error) {
         if (error == null && response != null && response.isSuccess()) { return true; }
-        status.setText(error == null && response != null ? response.getMessageText() : "Không thể tải dữ liệu. Hệ thống sẽ thử lại khi có kết nối."); return false;
+        status.setText(error == null && response != null ? response.getUserMessage() : "Không thể tải dữ liệu. Hệ thống sẽ thử lại khi có kết nối."); return false;
     }
     public void reset() {
         generation++; chatGeneration++; listSequence++; lookupSequence++; loadingList = false; loadingHistory = false;

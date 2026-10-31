@@ -51,7 +51,7 @@ public final class ClientWireParser {
                 Boolean.parseBoolean(text(data, prefix + "anonymousGuests")),
                 longValue(data, prefix + "selfParticipantId", 0L),
                 integer(data, prefix + "maxParticipants", 100), decimal(data, prefix + "depositAmount"),
-                longValue(data, prefix + "occupancyVersion", 0L));
+                longValue(data, prefix + "occupancyVersion", 0L), text(data, prefix + "roomCode"));
     }
 
     public static List<ClientProduct> products(Map<String, String> data) {

@@ -47,8 +47,21 @@ public final class CashFlowAndAnonymousUiSelfTest {
                     TestSupport.check(cash.getScene().lookup("#cash-flow-review").isVisible(),"review notice remains visible when action is needed");
                     TestSupport.check(table().getItems().stream().filter(PlatformCashFlowRepository.Entry::anonymous).allMatch(entry -> !entry.seller().contains("seller9") && !entry.buyer().contains("buyer")),"anonymous identities hidden in money table");
                     screenshot(cash.getScene(),"target/server-cash-flow.png");
-                    period(cash).setValue(RevenuePeriod.ONE_YEAR); return null;
+                    return null;
                 });
+                double wideWidth=fx(cash::getWidth);
+                fx(() -> { cash.setWidth(760); return null; });
+                waitFor(() -> cash.getScene().getWidth()<800,"cash flow reaches compact layout");
+                fx(() -> {
+                    cash.getScene().getRoot().applyCss(); cash.getScene().getRoot().layout();
+                    TestSupport.check(table().getHeight()>140,"compact financial table keeps enough visible rows");
+                    TestSupport.check(table().lookupAll(".scroll-bar").stream().anyMatch(node -> node instanceof ScrollBar bar
+                            && bar.getOrientation()==javafx.geometry.Orientation.HORIZONTAL && bar.isVisible()),"compact financial columns scroll instead of clipping long money values");
+                    screenshot(cash.getScene(),"target/server-cash-flow-compact.png");
+                    cash.setWidth(wideWidth); return null;
+                });
+                waitFor(() -> cash.getScene().getWidth()>1000,"cash flow wide layout restored");
+                fx(() -> { period(cash).setValue(RevenuePeriod.ONE_YEAR); return null; });
                 waitFor(() -> table().getItems().size()==6,"annual cash-flow filter changes records");
                 fx(() -> { period(cash).setValue(RevenuePeriod.ONE_MONTH); period(cash).setValue(RevenuePeriod.SEVEN_DAYS); return null; });
                 waitFor(() -> table().getItems().size()==2,"rapid filter switches keep only latest result");
@@ -100,7 +113,10 @@ public final class CashFlowAndAnonymousUiSelfTest {
                 });
             }
             var creation=fx(() -> creation(owner));
-            fx(() -> { creation.show(); ((TextField)creation.getDialogPane().lookup("#auction-create-price")).setText("54321"); return null; });
+            fx(() -> {
+                creation.show(); ((TextField)creation.getDialogPane().lookup("#auction-create-price")).setText("54321");
+                ((TextField)creation.getDialogPane().lookup("#auction-create-max-participants")).setText("100"); return null;
+            });
             Platform.runLater(() -> identity(creation).getSelectionModel().select(1));
             waitFor(() -> anonymousPrompt()!=null,"selecting anonymous mode opens confirmation");
             fx(() -> {

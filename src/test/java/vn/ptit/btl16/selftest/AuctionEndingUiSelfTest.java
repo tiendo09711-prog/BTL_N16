@@ -65,7 +65,7 @@ public final class AuctionEndingUiSelfTest {
                 ((Button) scene.lookup("#product-ranking-navigation")).fire(); return null;
             }); drain();
             fx(() -> {
-                Stage ranking = Window.getWindows().stream().filter(window -> window instanceof Stage stage && "Top doanh thu".equals(stage.getTitle())).map(window -> (Stage) window).findFirst().orElseThrow();
+                Stage ranking = Window.getWindows().stream().filter(window -> window instanceof Stage stage && "Xếp hạng doanh thu".equals(stage.getTitle())).map(window -> (Stage) window).findFirst().orElseThrow();
                 TestSupport.check(ranking.getScene().lookup("#revenue-ranking-1") != null, "ranking navigation loads seller revenue row");
                 TestSupport.check(ranking.getScene().getRoot().lookupAll(".ranking-price").stream().anyMatch(node -> ((Label) node).getText().contains("1.500.000")), "ranking formats exact price");
                 ranking.close(); return null;
@@ -119,8 +119,8 @@ public final class AuctionEndingUiSelfTest {
                 TestSupport.check(((ImageView) celebration.lookup("#winner-celebration-image")).getImage() != firstImage, "next win loads a fresh animation from the beginning");
                 return null;
             });
-            Thread.sleep(1700); TestSupport.check(fx(celebration::isVisible), "image stays visible before three seconds");
-            TestSupport.waitUntil(() -> { try { return fx(() -> !celebration.isVisible()); } catch (Exception error) { throw new RuntimeException(error); } }, 2200, "image auto dismisses after three seconds");
+            Thread.sleep(6700); TestSupport.check(fx(celebration::isVisible), "image stays visible before eight seconds");
+            TestSupport.waitUntil(() -> { try { return fx(() -> !celebration.isVisible()); } catch (Exception error) { throw new RuntimeException(error); } }, 2200, "image auto dismisses after eight seconds");
             fx(() -> {
                 TestSupport.check(((ImageView) celebration.lookup("#winner-celebration-image")).getImage() == null, "timeout releases animated image");
                 TestSupport.check(((ImageView) celebration.lookup("#winner-celebration-fireworks")).getImage() == null, "timeout releases fireworks layer");
@@ -129,7 +129,7 @@ public final class AuctionEndingUiSelfTest {
                 model.updateServerClock(Instant.now().plusSeconds(61)); invoke(controller, "refreshClock");
                 TestSupport.check(gallery.getItems().isEmpty(), "exterior ended cards leave after result retention"); return null;
             });
-            System.out.println("[PASS] AuctionEndingUiSelfTest: exterior retention, red flashing/reset, Top 10 UI, winner-only new GIF, centered one-third badge, near-full-window fireworks, transparency/animation, top-right close/dedup, fresh animation per win, three-second timeout and both-layer cleanup");
+            System.out.println("[PASS] AuctionEndingUiSelfTest: exterior retention, red flashing/reset, Top 10 UI, winner-only new GIF, centered one-third badge, near-full-window fireworks, transparency/animation, top-right close/dedup, fresh animation per win, eight-second timeout and both-layer cleanup");
         } finally { fx(() -> { controller.close(); for (Window window : List.copyOf(Window.getWindows())) { if (window instanceof Stage stage) { stage.close(); } } return null; }); Platform.exit(); }
     }
     private static Map<String, String> data(long id, String status) {

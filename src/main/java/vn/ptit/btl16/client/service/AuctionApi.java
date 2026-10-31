@@ -22,6 +22,10 @@ public final class AuctionApi {
         return request(MessageType.AUCTION_LIST, Map.of());
     }
 
+    public CompletableFuture<ApiResponse> findByRoomCode(String code) {
+        return request(MessageType.FIND_AUCTION_BY_CODE, Map.of("roomCode", code == null ? "" : code));
+    }
+
     public CompletableFuture<ApiResponse> featuredAuctions() {
         return request(MessageType.GET_FEATURED_AUCTIONS, Map.of());
     }

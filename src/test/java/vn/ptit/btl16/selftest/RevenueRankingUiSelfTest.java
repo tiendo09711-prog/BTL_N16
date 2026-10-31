@@ -59,7 +59,7 @@ public final class RevenueRankingUiSelfTest {
                 TestSupport.check(scene.lookup("#revenue-ranking-4").getStyleClass().size() == 1, "remaining cards compact");
                 TestSupport.check(((Label) scene.lookup("#revenue-ranking-amount-1")).getText().contains("2.500.000.000,25"), "revenue formats billion and cents exactly");
                 TestSupport.check(scene.lookup("#revenue-ranking-1").lookupAll(".revenue-avatar").stream().anyMatch(n -> ((StackPane)n).getChildren().stream().anyMatch(c -> c instanceof ImageView view && !view.getImage().isError())), "public avatar renders");
-                TestSupport.check(labels(scene.getRoot()).contains("Top 4–5 −2"), "nonoverlapping fee bands shown");
+                TestSupport.check(labels(scene.getRoot()).contains("hạng 4–5 −2"), "nonoverlapping fee bands shown");
                 screenshot(scene, "target/revenue-ranking.png");
                 board.setWidth(780); board.setHeight(620); return null;
             }); drain();
@@ -78,11 +78,11 @@ public final class RevenueRankingUiSelfTest {
             fx(() -> { TestSupport.check(labels(board.getScene().getRoot()).contains("Chưa tải được"), "failed request offers retry"); network.failure=false; network.connected=false; ((Button) board.getScene().lookup("#revenue-ranking-refresh")).fire(); TestSupport.check(labels(board.getScene().getRoot()).contains("Mất kết nối"), "disconnect explains stale board"); network.connected=true; ((Button) board.getScene().lookup("#revenue-ranking-refresh")).fire(); return null; }); drain();
             fx(() -> { TestSupport.check(board.getScene().lookup("#revenue-ranking-10") != null, "refresh recovers rows"); network.pending = new CompletableFuture<>(); ((Button) board.getScene().lookup("#revenue-ranking-refresh")).fire(); ((Button) board.getScene().lookup("#revenue-ranking-close")).fire(); network.pending.complete(network.reply()); return null; }); drain();
             fx(() -> { TestSupport.equals(0, board.getScene().lookup("#revenue-ranking-rows").lookupAll(".revenue-row").size(), "late response after close cannot restore private view"); network.pending=null; new AuctionRankingWindow(owner, network, session::get).show(); return null; }); drain();
-            fx(() -> { session.set(false); ((Button) board().getScene().lookup("#revenue-ranking-refresh")).fire(); TestSupport.check(Window.getWindows().stream().noneMatch(w -> w instanceof Stage stage && "Top doanh thu".equals(stage.getTitle()) && stage.isShowing()), "session change closes board"); return null; });
+            fx(() -> { session.set(false); ((Button) board().getScene().lookup("#revenue-ranking-refresh")).fire(); TestSupport.check(Window.getWindows().stream().noneMatch(w -> w instanceof Stage stage && "Xếp hạng doanh thu".equals(stage.getTitle()) && stage.isShowing()), "session change closes board"); return null; });
             System.out.println("[PASS] RevenueRankingUiSelfTest: gold/silver/bronze, ten seller totals, real avatar, compact sizing, empty/error/disconnect/retry, closed/session invalidation and screenshots");
         } finally { fx(() -> { for (Window window : List.copyOf(Window.getWindows())) { window.hide(); } return null; }); Platform.exit(); }
     }
-    private static Stage board() { return Window.getWindows().stream().filter(w -> w instanceof Stage s && "Top doanh thu".equals(s.getTitle()) && s.isShowing()).map(w -> (Stage)w).findFirst().orElseThrow(); }
+    private static Stage board() { return Window.getWindows().stream().filter(w -> w instanceof Stage s && "Xếp hạng doanh thu".equals(s.getTitle()) && s.isShowing()).map(w -> (Stage)w).findFirst().orElseThrow(); }
     @SuppressWarnings("unchecked") private static ComboBox<RevenuePeriod> period(Stage board) { return (ComboBox<RevenuePeriod>)board.getScene().lookup("#revenue-ranking-period"); }
     private static String labels(Node root) { StringBuilder result = new StringBuilder(); if (root instanceof Label label) { result.append(label.getText()); } if (root instanceof Parent parent) { for (Node child : parent.getChildrenUnmodifiable()) { result.append('\n').append(labels(child)); } } return result.toString(); }
     private static <T> T fx(Callable<T> task) throws Exception { FutureTask<T> future = new FutureTask<>(task); Platform.runLater(future); return future.get(15, TimeUnit.SECONDS); }

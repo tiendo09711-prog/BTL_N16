@@ -16,6 +16,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public final class AuctionManager {
     private final ConcurrentHashMap<Long, AuctionRuntime> runtimes = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Long> roomCodes = new ConcurrentHashMap<>();
     private final Set<Long> archivedAuctionIds = ConcurrentHashMap.newKeySet();
     private final int closedVisibilitySeconds;
 
@@ -24,6 +25,7 @@ public final class AuctionManager {
         Instant now = Instant.now();
         for (AuctionSnapshot snapshot : repository.findAllAuctions()) {
             runtimes.put(snapshot.getAuctionId(), new AuctionRuntime(snapshot));
+            if (!snapshot.getRoomCode().isBlank()) { roomCodes.put(snapshot.getRoomCode(), snapshot.getAuctionId()); }
             if (shouldArchive(snapshot, now)) {
                 archivedAuctionIds.add(snapshot.getAuctionId());
             }
@@ -45,7 +47,16 @@ public final class AuctionManager {
             throw new IllegalStateException("Auction runtime already exists: " + snapshot.getAuctionId());
         }
         archivedAuctionIds.remove(snapshot.getAuctionId());
+        if (!snapshot.getRoomCode().isBlank()) { roomCodes.put(snapshot.getRoomCode(), snapshot.getAuctionId()); }
         return runtime;
+    }
+
+    public AuctionSnapshot findByRoomCode(String code) {
+        Long auctionId = code != null && code.matches("[0-9]{6}") ? roomCodes.get(code) : null;
+        if (auctionId == null || archivedAuctionIds.contains(auctionId)) {
+            throw new AuctionException(ErrorCode.AUCTION_NOT_FOUND, "Ph\u00f2ng kh\u00f4ng t\u1ed3n t\u1ea1i");
+        }
+        return requireRuntime(auctionId).snapshot();
     }
 
     public List<AuctionSnapshot> snapshotsByHost(long hostUserId) {

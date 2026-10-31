@@ -2,6 +2,7 @@ package vn.ptit.btl16.client.view;
 
 import vn.ptit.btl16.client.model.ClientAppModel;
 import vn.ptit.btl16.client.model.ClientAuction;
+import vn.ptit.btl16.client.service.ClientMessages;
 import vn.ptit.btl16.common.util.Money;
 import vn.ptit.btl16.common.util.Times;
 
@@ -235,7 +236,7 @@ public final class AuctionPanel extends JPanel {
         countdownValue.setText(value.isOpen()
                 ? Times.countdown(value.getEndTime(), now)
                 : "00:00");
-        statusValue.setText(value.getStatus());
+        statusValue.setText(ClientMessages.auctionStatus(value.getStatus()));
         watcherValue.setText(Integer.toString(value.getWatcherCount()));
         descriptionArea.setText(value.getDescription());
     }

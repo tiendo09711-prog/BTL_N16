@@ -106,6 +106,10 @@ public final class AuctionQueryService {
         return auctions.requireRuntime(auctionId).snapshot();
     }
 
+    public AuctionSnapshot findByRoomCode(String code) {
+        return auctions.findByRoomCode(code);
+    }
+
     public List<BidRecord> getRecentBids(long auctionId) {
         auctions.requireRuntime(auctionId);
         return repository.findRecentBids(auctionId, historyLimit);

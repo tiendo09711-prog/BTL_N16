@@ -27,6 +27,7 @@ public final class AuctionModule implements ServerModule {
         router.register(MessageType.GET_PRODUCT_RANKING, true, controller::handleProductRanking);
         router.register(MessageType.GET_REVENUE_RANKING, true, controller::handleRevenueRanking);
         router.register(MessageType.SEARCH_AUCTIONS, true, controller::handleSearch);
+        router.register(MessageType.FIND_AUCTION_BY_CODE, true, controller::handleFindByCode);
         router.register(MessageType.CREATE_AUCTION, true, controller::handleCreateAuction);
         router.register(MessageType.PLACE_AUCTION_DEPOSIT, true, controller::handlePlaceDeposit);
         router.register(MessageType.MY_AUCTIONS, true, controller::handleMyAuctions);

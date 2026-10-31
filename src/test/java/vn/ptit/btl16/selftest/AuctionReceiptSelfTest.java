@@ -34,9 +34,12 @@ public final class AuctionReceiptSelfTest {
                     + "(4,'watcher','Watcher','x','x',30000,TRUE,1000000),(5,'stranger','Stranger','x','x',30000,TRUE,1000000)");
             var repository = new JdbcAuctionRepository(factory);
             var auction = room(repository, "ANON_PRIVATE", true, 600); long room = auction.getAuctionId();
+            var socialStore = new vn.ptit.btl16.server.social.RoomSocialStore(factory);
+            socialStore.ordinal(room, 1, true);
             TestSupport.check(repository.extendAuction(new ExtendAuctionCommit(room, auction.getEndTime(), auction.getEndTime().plusSeconds(10))), "extension before capture");
             repository.appendPresence(room, "JOINED", 4, Instant.now()); repository.appendPresence(room, "LEFT", 4, Instant.now());
             bid(repository, room, 2, 110); bid(repository, room, 3, 120); bid(repository, room, 2, 130);
+            repository.appendPresence(room, "JOINED", 3, Instant.now()); repository.appendPresence(room, "LEFT", 3, Instant.now());
             denied(() -> repository.personalReceipt(2, room), ErrorCode.AUCTION_FORBIDDEN);
             TestSupport.equals("0", repository.personalReceipts(2, "WON", "ALL", "", Long.MAX_VALUE, 30).get("count"), "leader is never a winner before commit");
             CloseAuctionCommit commit = expire(factory, repository, room);
@@ -46,7 +49,10 @@ public final class AuctionReceiptSelfTest {
             TestSupport.check(repository.closeAuction(commit).isEmpty(), "repeat close returns no new payment");
             TestSupport.equals(1L, count(factory, "SELECT COUNT(*) FROM wallet_entries WHERE reference_key = 'BUY:" + room + "'"), "one purchase entry");
             TestSupport.equals(1L, count(factory, "SELECT COUNT(*) FROM wallet_entries WHERE reference_key = 'SELL:" + room + "'"), "one sale entry");
-            var winner = repository.personalReceipt(2, room); var loser = repository.personalReceipt(3, room); var host = repository.personalReceipt(1, room); var watcher = repository.personalReceipt(4, room);
+            var winner = repository.personalReceipt(2, room); var loser = repository.personalReceipt(3, room); var host = repository.personalReceipt(1, room);
+            denied(() -> repository.personalReceipt(4, room), ErrorCode.AUCTION_FORBIDDEN);
+            TestSupport.equals(3L, count(factory, "SELECT COUNT(*) FROM auction_personal_receipts WHERE auction_id=" + room), "only host, winner and actual bidder receive receipts");
+            TestSupport.equals("1", repository.personalReceipts(3, "PARTICIPATED", "ALL", "ANON_PRIVATE", Long.MAX_VALUE, 30).get("count"), "departed losing bidder retains result");
             TestSupport.equals(Long.toString(auction.getProduct().getProductId()), winner.get("productId"), "receipt includes its own product");
             TestSupport.equals(TestMedia.DESCRIPTION, winner.get("productDescription"), "receipt includes the frozen product description");
             byte[] previewBytes = Base64.getDecoder().decode(winner.get("productThumbnail"));
@@ -59,17 +65,25 @@ public final class AuctionReceiptSelfTest {
             TestSupport.equals("13.00", host.get("platformFee"), "first sale pays ten percent without a prior rank");
             TestSupport.check(!winner.containsKey("revenueRank") && !winner.containsKey("feeRate") && !winner.containsKey("platformFee") && !winner.containsKey("sellerNet"),"anonymous buyer cannot infer seller identity from monthly rank or discounted fee");
             TestSupport.equals("117.00", host.get("sellerNet"), "seller receives net proceeds");
-            TestSupport.equals("WATCHED", watcher.get("personalRole"), "departed watcher retains minimal receipt"); TestSupport.equals("NONE", watcher.get("walletStatus"), "watcher never sees participant wallet");
-            TestSupport.equals("0", watcher.get("entryCount"), "watcher ledger empty"); TestSupport.equals("3", winner.get("totalBids"), "whole-session count from cluster2");
+            TestSupport.equals("0", repository.personalReceipts(4, "PARTICIPATED", "ALL", "", Long.MAX_VALUE, 30).get("count"), "departed watcher has no personal result");
+            TestSupport.equals("3", winner.get("totalBids"), "whole-session count from cluster2");
             TestSupport.equals("2", winner.get("uniqueBidders"), "distinct bidders"); TestSupport.equals("1", winner.get("extensionCount"), "persisted extension count");
-            TestSupport.check(winner.get("winnerDisplay").startsWith("Kh\u00e1ch #"), "stable room-local alias"); anonymous(winner); anonymous(host);
+            TestSupport.equals("Kh\u00e1ch #1", winner.get("winnerDisplay"), "receipt excludes the host from guest numbering"); anonymous(winner); anonymous(host);
             denied(() -> repository.personalReceipt(5, room), ErrorCode.AUCTION_FORBIDDEN);
-            var empty = room(repository, "EMPTY", false, 600); close(repository, factory, empty.getAuctionId());
+            var empty = room(repository, "EMPTY", false, 600);
+            repository.appendPresence(empty.getAuctionId(), "JOINED", 4, Instant.now());
+            repository.appendPresence(empty.getAuctionId(), "JOINED", 3, Instant.now()); repository.appendPresence(empty.getAuctionId(), "LEFT", 3, Instant.now());
+            close(repository, factory, empty.getAuctionId());
             var emptyReceipt = repository.personalReceipt(1, empty.getAuctionId()); TestSupport.equals("NO_BIDS", emptyReceipt.get("outcome"), "no bids outcome"); TestSupport.equals("", emptyReceipt.get("finalPrice"), "start price is not a sale price");
+            denied(() -> repository.personalReceipt(4, empty.getAuctionId()), ErrorCode.AUCTION_FORBIDDEN);
+            denied(() -> repository.personalReceipt(3, empty.getAuctionId()), ErrorCode.AUCTION_FORBIDDEN);
+            TestSupport.equals(1L, count(factory, "SELECT COUNT(*) FROM auction_personal_receipts WHERE auction_id=" + empty.getAuctionId()), "no-bid session is saved only for host");
             var cancelled = room(repository, "CANCEL", false, 600); repository.appendPresence(cancelled.getAuctionId(), "JOINED", 4, Instant.now());
             TestSupport.check(repository.cancelAuction(new CancelAuctionCommit(cancelled.getAuctionId(), Instant.now())), "cancel commits receipt");
             TestSupport.check(!repository.cancelAuction(new CancelAuctionCommit(cancelled.getAuctionId(), Instant.now())), "repeat cancel is idempotent");
-            TestSupport.equals("CANCELLED", repository.personalReceipt(4, cancelled.getAuctionId()).get("outcome"), "cancelled watcher outcome");
+            TestSupport.equals("CANCELLED", repository.personalReceipt(1, cancelled.getAuctionId()).get("outcome"), "host retains cancelled session");
+            denied(() -> repository.personalReceipt(4, cancelled.getAuctionId()), ErrorCode.AUCTION_FORBIDDEN);
+            watcherMigration(factory, repository, room, empty.getAuctionId(), cancelled.getAuctionId());
             rollback(factory, repository);
             var legacy = room(repository, "LEGACY", true, 600);
             execute(factory, "INSERT INTO bids(auction_id,user_id,amount,server_sequence,created_at) VALUES (" + legacy.getAuctionId() + ",3,110," + ++sequence + ",CURRENT_TIMESTAMP)");
@@ -79,6 +93,7 @@ public final class AuctionReceiptSelfTest {
             String alias = winner.get("winnerDisplay");
             execute(factory, "DELETE FROM auction_receipt_summaries WHERE auction_id=" + room); DatabaseSchema.initialize(factory); DatabaseSchema.initialize(factory);
             TestSupport.equals(alias, repository.personalReceipt(2, room).get("winnerDisplay"), "legacy backfill keeps alias");
+            denied(() -> repository.personalReceipt(4, room), ErrorCode.AUCTION_FORBIDDEN);
             TestSupport.equals(1L, count(factory, "SELECT COUNT(*) FROM wallet_entries WHERE reference_key = 'BUY:" + room + "'"), "backfill never settles again");
             execute(factory, "DELETE FROM room_events WHERE auction_id=" + room);
             var restarted = new JdbcAuctionRepository(new JdbcConnectionFactory(ServerConfig.loadDefault()));
@@ -88,7 +103,8 @@ public final class AuctionReceiptSelfTest {
             TestSupport.equals(alias, restarted.personalReceipt(2, room).get("winnerDisplay"), "receipt survives archive/repository restart");
             TestSupport.equals("1", repository.personalReceipts(2, "WON", "WON", "ANON", Long.MAX_VALUE, 30).get("count"), "won/name filters");
             TestSupport.equals("1", repository.personalReceipts(2, "WON", "ALL", Long.toString(room), Long.MAX_VALUE, 30).get("count"), "room ID filter");
-            TestSupport.equals("1", repository.personalReceipts(4, "PARTICIPATED", "CANCELLED", "", Long.MAX_VALUE, 30).get("count"), "cancelled history filter");
+            TestSupport.equals("0", repository.personalReceipts(4, "PARTICIPATED", "CANCELLED", "", Long.MAX_VALUE, 30).get("count"), "cancelled watcher is excluded from history");
+            TestSupport.equals("1", repository.personalReceipts(1, "HOSTED", "CANCELLED", "", Long.MAX_VALUE, 30).get("count"), "hosted cancelled history filter");
             var page = repository.personalReceipts(1, "HOSTED", "ALL", "", Long.MAX_VALUE, 1); TestSupport.equals("true", page.get("hasMore"), "bounded keyset history");
             var next = repository.personalReceipts(1, "HOSTED", "ALL", "", Long.parseLong(page.get("nextBeforeId")), 1);
             TestSupport.check(!page.get("receipt.0.auctionId").equals(next.get("receipt.0.auctionId")), "history pages never overlap");
@@ -99,11 +115,30 @@ public final class AuctionReceiptSelfTest {
             TestSupport.equals("REVIEW_REQUIRED", repository.personalReceipt(3, room).get("walletStatus"), "incomplete release requires reconciliation");
             execute(factory, "UPDATE wallet_entries SET reserved_delta=-120 WHERE user_id=3 AND entry_type='RELEASE'");
             repository.blockAuctionUser(new BlockAuctionUserCommit(room, 4, 1, Instant.now()));
-            TestSupport.equals("WATCHED", repository.personalReceipt(4, room).get("personalRole"), "kick does not erase own minimal receipt");
+            denied(() -> repository.personalReceipt(4, room), ErrorCode.AUCTION_FORBIDDEN);
             network(factory, repository, room);
             feeTiers(factory, repository);
             System.out.println("[PASS] AuctionReceiptSelfTest: durable atomic receipts/restart/backfill, exactly-once concurrent close, rollback, roles, real ledger/reconciliation, private/anonymous authorization and disconnect at closure");
         } finally { restore("btl16.server.config", oldConfig); restore("btl16.dataDir", oldData); }
+    }
+    private static void watcherMigration(JdbcConnectionFactory factory, JdbcAuctionRepository repository, long won, long empty, long cancelled) throws Exception {
+        var winner = repository.personalReceipt(2, won); var loser = repository.personalReceipt(3, won); var host = repository.personalReceipt(1, won);
+        for (long room : new long[]{won, empty, cancelled}) {
+            execute(factory, "INSERT INTO auction_personal_receipts(auction_id,user_id,personal_role) VALUES (" + room + ",4,'WATCHED')");
+            denied(() -> repository.personalReceipt(4, room), ErrorCode.AUCTION_FORBIDDEN);
+        }
+        execute(factory, "INSERT INTO auction_personal_receipts(auction_id,user_id,personal_role) VALUES (" + empty + ",2,'WATCHED'),(" + cancelled + ",2,'WATCHED')");
+        TestSupport.equals("0", repository.personalReceipts(4, "PARTICIPATED", "ALL", "", Long.MAX_VALUE, 1).get("count"), "legacy watchers are hidden before migration");
+        var page = repository.personalReceipts(2, "PARTICIPATED", "ALL", "", Long.MAX_VALUE, 1);
+        TestSupport.equals(Long.toString(won), page.get("receipt.0.auctionId"), "legacy watched sessions cannot fill a results page");
+        TestSupport.equals("false", page.get("hasMore"), "legacy watched sessions do not create extra pages");
+        DatabaseSchema.initialize(factory); DatabaseSchema.initialize(factory);
+        TestSupport.equals(0L, count(factory, "SELECT COUNT(*) FROM auction_personal_receipts WHERE personal_role='WATCHED'"), "startup removes legacy watcher receipts idempotently");
+        TestSupport.equals(winner, repository.personalReceipt(2, won), "watcher cleanup preserves winner receipt and payment");
+        TestSupport.equals(loser, repository.personalReceipt(3, won), "watcher cleanup preserves losing bidder receipt and release");
+        TestSupport.equals(host, repository.personalReceipt(1, won), "watcher cleanup preserves seller receipt and proceeds");
+        TestSupport.equals("NO_BIDS", repository.personalReceipt(1, empty).get("outcome"), "watcher cleanup preserves no-bid hosted receipt");
+        TestSupport.equals("CANCELLED", repository.personalReceipt(1, cancelled).get("outcome"), "watcher cleanup preserves cancelled hosted receipt");
     }
     private static void feeTiers(JdbcConnectionFactory factory, JdbcAuctionRepository repository) throws Exception {
         TestSupport.equals(new BigDecimal("0.05"), vn.ptit.btl16.common.util.AuctionFees.fee(new BigDecimal("0.50")), "fee rounds half up to cents");
@@ -130,14 +165,15 @@ public final class AuctionReceiptSelfTest {
 
     private static void rollback(JdbcConnectionFactory factory, JdbcAuctionRepository repository) throws Exception {
         long room = room(repository, "ROLLBACK", false, 600).getAuctionId(); bid(repository, room, 2, 110);
-        repository.appendPresence(room, "JOINED", 999, Instant.now()); var commit = expire(factory, repository, room);
+        execute(factory, "ALTER TABLE auction_personal_receipts ADD CONSTRAINT receipt_failure CHECK (auction_id <> " + room + ")");
+        var commit = expire(factory, repository, room);
         boolean failed = false; try { repository.closeAuction(commit); } catch (AuctionRepositoryException expected) { failed = true; }
-        TestSupport.check(failed, "receipt FK failure injected"); TestSupport.equals(AuctionStatus.OPEN, repository.findAuctionById(room).orElseThrow().getStatus(), "receipt failure rolls back closure");
+        TestSupport.check(failed, "receipt persistence failure injected"); TestSupport.equals(AuctionStatus.OPEN, repository.findAuctionById(room).orElseThrow().getStatus(), "receipt failure rolls back closure");
         TestSupport.equals(0L, count(factory, "SELECT COUNT(*) FROM wallet_entries WHERE reference_key='BUY:" + room + "'"), "receipt failure rolls back payment");
         TestSupport.equals(0L, count(factory, "SELECT COUNT(*) FROM wallet_settlements WHERE auction_id=" + room), "receipt failure also rolls back platform fee");
         TestSupport.equals(0L, count(factory, "SELECT COUNT(*) FROM auction_results WHERE auction_id=" + room), "receipt failure rolls back result");
         TestSupport.equals(1L, count(factory, "SELECT COUNT(*) FROM wallet_holds WHERE auction_id=" + room), "hold restored by rollback");
-        execute(factory, "DELETE FROM room_events WHERE actor_id=999"); TestSupport.check(repository.closeAuction(commit).isPresent(), "retry after rollback succeeds once");
+        execute(factory, "ALTER TABLE auction_personal_receipts DROP CONSTRAINT receipt_failure"); TestSupport.check(repository.closeAuction(commit).isPresent(), "retry after rollback succeeds once");
     }
 
     private static void network(JdbcConnectionFactory factory, JdbcAuctionRepository repository, long closedRoom) throws Exception {
@@ -176,7 +212,8 @@ public final class AuctionReceiptSelfTest {
                 TestSupport.equals("0", ok(new AuctionReceiptApi(stranger).list("PARTICIPATED", "ALL", "", Long.MAX_VALUE)).get("count"), "no other users receipts");
                 try (var kicked = client(server.getBoundPort())) {
                     ok(new AccountApi(kicked).login("watcher", "Password123!"));
-                    TestSupport.equals("WATCHED", ok(new AuctionReceiptApi(kicked).get(closedRoom)).get("personalRole"), "kicked account may read own minimal receipt");
+                    TestSupport.equals("AUCTION_FORBIDDEN", new AuctionReceiptApi(kicked).get(closedRoom).get(10, TimeUnit.SECONDS).getErrorCode(), "kicked watcher has no personal receipt");
+                    TestSupport.equals("0", ok(new AuctionReceiptApi(kicked).list("PARTICIPATED", "ALL", "", Long.MAX_VALUE)).get("count"), "watcher result history remains empty over network");
                     TestSupport.equals("USER_BLOCKED_FROM_AUCTION", new AuctionApi(kicked).history(closedRoom).get(10, TimeUnit.SECONDS).getErrorCode(), "kicked account still cannot read room history");
                 }
                 ok(new AuctionApi(winner).join(ending)); winner.disconnect();

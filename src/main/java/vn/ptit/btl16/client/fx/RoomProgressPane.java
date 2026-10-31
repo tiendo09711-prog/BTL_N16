@@ -167,13 +167,13 @@ public final class RoomProgressPane extends VBox {
     private void events(long before, long after, boolean olderPage) {
         if (room == 0 || loadingEvents || !transport.isConnected()) { return; }
         loadingEvents = true; lastEvents = System.nanoTime(); long token = generation;
-        older.setDisable(true); latest.setDisable(true); status.setText("\u0110ang t\u1ea3i nh\u1eadt k\u00fd t\u1eeb server...");
+        older.setDisable(true); latest.setDisable(true); status.setText("\u0110ang t\u1ea3i nh\u1eadt k\u00fd t\u1eeb máy chủ...");
         api.events(room, before, after).whenComplete((response, error) -> Platform.runLater(() -> {
             if (token != generation || room == 0) { return; }
             loadingEvents = false; latest.setDisable(false);
             if (!transport.isConnected() || error != null || response == null || !response.isSuccess()) {
                 pendingFocus = false;
-                status.setText("Kh\u00f4ng t\u1ea3i \u0111\u01b0\u1ee3c nh\u1eadt k\u00fd: " + (response == null ? "l\u1ed7i k\u1ebft n\u1ed1i" : response.getMessageText()));
+                status.setText("Kh\u00f4ng t\u1ea3i \u0111\u01b0\u1ee3c nh\u1eadt k\u00fd: " + (response == null ? "l\u1ed7i k\u1ebft n\u1ed1i" : response.getUserMessage()));
                 older.setDisable(entries.isEmpty()); return;
             }
             var data = response.getWireMessage().getData();

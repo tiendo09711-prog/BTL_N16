@@ -6,6 +6,7 @@ import javafx.application.Platform;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.beans.property.SimpleBooleanProperty;
 import javafx.collections.FXCollections;
+import javafx.css.PseudoClass;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
@@ -62,6 +63,7 @@ import vn.ptit.btl16.client.network.ClientTransport;
 import vn.ptit.btl16.client.network.ConnectionState;
 import vn.ptit.btl16.client.service.AccountApi;
 import vn.ptit.btl16.client.service.ApiResponse;
+import vn.ptit.btl16.client.service.ClientMessages;
 import vn.ptit.btl16.client.service.AuctionApi;
 import vn.ptit.btl16.client.service.ProductMediaApi;
 import vn.ptit.btl16.client.service.WalletApi;
@@ -86,6 +88,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 public final class FxClientController implements AutoCloseable {
+    private static final PseudoClass INVALID = PseudoClass.getPseudoClass("invalid");
     private static final DateTimeFormatter DATE_TIME = DateTimeFormatter
             .ofPattern("dd/MM/yyyy HH:mm:ss")
             .withZone(ZoneId.systemDefault());
@@ -111,6 +114,8 @@ public final class FxClientController implements AutoCloseable {
     private final TextField endpointField = new TextField();
     private final TextField usernameField = new TextField();
     private final PasswordField passwordField = new PasswordField();
+    private final Label loginErrorLabel = new Label();
+    private final HBox loginErrorBanner = new HBox(10);
     private final Label loginStateLabel = new Label("● Chưa kết nối");
     private final Label loginRttLabel = new Label("— ms");
     private final Button loginButton = new Button("Đăng nhập");
@@ -151,6 +156,9 @@ public final class FxClientController implements AutoCloseable {
     private long coverConnection = -1;
     private final ImageView productImage = new ImageView();
     private final Label detailName = new Label("Chọn một phòng");
+    private final RoomCodeBadge detailRoomCode = new RoomCodeBadge("room-code-badge");
+    private final RoomCodeBadge createdRoomCode = new RoomCodeBadge("created-room-code", "Ph\u00f2ng v\u1eeba t\u1ea1o - m\u00e3 ph\u00f2ng", this::clearCreatedRoomCode);
+    private long createdAuctionId;
     private final Label detailHost = new Label();
     private final Label detailPrice = new Label();
     private final Label detailLeader = new Label();
@@ -194,7 +202,7 @@ public final class FxClientController implements AutoCloseable {
     private final Label bidFeedback = DesktopTheme.label("", "bid-feedback");
     private final Label roomConnection = DesktopTheme.label("", "bid-hint");
     private final Label roomFunds = DesktopTheme.label("", "bid-hint");
-    private final Label roomFeeHint = DesktopTheme.label("Phí sàn người bán: đến 1 tỷ 10%, trên 1 tỷ 15%; Top doanh thu 1 tháng giảm 1–5 điểm %.", "bid-hint");
+    private final Label roomFeeHint = DesktopTheme.label("Phí sàn người bán: đến 1 tỷ 10%, trên 1 tỷ 15%; xếp hạng doanh thu tháng được giảm 1–5 điểm %.", "bid-hint");
     private final Label hostLockReason = DesktopTheme.label("", "muted");
     private final Button syncRoomButton = new Button("\u0110\u1ed3ng b\u1ed9 l\u1ea1i");
     private long roomGeneration, roomWalletRequest;
@@ -302,7 +310,7 @@ public final class FxClientController implements AutoCloseable {
         clock.getKeyFrames().add(new KeyFrame(Duration.millis(500), event -> refreshClock()));
         clock.setCycleCount(Timeline.INDEFINITE);
         clock.play();
-        stage.setTitle("Auction • Sàn đấu giá");
+        stage.setTitle("Đấu giá • Sàn đấu giá");
         stage.getIcons().add(DesktopTheme.icon());
         stage.setMinWidth(1100);
         stage.setMinHeight(480);
@@ -334,6 +342,28 @@ public final class FxClientController implements AutoCloseable {
         connectButton.getStyleClass().add("teal");
         usernameField.setPromptText("Tên đăng nhập");
         passwordField.setPromptText("Mật khẩu");
+        usernameField.setId("login-username");
+        passwordField.setId("login-password");
+        loginButton.setId("login-submit");
+        Label errorIcon = DesktopTheme.label("!", "login-error-icon");
+        errorIcon.setMinSize(24, 24);
+        errorIcon.setMaxSize(24, 24);
+        errorIcon.setAlignment(Pos.CENTER);
+        loginErrorLabel.setId("login-error-message");
+        loginErrorLabel.setWrapText(true);
+        loginErrorLabel.setMinWidth(0);
+        loginErrorLabel.setMaxWidth(Double.MAX_VALUE);
+        VBox errorCopy = new VBox(3, DesktopTheme.label("Ch\u01b0a th\u1ec3 \u0111\u0103ng nh\u1eadp", "login-error-title"), loginErrorLabel);
+        HBox.setHgrow(errorCopy, Priority.ALWAYS);
+        loginErrorBanner.getChildren().setAll(errorIcon, errorCopy);
+        loginErrorBanner.setId("login-error-banner");
+        loginErrorBanner.getStyleClass().add("login-error-banner");
+        loginErrorBanner.setAlignment(Pos.TOP_LEFT);
+        loginErrorBanner.setMinHeight(Region.USE_PREF_SIZE);
+        loginErrorBanner.managedProperty().bind(loginErrorBanner.visibleProperty());
+        clearLoginError();
+        usernameField.textProperty().addListener((observable, before, now) -> clearLoginError());
+        passwordField.textProperty().addListener((observable, before, now) -> clearLoginError());
         loginButton.getStyleClass().add("primary");
         registerButton.getStyleClass().add("ghost");
         loginStateLabel.getStyleClass().add("pill");
@@ -352,6 +382,7 @@ public final class FxClientController implements AutoCloseable {
                 DesktopTheme.label("Tên đăng nhập", "eyebrow"), usernameField,
                 DesktopTheme.label("Mật khẩu", "eyebrow"), passwordField, loginButton, registerButton);
         form.setMaxWidth(470);
+        form.getChildren().add(form.getChildren().indexOf(loginButton), loginErrorBanner);
         form.getChildren().add(ClientSoundUi.controls(sounds, bidVoice));
         form.setPadding(new Insets(24, 0, 24, 0));
         StackPane formPanel = new StackPane(form);
@@ -362,9 +393,9 @@ public final class FxClientController implements AutoCloseable {
         Circle inner = new Circle(78, Color.web("#ffffff", 0.035));
         StackPane art = new StackPane(orbit, inner, DesktopTheme.gavel(88, "#edc986"));
         art.setPrefHeight(242);
-        Label liveTag = DesktopTheme.label("●  LIVE AUCTIONS", "hero-tag");
+        Label liveTag = DesktopTheme.label("●  Đấu giá trực tiếp", "hero-tag");
         liveTag.setMaxWidth(180);
-        VBox hero = new VBox(22, DesktopTheme.brand("LIVE"), new Region(),
+        VBox hero = new VBox(22, DesktopTheme.brand("Đấu giá", "Trực tiếp"), new Region(),
                 DesktopTheme.label("Mỗi lượt giá.", "hero-title"),
                 DesktopTheme.label("Một cơ hội mới.", "hero-title"), art, liveTag,
                 DesktopTheme.label("ĐẤU GIÁ / THỜI GIAN THỰC", "eyebrow"));
@@ -389,7 +420,7 @@ public final class FxClientController implements AutoCloseable {
         Button transactionsButton = navButton("Giao dịch", "exchange"); transactionsButton.setId("account-transactions-navigation"); transactionsNavigation = transactionsButton;
         transactionsButton.setOnAction(event -> showTransactions());
         Button rulesButton = navButton("Luật đấu giá", "rules"); rulesNavigation = rulesButton;
-        Button rankingButton = navButton("Top doanh thu", "trophy");
+        Button rankingButton = navButton("Xếp hạng doanh thu", "trophy");
         rankingButton.setId("product-ranking-navigation"); rankingButton.setMaxWidth(Double.MAX_VALUE);
         rankingButton.setOnAction(event -> {
             long user = model.getUserId(); String token = model.getSessionToken();
@@ -406,7 +437,7 @@ public final class FxClientController implements AutoCloseable {
         Button marketplace = navButton("Sàn đấu giá", "users"); marketplace.setId("account-marketplace-navigation"); marketplaceNavigation = marketplace;
         marketplace.getStyleClass().add("nav-active");
         createAuctionButton.getStyleClass().add("market-gold-button"); createAuctionButton.setMaxWidth(Double.MAX_VALUE);
-        VBox sidebar = new VBox(14, DesktopTheme.brand("LIVE"));
+        VBox sidebar = new VBox(14, DesktopTheme.brand("Đấu giá", "Trực tiếp"));
         sidebar.getStyleClass().addAll("sidebar", "market-sidebar");
         sidebar.setMinWidth(192); sidebar.setPrefWidth(192); sidebar.setMaxWidth(192);
         for (Button navigation : List.of(marketplace, productsButton, walletButton, transactionsButton, rulesButton)) {
@@ -483,6 +514,10 @@ public final class FxClientController implements AutoCloseable {
         searchField.setPromptText("Tìm sản phẩm, tên phòng, người bán…");
         searchField.setId("marketplace-search-input"); searchField.setMinWidth(100);
         Button searchButton = new Button("Tìm kiếm");
+        Button enterCode = new Button("Nh\u1eadp m\u00e3", MarketplaceIcons.icon("grid", 15, "#78552a"));
+        enterCode.setId("marketplace-enter-room-code");
+        enterCode.setMinWidth(Region.USE_PREF_SIZE);
+        enterCode.setOnAction(event -> showRoomCodeDialog());
         Button clearButton = new Button("Xóa lọc");
         clearButton.getStyleClass().add("ghost");
         Button filtersToggle = new Button("Bộ lọc", MarketplaceIcons.icon("filter", 16, "#57442d")); filtersToggle.setId("marketplace-filters-toggle");
@@ -499,7 +534,7 @@ public final class FxClientController implements AutoCloseable {
         lobbyVisibility.getStyleClass().add("market-toolbar-combo"); lobbyOrder.getStyleClass().add("market-toolbar-combo");
         lobbyVisibility.setPrefWidth(150); lobbyOrder.setPrefWidth(184);
         decorateCombo(lobbyVisibility, "grid"); decorateCombo(lobbyOrder, "sort");
-        lobbyToolbar = new HBox(10, search, lobbyVisibility, lobbyOrder, filtersToggle); lobbyToolbar.setAlignment(Pos.CENTER_LEFT);
+        lobbyToolbar = new HBox(10, search, enterCode, lobbyVisibility, lobbyOrder, filtersToggle); lobbyToolbar.setAlignment(Pos.CENTER_LEFT);
         lobbyToolbar.getStyleClass().add("market-toolbar"); HBox.setHgrow(search, Priority.ALWAYS);
         FlowPane filters = new FlowPane(8, 8, searchMode, lobbyIdentity, lobbyHosted, clearButton); lobbyFilters = filters;
         filters.setId("marketplace-filters"); filters.setVisible(false); filters.setManaged(false);
@@ -581,7 +616,11 @@ public final class FxClientController implements AutoCloseable {
         roomFunds.setId("room-funds"); roomFunds.setWrapText(true);
         bidHint.setWrapText(true);
         hostLockReason.setId("host-lock-reason"); hostLockReason.setWrapText(true);
-        VBox management = new VBox(8, (javafx.scene.Node) managementPane.getContent(), hostLockReason);
+        VBox management = new VBox(14,
+                DesktopTheme.label("Điều hành phiên", "section-title"),
+                DesktopTheme.label("Quản lý thời gian, trạng thái phiên và người tham gia.", "muted"),
+                (javafx.scene.Node) managementPane.getContent(), hostLockReason);
+        management.getStyleClass().add("room-management-content");
         managementPane.setContent(management);
         syncRoomButton.setOnAction(event -> synchronizeRoom());
         membership.getChildren().add(syncRoomButton);
@@ -614,7 +653,7 @@ public final class FxClientController implements AutoCloseable {
         roomHistoryScroll.getStyleClass().add("room-bid-scroll");
         roomControlsScroll.getStyleClass().add("room-bid-scroll");
         ToggleGroup roomTabs = new ToggleGroup();
-        ToggleButton chatTab = new ToggleButton("Khung tr\u00f2 chuy\u1ec7n");
+        ToggleButton chatTab = new ToggleButton("Tr\u00f2 chuy\u1ec7n");
         ToggleButton historyTab = new ToggleButton("L\u1ecbch s\u1eed");
         configureRoomTab(roomTabs, roomBidTab, "room-tab-bid", roomBidScroll);
         configureRoomTab(roomTabs, chatTab, "room-tab-chat", roomControlsScroll);
@@ -653,7 +692,7 @@ public final class FxClientController implements AutoCloseable {
         listingSplit.getItems().setAll(listingPanel);
         VBox.setVgrow(listingSplit, Priority.ALWAYS);
         roomHeading = new HBox(10, DesktopTheme.label("ĐẤU GIÁ TRỰC TIẾP", "eyebrow"), DesktopTheme.spacer(),
-                DesktopTheme.label("Giá và thời gian được đồng bộ từ server", "muted"));
+                DesktopTheme.label("Giá và thời gian được đồng bộ từ máy chủ", "muted"));
         roomHeading.getChildren().setAll(liveRoom.heading());
         HBox.setHgrow(liveRoom.heading(), Priority.ALWAYS);
         roomHeading.getStyleClass().add("room-heading"); roomHeading.setAlignment(Pos.CENTER_LEFT);
@@ -661,7 +700,7 @@ public final class FxClientController implements AutoCloseable {
         eventLog.setEditable(false);
         eventLog.setWrapText(true);
         eventLog.setPrefRowCount(4);
-        VBox workspace = new VBox(9, marketplaceBanner, congratulations, statsPanel, lobbyToolbar, filters, roomHeading, listingSplit);
+        VBox workspace = new VBox(9, marketplaceBanner, congratulations, createdRoomCode, statsPanel, lobbyToolbar, filters, roomHeading, listingSplit);
         workspace.setPadding(new Insets(4, 10, 8, 12));
         workspace.getStyleClass().add("market-workspace");
         auctionWorkspace = workspace;
@@ -880,7 +919,14 @@ public final class FxClientController implements AutoCloseable {
         });
         productHeader.getChildren().setAll(detailVisibility, DesktopTheme.spacer(), gallery);
         productHeader.setAlignment(Pos.CENTER_LEFT);
-        FlowPane hostActions = new FlowPane(8, 8, extendButton, endButton, cancelButton, kickButton);
+        FlowPane sessionActions = new FlowPane(8, 8, extendButton, endButton, cancelButton);
+        kickButton.setId("room-manage-participants"); kickButton.setText("Chọn người cần mời ra");
+        kickButton.getStyleClass().add("room-manage-members"); kickButton.setMaxWidth(Double.MAX_VALUE);
+        Label participantNote = DesktopTheme.label("Chọn nhiều khách cùng lúc từ danh sách; không cần nhập tên.", "muted");
+        VBox participantActions = new VBox(8, DesktopTheme.label("Người tham gia", "eyebrow"), participantNote, kickButton);
+        participantActions.getStyleClass().add("room-management-members");
+        VBox hostActions = new VBox(14, sessionActions, participantActions);
+        managementPane.getStyleClass().add("room-management");
         managementPane.setText("Quản lý phòng");
         managementPane.setContent(hostActions);
         managementPane.setExpanded(false);
@@ -907,7 +953,7 @@ public final class FxClientController implements AutoCloseable {
         ((VBox) lobbyTimeRow.getChildren().get(1)).getChildren().setAll(DesktopTheme.label("Thời gian còn lại", "market-countdown-caption"), detailTime);
         lobbyPriceAmount.getChildren().setAll(priceCaption, detailPrice);
         priceBlock.getChildren().setAll(lobbyTimeRow, lobbyPriceRow, detailLeader);
-        details.getChildren().setAll(roomImage, lobbyNameRow, lobbyHostRow, priceBlock);
+        details.getChildren().setAll(roomImage, lobbyNameRow, lobbyHostRow, detailRoomCode, priceBlock);
         previewOverlay.setVisible(true); previewOverlay.setManaged(true);
     }
 
@@ -935,7 +981,7 @@ public final class FxClientController implements AutoCloseable {
             return;
         }
         if (endpointField.getText().isBlank()) {
-            showError("Hãy nhập địa chỉ được sao chép từ ứng dụng Server trước khi kết nối.");
+            showError("Hãy nhập địa chỉ được sao chép từ ứng dụng máy chủ trước khi kết nối.");
             return;
         }
         if (manual) {
@@ -965,7 +1011,7 @@ public final class FxClientController implements AutoCloseable {
                 appendEvent("Kết nối không thành công: " + rootMessage(error));
                 showError("Không thể kết nối tới " + transport.getEndpoint()
                         + "\nChi tiết: " + rootMessage(error)
-                        + "\nKiểm tra địa chỉ IP/cổng trên Server, mạng LAN và Windows Firewall."
+                        + "\nKiểm tra địa chỉ IP/cổng trên máy chủ, mạng nội bộ và tường lửa của máy tính."
                         + "\nSửa địa chỉ rồi bấm Kết nối để thử lại.");
                 return;
             }
@@ -978,6 +1024,13 @@ public final class FxClientController implements AutoCloseable {
     }
 
     private void login() {
+        if (loginButton.isDisabled()) { return; }
+        clearLoginError();
+        if (usernameField.getText().isBlank() || passwordField.getText().isEmpty()) {
+            showLoginError("Vui l\u00f2ng nh\u1eadp t\u00ean \u0111\u0103ng nh\u1eadp v\u00e0 m\u1eadt kh\u1ea9u.", true);
+            (usernameField.getText().isBlank() ? usernameField : passwordField).requestFocus();
+            return;
+        }
         if (!transport.isConnected()) {
             connect(true);
             return;
@@ -986,7 +1039,19 @@ public final class FxClientController implements AutoCloseable {
         accounts.login(usernameField.getText(), passwordField.getText())
                 .whenComplete((response, error) -> Platform.runLater(() -> {
                     setLoginBusy(false);
-                    if (!success(response, error)) {
+                    if (error != null) {
+                        showLoginError("Kh\u00f4ng th\u1ec3 g\u1eedi y\u00eau c\u1ea7u \u0111\u0103ng nh\u1eadp. H\u00e3y ki\u1ec3m tra k\u1ebft n\u1ed1i v\u00e0 th\u1eed l\u1ea1i.", false);
+                        return;
+                    }
+                    if (response == null || !response.isSuccess()) {
+                        boolean invalidCredentials = response != null && "INVALID_CREDENTIALS".equals(response.getErrorCode());
+                        String message = invalidCredentials
+                                ? "T\u00ean \u0111\u0103ng nh\u1eadp ho\u1eb7c m\u1eadt kh\u1ea9u ch\u01b0a \u0111\u00fang. Vui l\u00f2ng ki\u1ec3m tra v\u00e0 th\u1eed l\u1ea1i."
+                                : response == null || response.getMessageText().isBlank()
+                                        ? "Ch\u01b0a th\u1ec3 \u0111\u0103ng nh\u1eadp l\u00fac n\u00e0y. Vui l\u00f2ng th\u1eed l\u1ea1i sau."
+                                        : response.getUserMessage();
+                        showLoginError(message, invalidCredentials);
+                        if (invalidCredentials) { passwordField.requestFocus(); passwordField.selectAll(); }
                         return;
                     }
                     model.applyIdentity(response);
@@ -1038,7 +1103,7 @@ public final class FxClientController implements AutoCloseable {
         });
         showDialog(dialog).ifPresent(data -> {
             if (!transport.isConnected()) {
-                showError("Hãy kết nối server trước khi đăng ký");
+                showError("Hãy kết nối máy chủ trước khi đăng ký");
                 return;
             }
             accounts.register(data.get("username"), data.get("password"),
@@ -1060,7 +1125,7 @@ public final class FxClientController implements AutoCloseable {
                     if (error != null || response == null) { refreshBidControls(); return; }
                     if (!response.isSuccess()) {
                         autoReconnect = false; invalidateRoom(true);
-                        model.clearIdentity(); friendsPane.reset(); clearNotificationCount(); bidVoice.resetSession(); auctionCards.clearFavorites(); recentActivity.clear(); eventLog.clear(); auctionCards.getItems().clear(); auctionCards.clearFeatured(); socialRoom.clear(); congratulations.clear(); winnerCelebration.clear(); showAuctionPage(); stage.setScene(loginScene);
+                        model.clearIdentity(); clearCreatedRoomCode(); friendsPane.reset(); clearNotificationCount(); bidVoice.resetSession(); auctionCards.clearFavorites(); recentActivity.clear(); eventLog.clear(); auctionCards.getItems().clear(); auctionCards.clearFeatured(); socialRoom.clear(); congratulations.clear(); winnerCelebration.clear(); showAuctionPage(); stage.setScene(loginScene);
                         return;
                     }
                     model.applyIdentity(response);
@@ -1176,6 +1241,17 @@ public final class FxClientController implements AutoCloseable {
         lobbyPage = 0; loadAuctionList();
     }
 
+    private void showRoomCodeDialog() {
+        if (!model.hasSessionToken() || !transport.isConnected()) {
+            showError("Vui l\u00f2ng k\u1ebft n\u1ed1i v\u00e0 \u0111\u0103ng nh\u1eadp tr\u01b0\u1edbc khi nh\u1eadp m\u00e3 ph\u00f2ng.");
+            return;
+        }
+        if (roomChanging) { return; }
+        RoomRequest request = roomRequest(0);
+        new RoomCodeDialog(stage, auctions, () -> current(request, false)).showAndWait()
+                .filter(auctionId -> current(request, false)).ifPresent(auctionId -> joinAuction(auctionId, ""));
+    }
+
     private void joinSelected() {
         ClientAuction selected = selectedAuction();
         if (selected == null) {
@@ -1200,12 +1276,7 @@ public final class FxClientController implements AutoCloseable {
 
     private void placeRoomDeposit(ClientAuction room, String password) {
         if (placingDeposit || room.isHostedBy(model.getUserId()) || room.getDepositAmount().signum() <= 0) { return; }
-        Alert confirmation = new Alert(Alert.AlertType.CONFIRMATION,
-                "Đặt cọc " + money(room.getDepositAmount()) + " cho phòng #" + room.getAuctionId() + "?\n"
-                        + "Tiền được giữ trong ví, tính vào tiền đấu giá; nếu không thắng sẽ hoàn khi phiên kết thúc/hủy. "
-                        + "Cọc phải hoàn tất trước " + Times.display(room.getStartTime()) + ". Cọc không giữ chỗ trong phòng.",
-                ButtonType.OK, ButtonType.CANCEL);
-        confirmation.setTitle("Xác nhận đặt cọc"); confirmation.setHeaderText(room.getProductName());
+        RoomDepositDialog confirmation = new RoomDepositDialog(stage, room);
         if (showDialog(confirmation).orElse(ButtonType.CANCEL) != ButtonType.OK) { return; }
         placingDeposit = true; RoomRequest request = roomRequest(room.getAuctionId()); refreshBidControls();
         auctions.placeDeposit(room.getAuctionId(), password).whenComplete((response, error) -> Platform.runLater(() -> {
@@ -1416,7 +1487,7 @@ public final class FxClientController implements AutoCloseable {
                 && bid.getUserId() == auction.viewerId(model.getUserId()) && bid.getAmount().compareTo(amount) == 0)) {
             uncertainBidAmount = null;
             bidConfirmedSound(auction.getAuctionId(), amount);
-            feedback("Server \u0111\u00e3 x\u00e1c nh\u1eadn l\u01b0\u1ee3t " + money(amount) + ". Ch\u01b0a ph\u1ea3i k\u1ebft qu\u1ea3 th\u1eafng.", "success");
+            feedback("Máy chủ \u0111\u00e3 x\u00e1c nh\u1eadn l\u01b0\u1ee3t " + money(amount) + ". Ch\u01b0a ph\u1ea3i k\u1ebft qu\u1ea3 th\u1eafng.", "success");
         }
     }
 
@@ -1432,13 +1503,13 @@ public final class FxClientController implements AutoCloseable {
     private String bidError(ApiResponse response) {
         return switch (response.getErrorCode()) {
             case "BID_TOO_LOW", "DATABASE_CONFLICT" -> "Gi\u00e1 \u0111\u00e3 thay \u0111\u1ed5i. \u0110ang l\u1ea5y gi\u00e1 t\u1ed1i thi\u1ec3u m\u1edbi; h\u00e3y ki\u1ec3m tra r\u1ed3i \u0111\u1eb7t l\u1ea1i.";
-            case "INSUFFICIENT_FUNDS" -> "S\u1ed1 d\u01b0 kh\u1ea3 d\u1ee5ng kh\u00f4ng \u0111\u1ee7. H\u00e3y n\u1ea1p v\u00ed demo v\u00e0 ch\u1edd duy\u1ec7t.";
+            case "INSUFFICIENT_FUNDS" -> "S\u1ed1 d\u01b0 kh\u1ea3 d\u1ee5ng kh\u00f4ng \u0111\u1ee7. H\u00e3y n\u1ea1p ví thử nghiệm v\u00e0 ch\u1edd duy\u1ec7t.";
             case "BID_ALREADY_LEADING" -> "B\u1ea1n \u0111ang d\u1eabn \u0111\u1ea7u, kh\u00f4ng th\u1ec3 t\u1ef1 n\u00e2ng gi\u00e1.";
-            case "BID_AFTER_END", "AUCTION_NOT_OPEN", "AUCTION_NOT_FOUND" -> "Phi\u00ean \u0111\u00e3 \u0111\u00f3ng ho\u1eb7c h\u1ebft th\u1eddi gian nh\u1eadn gi\u00e1. Ch\u1edd server c\u1eadp nh\u1eadt.";
+            case "BID_AFTER_END", "AUCTION_NOT_OPEN", "AUCTION_NOT_FOUND" -> "Phi\u00ean \u0111\u00e3 \u0111\u00f3ng ho\u1eb7c h\u1ebft th\u1eddi gian nh\u1eadn gi\u00e1. Ch\u1edd máy chủ c\u1eadp nh\u1eadt.";
             case "AUCTION_FORBIDDEN" -> "Ch\u1ee7 ph\u00f2ng kh\u00f4ng \u0111\u01b0\u1ee3c \u0111\u1eb7t gi\u00e1 s\u1ea3n ph\u1ea9m c\u1ee7a m\u00ecnh.";
             case "USER_BLOCKED_FROM_AUCTION", "NOT_IN_AUCTION_ROOM", "ROOM_ACCESS_DENIED" -> "B\u1ea1n ch\u01b0a c\u00f3 quy\u1ec1n \u0111\u1eb7t gi\u00e1 t\u1ea1i ph\u00f2ng n\u00e0y.";
             case "INVALID_AMOUNT" -> "Gi\u00e1 kh\u00f4ng h\u1ee3p l\u1ec7: s\u1ed1 d\u01b0\u01a1ng, t\u1ed1i \u0111a 2 s\u1ed1 th\u1eadp ph\u00e2n v\u00e0 trong gi\u1edbi h\u1ea1n.";
-            default -> "Server ch\u01b0a ch\u1ea5p nh\u1eadn l\u01b0\u1ee3t gi\u00e1 (" + response.getErrorCode() + "). H\u00e3y \u0111\u1ed3ng b\u1ed9 v\u00e0 ki\u1ec3m tra l\u1ea1i.";
+            default -> response.getUserMessage();
         };
     }
 
@@ -1466,7 +1537,7 @@ public final class FxClientController implements AutoCloseable {
         long sequence = ++bidRequestSequence;
         bidPending = true; uncertainBidAmount = null;
         bidField.setText(Money.input(amount));
-        feedback("\u0110ang g\u1eedi " + money(amount) + ". Ch\u1edd server x\u00e1c nh\u1eadn, kh\u00f4ng b\u1ea5m l\u1ea1i.", "pending");
+        feedback("\u0110ang g\u1eedi " + money(amount) + ". Ch\u1edd máy chủ x\u00e1c nh\u1eadn, kh\u00f4ng b\u1ea5m l\u1ea1i.", "pending");
         refreshBidControls();
         bidTimeout = scheduler.schedule(() -> Platform.runLater(() -> {
             if (current(request, true) && sequence == bidRequestSequence && bidPending) { bidUnconfirmed(amount); }
@@ -1515,9 +1586,12 @@ public final class FxClientController implements AutoCloseable {
         long id = auctionId;
         RoomRequest request = roomRequest(id);
         BidHistoryPane history = new BidHistoryPane(transport, id, () -> current(request, false));
-        Dialog<Void> dialog = new Dialog<>(); dialog.setTitle("Lịch sử bid phòng #" + id);
+        Dialog<Void> dialog = new Dialog<>(); dialog.setTitle("Lịch sử đặt giá · Phòng #" + id);
+        dialog.getDialogPane().getStyleClass().addAll("room-dialog", "room-history-dialog");
+        dialog.getDialogPane().setPrefWidth(860);
         dialog.setResizable(true); dialog.getDialogPane().setContent(history);
         dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
+        ((Button) dialog.getDialogPane().lookupButton(ButtonType.CLOSE)).setText("Đóng");
         dialog.setOnHidden(event -> history.dispose()); showDialog(dialog);
     }
 
@@ -1584,24 +1658,14 @@ public final class FxClientController implements AutoCloseable {
         if (selected == null) {
             return;
         }
-        if (selected.hasAnonymousGuests()) {
-            if (roomMode) { socialRoom.chooseKick(); }
-            else { showError("V\u00e0o ph\u00f2ng \u0111\u1ec3 ch\u1ecdn kh\u00e1ch theo s\u1ed1 th\u1ee9 t\u1ef1."); }
-            return;
-        }
-        TextInputDialog dialog = new TextInputDialog();
-        dialog.setTitle("Mời người dùng ra khỏi phòng");
-        dialog.setHeaderText("Username cần mời khỏi phòng");
         RoomRequest request = roomRequest(selected.getAuctionId());
-        showDialog(dialog).ifPresent(username -> auctions
-                .kickUser(selected.getAuctionId(), username)
-                .whenComplete((response, error) -> Platform.runLater(() -> {
-                    if (!current(request, true)) { return; }
-                    if (success(response, error)) {
-                        appendEvent(response.getMessageText().isBlank()
-                                ? "Đã kick " + username : response.getMessageText());
-                    }
-                })));
+        new RoomParticipantsDialog(stage, transport, selected.getAuctionId(),
+                () -> {
+                    ClientAuction active = model.joinedAuction();
+                    return current(request, true) && roomReady() && active != null && active.isOpen()
+                            && active.getEndTime() != null && Instant.now().isBefore(active.getEndTime());
+                },
+                () -> { if (current(request, true)) { socialRoom.refresh(); loadAuctionList(); } }, null).showAndWait();
     }
 
     private void showWallet() {
@@ -1614,7 +1678,7 @@ public final class FxClientController implements AutoCloseable {
         VBox.setVgrow(embeddedWallet, Priority.ALWAYS);
         showAccountContent(embeddedWallet);
         accountBreadcrumb.setText("Ví & nạp/rút tiền"); marketplaceNavigation.getStyleClass().remove("nav-active"); walletNavigation.getStyleClass().add("nav-active");
-        stage.setTitle("Auction • Ví của " + model.getUsername()); embeddedWallet.startEmbedded();
+        stage.setTitle("Đấu giá • Ví của " + model.getUsername()); embeddedWallet.startEmbedded();
     }
     private void showAuctionPage() {
         if (embeddedWallet == null && embeddedTransactions == null && embeddedReceipts == null && embeddedProducts == null && embeddedRules == null) { return; }
@@ -1622,7 +1686,7 @@ public final class FxClientController implements AutoCloseable {
         showAccountContent(auctionWorkspace);
         accountBreadcrumb.setText("Sàn đấu giá"); walletNavigation.getStyleClass().remove("nav-active");
         if (!marketplaceNavigation.getStyleClass().contains("nav-active")) { marketplaceNavigation.getStyleClass().add("nav-active"); }
-        stage.setTitle("Auction • Sàn đấu giá");
+        stage.setTitle("Đấu giá • Sàn đấu giá");
     }
     private void showTransactions() {
         if (embeddedTransactions != null || accountPageHost == null) { return; }
@@ -1633,7 +1697,7 @@ public final class FxClientController implements AutoCloseable {
         VBox.setVgrow(embeddedTransactions, Priority.ALWAYS);
         showAccountContent(embeddedTransactions);
         accountBreadcrumb.setText("Giao dịch"); marketplaceNavigation.getStyleClass().remove("nav-active");
-        transactionsNavigation.getStyleClass().add("nav-active"); stage.setTitle("Auction • Giao dịch của " + model.getUsername()); embeddedTransactions.start();
+        transactionsNavigation.getStyleClass().add("nav-active"); stage.setTitle("Đấu giá • Giao dịch của " + model.getUsername()); embeddedTransactions.start();
     }
     private void showAccountContent(Region content) {
         VBox body = new VBox(content); VBox.setVgrow(content, Priority.ALWAYS);
@@ -1661,7 +1725,7 @@ public final class FxClientController implements AutoCloseable {
         VBox.setVgrow(embeddedRules, Priority.ALWAYS); VBox.setMargin(embeddedRules, new Insets(4, 12, 10, 12));
         showAccountContent(embeddedRules);
         accountBreadcrumb.setText("Luật đấu giá"); marketplaceNavigation.getStyleClass().remove("nav-active"); rulesNavigation.getStyleClass().add("nav-active");
-        stage.setTitle("Auction • Luật đấu giá");
+        stage.setTitle("Đấu giá • Luật đấu giá");
     }
     private CompletableFuture<SellerProductsPane.Preview> loadSellerPreview(ClientProduct product) {
         return ProductMediaApi.connect(auctions, transport, model).thenCompose(api -> api.manifest(product.getProductId(), 0).thenApply(body -> {
@@ -1768,7 +1832,7 @@ public final class FxClientController implements AutoCloseable {
         VBox.setVgrow(view, Priority.ALWAYS); VBox.setMargin(view, new Insets(4, 12, 14, 12));
         showAccountContent(view);
         accountBreadcrumb.setText("Sản phẩm bán"); marketplaceNavigation.getStyleClass().remove("nav-active"); productsNavigation.getStyleClass().add("nav-active");
-        stage.setTitle("Auction • Sản phẩm bán của " + model.getUsername());
+        stage.setTitle("Đấu giá • Sản phẩm bán của " + model.getUsername());
         TableView<ClientProduct> table = view.table();
         media.setOnAction(event -> {
             ClientProduct selected = table.getSelectionModel().getSelectedItem();
@@ -1888,6 +1952,8 @@ public final class FxClientController implements AutoCloseable {
                         if (!current(request, false)) { return; }
                         if (success(created, createError)) {
                             applySnapshot(created, false);
+                            createdAuctionId = ClientWireParser.longValue(created.getWireMessage().getData(), "auctionId", 0L);
+                            createdRoomCode.setCode(created.get("roomCode"));
                             if (data.startTime() != null && model.serverNow().isBefore(data.startTime())) { phaseTabs.get(2).fire(); }
                             renderAuctions();
                             appendEvent("Đã tạo phòng #" + created.get("auctionId"));
@@ -1898,6 +1964,18 @@ public final class FxClientController implements AutoCloseable {
     }
 
     private void finishCreatingAuction() { creatingAuction = false; if (createAuctionAction != null) { createAuctionAction.setDisable(false); } }
+
+    private void clearCreatedRoomCode() {
+        createdAuctionId = 0L;
+        createdRoomCode.setCode("");
+    }
+
+    private void refreshCreatedRoomCode() {
+        if (createdAuctionId != 0L && model.auctionSnapshot().stream()
+                .noneMatch(auction -> auction.getAuctionId() == createdAuctionId && auction.isOpen())) {
+            clearCreatedRoomCode();
+        }
+    }
 
     private void logout() {
         autoReconnect = false;
@@ -1911,6 +1989,7 @@ public final class FxClientController implements AutoCloseable {
             roomChanging = false;
             if (error == null && response != null && response.isSuccess()) {
                 model.clearIdentity();
+                clearCreatedRoomCode();
                 friendsPane.reset();
                 clearNotificationCount();
                 bidVoice.resetSession();
@@ -2121,7 +2200,7 @@ public final class FxClientController implements AutoCloseable {
                 if (java.util.Objects.equals(model.getJoinedAuctionId(), auctionId)) { invalidateRoom(true); }
                 model.markKicked(auctionId);
                 renderAuctions();
-                showError(data.getOrDefault("message", "Bạn đã bị kick khỏi phòng"));
+                showError(data.getOrDefault("message", "Bạn đã được mời ra khỏi phòng"));
             }
             case OUTBID_NOTIFICATION -> {
                 ClientAuction joined = model.joinedAuction();
@@ -2132,7 +2211,7 @@ public final class FxClientController implements AutoCloseable {
                 }
                 appendEvent("BẠN ĐÃ BỊ VƯỢT GIÁ: " + data.getOrDefault("productName", ""));
             }
-            case ERROR -> appendEvent("Thông báo: " + data.getOrDefault("message", ""));
+            case ERROR -> appendEvent("Thông báo: " + ClientMessages.error(data.getOrDefault("errorCode", ""), data.getOrDefault("message", "")));
             default -> {
                 // Request responses are correlated by ClientTransport.
             }
@@ -2178,7 +2257,7 @@ public final class FxClientController implements AutoCloseable {
         VBox.setVgrow(embeddedReceipts, Priority.ALWAYS);
         showAccountContent(embeddedReceipts);
         accountBreadcrumb.setText("Kết quả phiên của tôi"); marketplaceNavigation.getStyleClass().remove("nav-active"); receiptsNavigation.getStyleClass().add("nav-active");
-        stage.setTitle("Auction • Kết quả phiên của " + model.getUsername()); embeddedReceipts.startEmbedded(room);
+        stage.setTitle("Đấu giá • Kết quả phiên của " + model.getUsername()); embeddedReceipts.startEmbedded(room);
     }
 
     private void applyBidUpdate(Map<String, String> data) {
@@ -2203,6 +2282,7 @@ public final class FxClientController implements AutoCloseable {
     }
 
     private void renderAuctions() {
+        refreshCreatedRoomCode();
         var snapshot = model.auctionSnapshot().stream().filter(value -> value.isOpen()
                 || value.hasRecentResult(model.serverNow())).toList();
         roomCount.setText(Integer.toString(snapshot.size()));
@@ -2266,6 +2346,7 @@ public final class FxClientController implements AutoCloseable {
         }
         if (auction == null) {
             detailName.setText("Chọn một phòng");
+            detailRoomCode.setCode("");
             detailHost.setText("");
             detailPrice.setText("");
             detailLeader.setText("");
@@ -2279,10 +2360,11 @@ public final class FxClientController implements AutoCloseable {
             return;
         }
         boolean personalRoom = java.util.Objects.equals(model.getJoinedAuctionId(), auction.getAuctionId());
+        detailRoomCode.setCode(auction.getRoomCode());
         detailName.setText((personalRoom ? "#" + auction.getAuctionId() + " - " : "") + auction.getProductName());
         detailHost.setText("Chủ phòng: " + auction.getHostUsername() + (personalRoom ? "  •  Bước giá " + money(auction.getMinBidIncrement()) : ""));
         detailStep.setText(money(auction.getMinBidIncrement())); detailTag.setText(auction.requiresPassword() ? "Riêng tư" : "Công khai");
-        detailAuctionBadge.setText("#" + auction.getAuctionId() + " · " + (!auction.isOpen() ? "ĐÃ KẾT THÚC" : phaseMatches(auction, "UPCOMING") ? "SẮP DIỄN RA" : "ĐANG ĐẤU GIÁ"));
+        detailAuctionBadge.setText("#" + auction.getAuctionId() + " · " + (!auction.isOpen() ? "ĐÃ KẾT THÚC" : phaseMatches(auction, "UPCOMING") ? "SẮP DIỄN RA" : "Đang đấu giá"));
         detailAuctionBadge.pseudoClassStateChanged(javafx.css.PseudoClass.getPseudoClass("ended"), !auction.isOpen());
         detailAuctionBadge.pseudoClassStateChanged(javafx.css.PseudoClass.getPseudoClass("upcoming"), phaseMatches(auction, "UPCOMING"));
         String price = money(auction.getCurrentPrice());
@@ -2295,8 +2377,8 @@ public final class FxClientController implements AutoCloseable {
         detailTime.setText(countdownText(auction));
         AuctionDeadlineStyle.update(detailTime, auction, model.serverNow());
         detailVisibility.setText((!auction.isOpen() ? "ĐÃ KẾT THÚC" :
-                auction.requiresPassword() ? "PHÒNG RIÊNG TƯ" : "PHÒNG CÔNG KHAI")
-                + (auction.hasAnonymousGuests() ? " \u00b7 KH\u00c1CH \u1ea8N DANH" : ""));
+                auction.requiresPassword() ? "PHÒNG RIÊNG TƯ" : "Phòng công khai")
+                + (auction.hasAnonymousGuests() ? " · khách ẩn danh" : ""));
         detailDescription.setText(auction.getWatcherCount() + "/" + auction.getMaxParticipants() + " người đang trong phòng"
                 + (auction.isFull() ? " · Đã đầy" : " · Còn " + (auction.getMaxParticipants() - auction.getWatcherCount()) + " chỗ")
                 + (auction.getDepositAmount().signum() > 0 ? "\nĐặt cọc trước giờ bắt đầu: " + money(auction.getDepositAmount()) : "")
@@ -2362,7 +2444,7 @@ public final class FxClientController implements AutoCloseable {
             if (leaving) { invalidateRoom(true); }
             for (ClientAuction result : expiredResults) { model.removeAuction(result.getAuctionId(), model.serverNow()); }
             renderAuctions();
-            if (leaving) { appendEvent("Đã đóng màn hình kết quả sau 60 giây. Lịch sử và thanh toán vẫn được lưu trên server."); }
+            if (leaving) { appendEvent("Đã đóng màn hình kết quả sau 60 giây. Lịch sử và thanh toán vẫn được lưu trên máy chủ."); }
         }
         ClientAuction joined = model.joinedAuction();
         if (transport.isConnected() && roomSnapshotReady && !roomSyncing && !roomChanging
@@ -2437,9 +2519,9 @@ public final class FxClientController implements AutoCloseable {
         boolean paid = auction != null && depositedRooms.contains(auction.getAuctionId());
         joinButton.setText(placingDeposit ? "Đang đặt cọc..." : upcoming
                 ? hosted || auction.getDepositAmount().signum() <= 0 ? "Chờ bắt đầu" : paid ? "Đã đặt cọc · Chờ bắt đầu" : "Đặt cọc " + money(auction.getDepositAmount())
-                : auction != null && auction.isFull() && !joined ? "Phòng đã đầy" : "Vào phòng");
+                : auction != null && auction.isFull() && !joined && !hosted ? "Phòng đã đầy" : "Vào phòng");
         joinButton.setDisable(joined || roomChanging || placingDeposit || !transport.isConnected()
-                || (upcoming ? hosted || paid || auction.getDepositAmount().signum() <= 0 : !available || auction.isFull()));
+                || (upcoming ? hosted || paid || auction.getDepositAmount().signum() <= 0 : !available || (!hosted && auction.isFull())));
         leaveButton.setDisable(model.getJoinedAuctionId() == null || roomChanging || !transport.isConnected());
         if (pageBack != null) { pageBack.setDisable(!accountPageVisible && leaveButton.isDisabled()); }
         boolean leading = auction != null && java.util.Objects.equals(auction.getCurrentWinnerId(), auction.viewerId(model.getUserId()));
@@ -2466,7 +2548,7 @@ public final class FxClientController implements AutoCloseable {
                 : !roomReady() ? "\u0110ang ch\u1edd \u0111\u1ed3ng b\u1ed9 d\u1eef li\u1ec7u h\u1ee3p l\u1ec7; c\u00e1c n\u00fat qu\u1ea3n l\u00fd t\u1ea1m kh\u00f3a."
                 : hasBids ? "\u0110\u00e3 c\u00f3 l\u01b0\u1ee3t h\u1ee3p l\u1ec7: kh\u00f4ng \u0111\u01b0\u1ee3c gia h\u1ea1n th\u1ee7 c\u00f4ng, k\u1ebft th\u00fac s\u1edbm ho\u1eb7c h\u1ee7y. Ch\u1ec9 m\u1eddi ng\u01b0\u1eddi ch\u01b0a t\u1eebng tr\u1ea3 gi\u00e1 ra kh\u1ecfi ph\u00f2ng."
                 : extensionLimit ? "\u0110\u00e3 ch\u1ea1m h\u1ea1n cu\u1ed1i: kh\u00f4ng th\u1ec3 gia h\u1ea1n th\u00eam."
-                : "Ch\u1ec9 \u0111\u01b0\u1ee3c gia h\u1ea1n, k\u1ebft th\u00fac s\u1edbm, h\u1ee7y khi ch\u01b0a c\u00f3 l\u01b0\u1ee3t h\u1ee3p l\u1ec7. Server ki\u1ec3m tra l\u1ea1i m\u1ecdi thao t\u00e1c.");
+                : "Ch\u1ec9 \u0111\u01b0\u1ee3c gia h\u1ea1n, k\u1ebft th\u00fac s\u1edbm, h\u1ee7y khi ch\u01b0a c\u00f3 l\u01b0\u1ee3t h\u1ee3p l\u1ec7. Máy chủ ki\u1ec3m tra l\u1ea1i m\u1ecdi thao t\u00e1c.");
         updateRoomLayout(joined);
         renderRoomActivity(auction, joined, hosted, leading);
     }
@@ -2511,7 +2593,7 @@ public final class FxClientController implements AutoCloseable {
             roomProductIdentity.getChildren().setAll(detailName, detailHost);
             HBox.setHgrow(roomProductIdentity, Priority.ALWAYS);
             roomProductIdentity.setMinWidth(0);
-            roomProductSummary.getChildren().setAll(roomProductIdentity, productHeader, roomImage);
+            roomProductSummary.getChildren().setAll(roomProductIdentity, detailRoomCode, productHeader, roomImage);
             ClientAuction receiptAuction = model.joinedAuction();
             if (receiptAuction != null && !receiptAuction.isOpen()) {
                 Button receipt = new Button("Xem bi\u00ean nh\u1eadn c\u1ee7a t\u00f4i");
@@ -2578,7 +2660,7 @@ public final class FxClientController implements AutoCloseable {
         if (!joined || auction == null) { return; }
         roomProductInformation.update(auction);
         pageTitle.setText("Ph\u00f2ng \u0111\u1ea5u gi\u00e1 #" + auction.getAuctionId());
-        pageEyebrow.setText(hosted ? "KH\u00d4NG GIAN CH\u1ee6 PH\u00d2NG" : "PHI\u00caN \u0110\u1ea4U GI\u00c1 C\u1ee6A B\u1ea0N");
+        pageEyebrow.setText(hosted ? "Quản lý phòng" : "Phòng đang tham gia");
         BigDecimal minimum = auction.getCurrentPrice().add(auction.getMinBidIncrement());
         bidField.setPromptText("T\u1ed1i thi\u1ec3u " + money(minimum));
         String connection = !transport.isConnected()
@@ -2592,7 +2674,7 @@ public final class FxClientController implements AutoCloseable {
                 : roomChanging || roomSyncing || roomWalletLoading && roomAvailable == null ? "SYNCING"
                 : !roomReady() ? "STALE" : "READY");
         String lock = !auction.isOpen() ? "Phi\u00ean \u0111\u00e3 \u0111\u00f3ng."
-                : !model.serverNow().isBefore(auction.getEndTime()) ? "H\u1ebft gi\u1edd nh\u1eadn gi\u00e1; ch\u1edd server ch\u1ed1t."
+                : !model.serverNow().isBefore(auction.getEndTime()) ? "H\u1ebft gi\u1edd nh\u1eadn gi\u00e1; ch\u1edd máy chủ ch\u1ed1t."
                 : hosted ? "Ch\u1ee7 ph\u00f2ng kh\u00f4ng \u0111\u01b0\u1ee3c \u0111\u1eb7t gi\u00e1."
                 : leading ? "B\u1ea1n \u0111ang d\u1eabn \u0111\u1ea7u, kh\u00f4ng th\u1ec3 t\u1ef1 n\u00e2ng gi\u00e1."
                 : maxBidAmount != null && minimum.compareTo(maxBidAmount) > 0 ? "\u0110\u00e3 ch\u1ea1m gi\u1edbi h\u1ea1n gi\u00e1." : "";
@@ -2627,9 +2709,8 @@ public final class FxClientController implements AutoCloseable {
             return false;
         }
         if (response == null || !response.isSuccess()) {
-            String code = response == null ? "NO_RESPONSE" : response.getErrorCode();
-            String message = response == null ? "Server không trả dữ liệu" : response.getMessageText();
-            showError(code + (message.isBlank() ? "" : ": " + message));
+            String message = response == null ? "Máy chủ chưa phản hồi. Vui lòng thử lại." : response.getUserMessage();
+            showError(message.isBlank() ? "Không thể thực hiện thao tác. Vui lòng thử lại." : message);
             return false;
         }
         return true;
@@ -2637,8 +2718,25 @@ public final class FxClientController implements AutoCloseable {
 
     private void setLoginBusy(boolean busy) {
         loginButton.setDisable(busy);
+        usernameField.setDisable(busy);
+        passwordField.setDisable(busy);
         registerButton.setDisable(busy);
         connectButton.setDisable(busy);
+    }
+
+    private void showLoginError(String message, boolean invalidCredentials) {
+        loginErrorLabel.setText(message);
+        loginErrorBanner.setVisible(true);
+        usernameField.pseudoClassStateChanged(INVALID, invalidCredentials);
+        passwordField.pseudoClassStateChanged(INVALID, invalidCredentials);
+        sounds.play(ClientSounds.Cue.ERROR);
+    }
+
+    private void clearLoginError() {
+        loginErrorBanner.setVisible(false);
+        loginErrorLabel.setText("");
+        usernameField.pseudoClassStateChanged(INVALID, false);
+        passwordField.pseudoClassStateChanged(INVALID, false);
     }
 
     private void appendEvent(String message) {
@@ -2655,22 +2753,25 @@ public final class FxClientController implements AutoCloseable {
 
     private void showError(String message) {
         sounds.play(ClientSounds.Cue.ERROR);
-        Alert alert = new Alert(Alert.AlertType.ERROR, message == null ? "Lỗi không xác định" : message);
-        alert.setHeaderText("Auction");
+        Alert alert = new Alert(Alert.AlertType.ERROR, ClientMessages.text(message));
+        alert.setTitle("Lỗi");
+        alert.setHeaderText(null);
         showDialog(alert);
     }
 
     private void showInfo(String message) {
         sounds.play(ClientSounds.Cue.SUCCESS);
         Alert alert = new Alert(Alert.AlertType.INFORMATION, message);
-        alert.setHeaderText("Auction");
+        alert.setTitle("Thông báo");
+        alert.setHeaderText(null);
         showDialog(alert);
     }
 
     private boolean confirm(String message) {
         Alert alert = new Alert(Alert.AlertType.CONFIRMATION, message,
                 ButtonType.YES, ButtonType.NO);
-        alert.setHeaderText("Xác nhận");
+        alert.setTitle("Xác nhận");
+        alert.setHeaderText(null);
         return showDialog(alert).orElse(ButtonType.NO) == ButtonType.YES;
     }
 
@@ -2705,13 +2806,7 @@ public final class FxClientController implements AutoCloseable {
     }
 
     private String rootMessage(Throwable throwable) {
-        Throwable current = throwable;
-        while (current.getCause() != null) {
-            current = current.getCause();
-        }
-        return current.getMessage() == null
-                ? current.getClass().getSimpleName()
-                : current.getMessage();
+        return ClientMessages.message(throwable);
     }
 
     @Override

@@ -99,6 +99,8 @@ public final class ClientSoundsUiSelfTest {
             MenuButton menu = (MenuButton) view.stage().getScene().lookup("#client-sound-settings");
             VBox panel = (VBox) ((CustomMenuItem) menu.getItems().get(1)).getContent();
             panel.applyCss(); panel.layout();
+            checkboxPresentation(panel, "client-music-enabled");
+            checkboxPresentation(panel, "client-bid-voice-enabled");
             Label amount = (Label) panel.lookup(".sound-settings-label");
             javafx.scene.paint.Color foreground = (javafx.scene.paint.Color) amount.getTextFill();
             javafx.scene.paint.Color background = (javafx.scene.paint.Color) panel.getBackground().getFills().getFirst().getFill();
@@ -113,6 +115,35 @@ public final class ClientSoundsUiSelfTest {
             ((Button) original.lookup("#account-marketplace-navigation")).fire();
             return null;
         });
+    }
+
+    private static void checkboxPresentation(VBox panel, String id) {
+        CheckBox checkbox = (CheckBox) panel.lookup("#" + id);
+        boolean original = checkbox.isSelected();
+        try {
+            if (!checkbox.isSelected()) { checkbox.fire(); }
+            panel.applyCss(); panel.layout();
+            TestSupport.check(checkbox.isSelected(), id + " selects when clicked");
+            var box = (javafx.scene.layout.Region) checkbox.lookup(".box");
+            var mark = (javafx.scene.layout.Region) checkbox.lookup(".mark");
+            var background = (javafx.scene.paint.Color) box.getBackground().getFills().getLast().getFill();
+            var foreground = (javafx.scene.paint.Color) mark.getBackground().getFills().getLast().getFill();
+            double contrast = (Math.max(luminance(background), luminance(foreground)) + .05)
+                    / (Math.min(luminance(background), luminance(foreground)) + .05);
+            TestSupport.check(foreground.getOpacity() > .9 && contrast >= 4.5,
+                    id + " selected checkmark contrasts with its box: " + foreground + " on " + background);
+            TestSupport.check(mark.getShape() != null && mark.getWidth() > 0 && mark.getHeight() > 0,
+                    id + " has a visible checkmark shape");
+            checkbox.fire();
+            panel.applyCss(); panel.layout();
+            TestSupport.check(!checkbox.isSelected(), id + " deselects when clicked again");
+            TestSupport.check(mark.getBackground() == null || mark.getBackground().getFills().isEmpty()
+                            || ((javafx.scene.paint.Color) mark.getBackground().getFills().getLast().getFill()).getOpacity() == 0,
+                    id + " hides its checkmark when deselected");
+        } finally {
+            if (checkbox.isSelected() != original) { checkbox.fire(); }
+            panel.applyCss(); panel.layout();
+        }
     }
 
     private static double luminance(javafx.scene.paint.Color color) {
@@ -197,6 +228,7 @@ public final class ClientSoundsUiSelfTest {
     private static void bids(View view) throws Exception {
         ready(view, "100", 0);
         int accepted = count(Cue.BID_ACCEPTED);
+        int spokenBefore = SPOKEN.size();
         fx(() -> { ((TextField) field(view.controller(), "bidField")).setText("110"); ((Button) field(view.controller(), "bidButton")).fire(); return null; });
         TestSupport.equals(accepted, count(Cue.BID_ACCEPTED), "pending request must not sound accepted");
         view.network().take(MessageType.PLACE_BID).complete(message(MessageType.BID_REJECTED, Map.of("success", "false", "errorCode", "BID_TOO_LOW")));
@@ -208,6 +240,7 @@ public final class ClientSoundsUiSelfTest {
         response.putAll(Map.of("bid.bidId", "2", "bid.auctionId", "1", "bid.userId", "-2", "bid.amount", "110", "bid.createdAt", Instant.now().toString()));
         view.network().take(MessageType.PLACE_BID).complete(message(MessageType.BID_ACCEPTED, response)); drain();
         TestSupport.equals(accepted + 1, count(Cue.BID_ACCEPTED), "canonical accepted response plays once");
+        TestSupport.waitUntil(() -> SPOKEN.size() == spokenBefore + 1, 3000, "accepted-response narration finishes before the next scenario");
         fx(() -> { invoke(view.controller(), "bidConfirmedSound", new Class<?>[]{long.class, BigDecimal.class}, 1L, new BigDecimal("110.00")); return null; });
         TestSupport.equals(accepted + 1, count(Cue.BID_ACCEPTED), "replayed confirmation does not sound twice");
     }

@@ -6,6 +6,7 @@ import java.util.concurrent.locks.ReentrantLock;
 
 public final class AuctionRuntime {
     private final long auctionId;
+    private final String roomCode;
     private final Product product;
     private final long hostUserId;
     private final String hostUsername;
@@ -32,6 +33,7 @@ public final class AuctionRuntime {
 
     public AuctionRuntime(AuctionSnapshot snapshot) {
         this.auctionId = snapshot.getAuctionId();
+        this.roomCode = snapshot.getRoomCode();
         this.product = snapshot.getProduct();
         this.hostUserId = snapshot.getHostUserId();
         this.hostUsername = snapshot.getHostUsername();
@@ -125,7 +127,7 @@ public final class AuctionRuntime {
                     visibility,
                     roomPasswordHash,
                     roomPasswordSalt,
-                    roomPasswordIterations, hardEndTime, anonymousGuests, maxParticipants, depositAmount);
+                    roomPasswordIterations, hardEndTime, anonymousGuests, maxParticipants, depositAmount, roomCode);
         } finally {
             lock.unlock();
         }

@@ -336,7 +336,11 @@ public final class RoomSocialService {
     }
 
     private String alias(AuctionSnapshot auction, long userId) {
-        return userId == auction.getHostUserId() ? "Ch\u1ee7 ph\u00f2ng" : "Kh\u00e1ch #" + store.ordinal(auction.getAuctionId(), userId, true);
+        if (userId == auction.getHostUserId()) { return "Ch\u1ee7 ph\u00f2ng"; }
+        long ordinal = store.ordinal(auction.getAuctionId(), userId, true);
+        long hostOrdinal = store.ordinal(auction.getAuctionId(), auction.getHostUserId(), false);
+        long guestNumber = hostOrdinal > 0 && hostOrdinal < ordinal ? ordinal - 1 : ordinal;
+        return "Kh\u00e1ch #" + guestNumber;
     }
 
     public WireMessage project(String connectionId, WireMessage message) {

@@ -112,7 +112,7 @@ final class FeaturedAuctionsPane extends VBox implements AutoCloseable {
             if (auction != null && auction.getAuctionId() == a.getAuctionId() && auction.getOccupancyVersion() > a.getOccupancyVersion()) {
                 a = a.withOccupancy(auction.getWatcherCount(), auction.getOccupancyVersion());
             }
-            auction = a; button.setId("featured-auction-" + a.getAuctionId()); rank.setText("TOP " + position); room.setText("PHÒNG #" + a.getAuctionId());
+            auction = a; button.setId("featured-auction-" + a.getAuctionId()); rank.setText("Hạng " + position); room.setText("Phòng #" + a.getAuctionId());
             button.getStyleClass().removeIf(style -> style.startsWith("featured-card-top-")); button.getStyleClass().add("featured-card-top-" + position);
             rank.setGraphic(MarketplaceIcons.icon(position == 1 ? "crown" : position <= 3 ? "trophy" : "star", 15, position == 2 ? "#445565" : "#77501c"));
             leader.setVisible(position == 1); leader.setManaged(position == 1);
