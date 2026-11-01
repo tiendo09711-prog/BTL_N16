@@ -29,7 +29,8 @@ if (!Number.isInteger(port) || port < 1 || port > 65535) {
   throw new Error('--port must be an integer from 1 to 65535.');
 }
 
-if (!existsSync(path.join(projectRoot, 'target', 'classes'))) {
+if (!existsSync(path.join(projectRoot, 'target', 'classes', 'vn', 'ptit', 'btl16', 'client', 'ClientMain.class'))
+    || !existsSync(path.join(projectRoot, 'target', 'dependency'))) {
   await buildProject();
 }
 
