@@ -34,7 +34,14 @@ public final class PiperSpeech implements ClientBidVoice.Speech {
         try {
             Path source = Path.of(PiperSpeech.class.getProtectionDomain().getCodeSource().getLocation().toURI());
             Path application = Files.isDirectory(source) ? source.getParent().getParent() : source.getParent();
-            return application.resolve("tools/speech");
+            Path bundled = application.resolve("tools/speech");
+            String localAppData = System.getenv("LOCALAPPDATA");
+            if (System.getProperty("os.name").startsWith("Windows") && !Files.isRegularFile(bundled.resolve("piper/piper.exe"))
+                    && localAppData != null && !localAppData.isBlank()) {
+                Path installed = Path.of(localAppData, "BTL16", "tools", "speech");
+                if (Files.isRegularFile(installed.resolve("piper/piper.exe"))) { return installed; }
+            }
+            return bundled;
         } catch (Exception error) { throw new IllegalStateException("Cannot locate local speech files", error); }
     }
 

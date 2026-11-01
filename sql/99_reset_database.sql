@@ -1,2 +1,0 @@
-DROP DATABASE IF EXISTS `btl_16`;
-SOURCE 00_schema.sql;

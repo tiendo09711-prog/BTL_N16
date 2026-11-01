@@ -39,6 +39,10 @@ public record MediaConfig(Path ffmpeg, Path ffprobe, int port, long imageBytes, 
         String configured = System.getProperty("btl16." + name, properties.get("media." + name, ""));
         if (!configured.isBlank()) { return Path.of(configured).toAbsolutePath().normalize(); }
         List<Path> candidates = new ArrayList<>(List.of(tools.resolve(name + suffix)));
+        String localAppData = System.getenv("LOCALAPPDATA");
+        if (System.getProperty("os.name").startsWith("Windows") && localAppData != null && !localAppData.isBlank()) {
+            candidates.add(Path.of(localAppData, "BTL16", "tools", "media", name + suffix));
+        }
         if (System.getProperty("os.name").startsWith("Mac")) {
             candidates.add(Path.of("/opt/homebrew/bin", name));
             candidates.add(Path.of("/usr/local/bin", name));

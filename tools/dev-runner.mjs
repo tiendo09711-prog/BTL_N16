@@ -52,15 +52,19 @@ try {
     throw new Error(`Port ${webSocketPort} is already occupied. Stop the old server first.`);
   }
 
-  console.log('[DEV] Starting MySQL/JDBC auction server...');
-  serverProcess = startJava('vn.ptit.btl16.server.ServerMain');
+  console.log('[DEV] Starting MySQL/JDBC JavaFX server window...');
+  serverProcess = startJava('vn.ptit.btl16.server.fx.ServerFxMain');
   serverProcess.once('error', (error) => {
     console.error('[DEV] Cannot start server:', error.message);
     void shutdown(1);
   });
   serverProcess.once('exit', (code, signal) => {
     if (!shuttingDown) {
-      console.error(`[DEV] Server stopped unexpectedly (${signal ?? `exit ${code}`}).`);
+      if (code === 0) {
+        console.log('[DEV] Server window closed.');
+      } else {
+        console.error(`[DEV] Server stopped unexpectedly (${signal ?? `exit ${code}`}).`);
+      }
       void shutdown(code ?? 1);
     }
   });
@@ -83,7 +87,7 @@ try {
     console.log(`[DEV] Remote command:          npm run client -- --url=ws://${address}:${webSocketPort}/ws`);
   }
   console.log('[DEV] ws:// is a WebSocket endpoint, not a website.');
-  console.log('[DEV] Remote computers need the packaged JavaFX client and firewall TCP 8890.');
+  console.log('[DEV] Remote computers need this project, Java/Maven/Node.js and firewall TCP 8890.');
 
   if (!serverOnly) {
     console.log('[DEV] Starting one local JavaFX client...');

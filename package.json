@@ -4,21 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node tools/dev-runner.mjs",
-    "dev:server": "node tools/dev-runner.mjs --server-only",
-    "client": "node tools/client-runner.mjs",
-    "build": "mvn -q -DskipTests package dependency:copy-dependencies -DincludeScope=runtime",
-    "test": "node tools/run-tests.mjs",
-    "test:full": "node tools/run-tests.mjs --ui",
-    "test:mysql": "node tools/run-tests.mjs --mysql",
-    "test:dist": "node tools/run-tests.mjs --ui --packaged",
-    "test:bundles": "node tools/verify-distributions.mjs",
-    "dist:client": "node tools/package-client.mjs",
-    "dist:server": "node tools/package-server.mjs",
-    "dist:mac:portable": "node tools/package-mac-portable.mjs",
-    "dist:mac:intel": "node tools/package-mac-portable.mjs --arch=x64",
-    "test:packaging": "node --test tools/package-layout.test.mjs tools/package-windows-bundle.test.mjs",
-    "dist": "node tools/package-desktop.mjs",
-    "dist:all": "node tools/package-release.mjs"
+    "server": "node tools/dev-runner.mjs --server-only",
+    "client": "node tools/client-runner.mjs"
   }
 }
