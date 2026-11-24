@@ -106,7 +106,7 @@ final class AuctionCreationDialog extends Dialog<AuctionCreationDialog.Draft> {
                 field("users", "Loại phòng", roomTypes), field("lock", "Mật khẩu", password), field("lock", "Xác nhận", repeatedPassword));
         HBox privacyNote = note("Phòng ẩn danh che danh tính người bán và người mua; không xem hồ sơ và không tính vào xếp hạng doanh thu. Vẫn thanh toán và thu phí sàn bình thường. Không thể đổi chế độ sau khi tạo.");
         privacyNote.getStyleClass().add("auction-create-privacy-note");
-        editor.getChildren().setAll(section("Thông tin sản phẩm", "Tất cả sản phẩm trên server, của mọi tài khoản và mọi trạng thái", "box", field("box", "Sản phẩm", product)),
+        editor.getChildren().setAll(section("Thông tin sản phẩm", "Sản phẩm của bạn chưa bán và chưa có phiên đấu giá đang mở", "box", field("box", "Sản phẩm", product)),
                 settings, privacy, section("Cài đặt khác", "Thiết lập danh tính người bán và người mua", "users", field("profile", "Danh tính phòng", identity), privacyNote));
         editor.getStyleClass().add("auction-create-body");
         editor.setMinHeight(Region.USE_PREF_SIZE);

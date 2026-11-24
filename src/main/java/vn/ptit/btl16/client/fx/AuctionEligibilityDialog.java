@@ -28,9 +28,9 @@ final class AuctionEligibilityDialog extends Dialog<Boolean> {
 
     AuctionEligibilityDialog(Stage owner) {
         initOwner(owner); initModality(Modality.WINDOW_MODAL); initStyle(StageStyle.TRANSPARENT);
-        setTitle("Server chưa có sản phẩm");
-        Label title = DesktopTheme.label("Server chưa có sản phẩm", "eligibility-title"); title.setAlignment(Pos.CENTER); title.setMaxWidth(Double.MAX_VALUE);
-        Label note = DesktopTheme.label("Danh sách đã tải từ toàn bộ server. Hãy thêm sản phẩm rồi thử lại.", "eligibility-note"); note.setAlignment(Pos.CENTER); note.setMaxWidth(320);
+        setTitle("Chưa có sản phẩm phù hợp");
+        Label title = DesktopTheme.label("Chưa có sản phẩm phù hợp", "eligibility-title"); title.setAlignment(Pos.CENTER); title.setMaxWidth(Double.MAX_VALUE);
+        Label note = DesktopTheme.label("Chỉ chọn sản phẩm của bạn còn hoạt động, chưa bán và chưa có phiên đấu giá đang mở. Hãy thêm sản phẩm rồi thử lại.", "eligibility-note"); note.setAlignment(Pos.CENTER); note.setMaxWidth(320);
         Button retry = new Button("Thử lại ngay", MarketplaceIcons.icon("refresh", 16, "#fff8e8")); retry.setId("auction-eligibility-retry"); retry.getStyleClass().add("eligibility-retry"); retry.setDefaultButton(true); retry.setOnAction(event -> { setResult(true); close(); });
         HBox divider = new HBox(12, new Separator(), MarketplaceIcons.icon("sparkles", 14, "#b48036"), new Separator()); divider.setAlignment(Pos.CENTER); divider.getStyleClass().add("eligibility-divider"); for (Node child : divider.getChildren()) { if (child instanceof Separator) { HBox.setHgrow(child, Priority.ALWAYS); } }
         VBox content = new VBox(11, artwork(), title, note, divider, retry); content.setAlignment(Pos.CENTER); content.getStyleClass().add("eligibility-content");
