@@ -30,8 +30,8 @@ final class RoomDepositDialog extends Dialog<ButtonType> {
         VBox timing = new VBox(5, text("Hoàn tất trước giờ bắt đầu", "deposit-caption"), deadline);
         timing.getStyleClass().add("deposit-deadline-card");
         VBox policy = new VBox(13,
-                policy("01", "Giữ trong ví", "Tiền cọc được giữ trong ví và tính vào tiền thanh toán nếu bạn thắng đấu giá."),
-                policy("02", "Hoàn lại khi không thắng", "Tiền cọc được hoàn khi phiên đấu giá kết thúc hoặc bị hủy."));
+                policy("01", "Giữ trong ví", "Tiền cọc được tạm giữ trong ví trước giờ bắt đầu để xác nhận quyền tham gia phòng."),
+                policy("02", "Hoàn lại khi phòng mở", "Tiền cọc tự động được hoàn khi phòng bắt đầu hoặc bị hủy. Tiền đặt giá được giữ riêng theo giá bạn trả."));
         policy.setId("deposit-policy"); policy.getStyleClass().add("deposit-policy");
         Label note = text("Lưu ý: đặt cọc không giữ chỗ. Bạn cần vào phòng khi phiên bắt đầu và vẫn còn chỗ trống.", "deposit-notice");
         VBox body = new VBox(16, summary, timing, policy, note); body.getStyleClass().add("deposit-body");

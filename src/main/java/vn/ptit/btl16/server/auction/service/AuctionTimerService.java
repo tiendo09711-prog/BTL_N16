@@ -10,7 +10,9 @@ import vn.ptit.btl16.server.auction.repository.AuctionRepository;
 import vn.ptit.btl16.server.auction.repository.CloseAuctionCommit;
 
 import java.time.Instant;
+import java.util.HashSet;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
@@ -24,6 +26,7 @@ public final class AuctionTimerService implements AutoCloseable {
     private final int checkMillis;
     private final int tickMillis;
     private final ScheduledExecutorService scheduler;
+    private final Set<Long> refundedDeposits = new HashSet<>();
     private volatile long lastTickAt;
 
     public AuctionTimerService(
@@ -54,6 +57,7 @@ public final class AuctionTimerService implements AutoCloseable {
         try {
             Instant now = Instant.now();
             for (AuctionRuntime runtime : auctions.runtimes()) {
+                refundDepositsIfStarted(runtime, now);
                 closeIfExpired(runtime, now);
             }
             archiveClosedAuctions(now);
@@ -67,8 +71,19 @@ public final class AuctionTimerService implements AutoCloseable {
         }
     }
 
+    private void refundDepositsIfStarted(AuctionRuntime runtime, Instant now) {
+        if (refundedDeposits.contains(runtime.getAuctionId())) { return; }
+        AuctionSnapshot snapshot = runtime.snapshot();
+        if (snapshot.getStatus() == AuctionStatus.OPEN && snapshot.getDepositAmount().signum() > 0
+                && !now.isBefore(snapshot.getStartTime())) {
+            repository.refundAuctionDeposits(snapshot.getAuctionId(), now);
+            refundedDeposits.add(snapshot.getAuctionId());
+        }
+    }
+
     private void archiveClosedAuctions(Instant now) {
         for (AuctionSnapshot snapshot : auctions.archiveClosedAuctions(now)) {
+            refundedDeposits.remove(snapshot.getAuctionId());
             rooms.removeAuction(snapshot.getAuctionId());
             broadcasts.broadcastAll(
                     MessageType.AUCTION_ARCHIVED,

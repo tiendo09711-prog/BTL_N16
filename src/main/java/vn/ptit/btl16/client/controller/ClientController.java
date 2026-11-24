@@ -345,7 +345,7 @@ public final class ClientController implements AutoCloseable {
     }
 
     private void createAuction() {
-        loadMyProducts(products -> view.promptAuction(products).ifPresent(input -> {
+        loadProducts(true, products -> view.promptAuction(products).ifPresent(input -> {
             try {
                 BigDecimal startPrice = parseMoneyInput(input.getStartPrice(), "Giá khởi điểm");
                 BigDecimal minIncrement = parseMoneyInput(
@@ -382,8 +382,12 @@ public final class ClientController implements AutoCloseable {
     }
 
     private void loadMyProducts(Consumer<List<ClientProduct>> consumer) {
+        loadProducts(false, consumer);
+    }
+
+    private void loadProducts(boolean allProducts, Consumer<List<ClientProduct>> consumer) {
         setAuctionBusy(true);
-        auctions.myProducts().whenComplete((response, error) -> onEdt(() -> {
+        (allProducts ? auctions.allProducts() : auctions.myProducts()).whenComplete((response, error) -> onEdt(() -> {
             setAuctionBusy(false);
             if (error != null) {
                 view.showError("Tải sản phẩm lỗi: " + rootMessage(error));

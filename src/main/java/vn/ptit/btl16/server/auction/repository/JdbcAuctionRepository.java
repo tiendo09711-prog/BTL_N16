@@ -492,6 +492,22 @@ public final class JdbcAuctionRepository implements AuctionRepository {
     }
 
     @Override
+    public List<Product> findAllProducts() {
+        String sql = PRODUCT_SELECT + " ORDER BY p.created_at DESC, p.product_id DESC";
+        try (Connection connection = connectionFactory.openDatabase();
+             PreparedStatement statement = connection.prepareStatement(sql);
+             ResultSet resultSet = statement.executeQuery()) {
+            List<Product> products = new ArrayList<>();
+            while (resultSet.next()) {
+                products.add(mapProduct(resultSet));
+            }
+            return products;
+        } catch (SQLException exception) {
+            throw new AuctionRepositoryException("Cannot load all products", exception);
+        }
+    }
+
+    @Override
     public List<Product> findProductsByOwner(long ownerId) {
         String sql = PRODUCT_SELECT + " WHERE p.created_by = ? AND NOT EXISTS (SELECT 1 FROM deleted_products d WHERE d.product_id=p.product_id) ORDER BY p.created_at DESC";
         try (Connection connection = connectionFactory.openDatabase();
@@ -695,13 +711,21 @@ public final class JdbcAuctionRepository implements AuctionRepository {
     @Override
     public BigDecimal auctionDeposit(long auctionId, long userId) {
         try (var connection = connectionFactory.openDatabase()) {
-            return AuctionAdmissionStore.held(connection, auctionId, userId);
+            return AuctionAdmissionStore.paid(connection, auctionId, userId);
         } catch (SQLException error) { throw new AuctionRepositoryException("Cannot read room deposit", error); }
     }
 
     @Override
     public BigDecimal placeAuctionDeposit(long auctionId, long userId) {
         return transaction(connection -> AuctionAdmissionStore.place(connection, auctionId, userId));
+    }
+
+    @Override
+    public void refundAuctionDeposits(long auctionId, Instant now) {
+        transaction(connection -> {
+            AuctionAdmissionStore.refundIfStarted(connection, auctionId, now);
+            return null;
+        });
     }
 
     @Override
@@ -820,7 +844,7 @@ public final class JdbcAuctionRepository implements AuctionRepository {
                             throw new AuctionConflictException("Bid arrived after end time");
                         }
                         BigDecimal amount = AuctionRules.money(commit.getAmount(), ErrorCode.INVALID_AMOUNT);
-                        if (AuctionAdmissionStore.held(connection, commit.getAuctionId(), commit.getBidderId())
+                        if (AuctionAdmissionStore.paid(connection, commit.getAuctionId(), commit.getBidderId())
                                 .compareTo(resultSet.getBigDecimal("deposit_amount")) < 0) {
                             throw new AuctionException(ErrorCode.ROOM_DEPOSIT_REQUIRED, "Chưa đặt cọc đủ cho phòng hẹn giờ.");
                         }
@@ -845,6 +869,7 @@ public final class JdbcAuctionRepository implements AuctionRepository {
                         long leader = result.getLong(2); previousLeader = result.wasNull() ? null : leader;
                     }
                 }
+                AuctionAdmissionStore.refundIfStarted(connection, commit.getAuctionId(), commit.getCreatedAt());
                 WalletTransactions.reserve(connection, commit.getAuctionId(), commit.getBidderId(),
                         commit.getAmount(), commit.getServerSequence(), commit.getCreatedAt());
                 long bidId;

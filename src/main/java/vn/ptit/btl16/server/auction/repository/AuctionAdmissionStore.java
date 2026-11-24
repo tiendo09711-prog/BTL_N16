@@ -51,6 +51,13 @@ public final class AuctionAdmissionStore {
         }
     }
 
+    public static BigDecimal paid(Connection connection, long auctionId, long userId) throws SQLException {
+        try (var query = connection.prepareStatement("SELECT amount FROM auction_deposits WHERE auction_id=? AND user_id=? AND status IN ('HELD','REFUNDED','APPLIED')")) {
+            query.setLong(1, auctionId); query.setLong(2, userId);
+            try (var rows = query.executeQuery()) { return rows.next() ? rows.getBigDecimal(1) : BigDecimal.ZERO; }
+        }
+    }
+
     public static BigDecimal place(Connection connection, long auctionId, long userId) throws SQLException {
         BigDecimal required;
         Instant startTime;
@@ -61,7 +68,7 @@ public final class AuctionAdmissionStore {
                 if (rows.getLong("host_user_id") == userId) { throw new AuctionException(ErrorCode.AUCTION_FORBIDDEN, "Host does not pay a deposit"); }
                 required = rows.getBigDecimal("deposit_amount");
                 startTime = rows.getTimestamp("start_time").toInstant();
-                BigDecimal paid = held(connection, auctionId, userId);
+                BigDecimal paid = paid(connection, auctionId, userId);
                 if ("OPEN".equals(rows.getString("status")) && required.signum() > 0 && paid.compareTo(required) >= 0) { return paid; }
                 if (!"OPEN".equals(rows.getString("status")) || required.signum() <= 0
                         || !Instant.now().isBefore(startTime)) {
@@ -86,6 +93,25 @@ public final class AuctionAdmissionStore {
             insert.setTimestamp(4, Timestamp.from(now)); insert.executeUpdate();
         }
         return required;
+    }
+
+    public static void refundIfStarted(Connection connection, long auctionId, Instant now) throws SQLException {
+        try (var query = connection.prepareStatement("SELECT status, start_time FROM auctions WHERE auction_id=? FOR UPDATE")) {
+            query.setLong(1, auctionId);
+            try (var rows = query.executeQuery()) {
+                if (!rows.next() || !"OPEN".equals(rows.getString("status"))
+                        || now.isBefore(rows.getTimestamp("start_time").toInstant())) { return; }
+            }
+        }
+        Long bidder = null;
+        BigDecimal amount = BigDecimal.ZERO;
+        try (var query = connection.prepareStatement("SELECT user_id, amount FROM wallet_holds WHERE auction_id=? FOR UPDATE")) {
+            query.setLong(1, auctionId);
+            try (var rows = query.executeQuery()) {
+                if (rows.next()) { bidder = rows.getLong("user_id"); amount = rows.getBigDecimal("amount"); }
+            }
+        }
+        release(connection, auctionId, bidder, amount, now);
     }
 
     public static long[] depositors(Connection connection, long auctionId) throws SQLException {

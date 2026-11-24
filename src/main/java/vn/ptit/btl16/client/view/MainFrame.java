@@ -164,12 +164,11 @@ public final class MainFrame extends JFrame {
     }
 
     public Optional<AuctionInput> promptAuction(List<ClientProduct> products) {
-        List<ClientProduct> eligible = products.stream().filter(ClientProduct::canAuction).toList();
-        if (eligible.isEmpty()) {
-            showInfo("Chưa có sản phẩm đủ điều kiện. Chỉ sản phẩm chưa giao dịch và chưa có phiên đang mở mới được tạo phòng đấu giá.");
+        if (products.isEmpty()) {
+            showInfo("Server chưa có sản phẩm. Hãy thêm sản phẩm rồi thử lại.");
             return Optional.empty();
         }
-        JComboBox<ClientProduct> product = new JComboBox<>(eligible.toArray(ClientProduct[]::new));
+        JComboBox<ClientProduct> product = new JComboBox<>(products.toArray(ClientProduct[]::new));
         JTextField startPrice = new JTextField("1000000");
         JTextField minIncrement = new JTextField("50000");
         JTextField duration = new JTextField("10");

@@ -14,6 +14,7 @@ public interface AuctionRepository {
     default java.math.BigDecimal placeAuctionDeposit(long auctionId, long userId) {
         throw new UnsupportedOperationException("Room deposits require persistent storage");
     }
+    default void refundAuctionDeposits(long auctionId, java.time.Instant now) { }
     default void deleteNotification(long user, long id) {
         throw new vn.ptit.btl16.server.auction.service.AuctionException(vn.ptit.btl16.common.protocol.ErrorCode.AUCTION_FORBIDDEN, "Không có thông báo cá nhân này");
     }
@@ -92,6 +93,8 @@ public interface AuctionRepository {
     default boolean isProductDeleted(long productId) { return false; }
 
     Product restoreProduct(long productId, long ownerId);
+
+    List<Product> findAllProducts();
 
     List<Product> findProductsByOwner(long ownerId);
     default List<Product> findPurchasedProducts(long userId) { return List.of(); }

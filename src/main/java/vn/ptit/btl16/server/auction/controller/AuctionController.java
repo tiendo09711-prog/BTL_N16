@@ -60,6 +60,17 @@ public final class AuctionController {
                 AuctionWireData.product(product, Instant.now()));
     }
 
+    public void handleAllProducts(RequestContext context) throws Exception {
+        var viewer = context.requireSession();
+        var hiddenSellers = management.anonymousPurchasedProducts(viewer);
+        context.replySuccess(
+                MessageType.ALL_PRODUCTS_RESULT,
+                AuctionWireData.productList(
+                        management.allProducts(viewer),
+                        Instant.now(), management::restorationStatus, management::transactionStatus,
+                        product -> product.getOwnerId() != viewer.getUserId() && hiddenSellers.contains(product.getProductId())));
+    }
+
     public void handleMyProducts(RequestContext context) throws Exception {
         var viewer=context.requireSession(); var hiddenSellers=management.anonymousPurchasedProducts(viewer);
         context.replySuccess(
@@ -151,7 +162,7 @@ public final class AuctionController {
                     "Thời gian bắt đầu không hợp lệ");
         }
         int maxParticipants = WireValues.requireInt(context.getRequest().getData(), "maxParticipants");
-        java.math.BigDecimal depositAmount = startTime != null || !context.value("depositAmount").isBlank()
+        java.math.BigDecimal depositAmount = !context.value("depositAmount").isBlank()
                 ? WireValues.requireDecimal(context.getRequest().getData(), "depositAmount") : java.math.BigDecimal.ZERO;
         AuctionSnapshot snapshot = management.createAuction(
                 context.requireSession(),

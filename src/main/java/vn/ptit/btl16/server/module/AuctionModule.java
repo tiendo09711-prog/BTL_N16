@@ -16,6 +16,7 @@ public final class AuctionModule implements ServerModule {
     public void register(MessageRouter router) {
         router.register(MessageType.CREATE_PRODUCT, true, controller::handleCreateProduct);
         router.register(MessageType.MY_PRODUCTS, true, controller::handleMyProducts);
+        router.register(MessageType.ALL_PRODUCTS, true, controller::handleAllProducts);
         router.register(MessageType.UPDATE_PRODUCT, true, controller::handleUpdateProduct);
         router.register(MessageType.DEACTIVATE_PRODUCT, true, controller::handleDeactivateProduct);
         router.register(MessageType.DELETE_PRODUCT, true, controller::handleDeleteProduct);

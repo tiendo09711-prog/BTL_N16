@@ -1925,13 +1925,12 @@ public final class FxClientController implements AutoCloseable {
         if (creatingAuction) { return; }
         creatingAuction = true; if (createAuctionAction != null) { createAuctionAction.setDisable(true); }
         RoomRequest request = roomRequest(0);
-        auctions.myProducts().whenComplete((response, error) -> Platform.runLater(() -> {
+        auctions.allProducts().whenComplete((response, error) -> Platform.runLater(() -> {
             if (!current(request, false) || !success(response, error)) {
                 finishCreatingAuction();
                 return;
             }
-            List<ClientProduct> products = ClientWireParser.products(response.getWireMessage().getData())
-                    .stream().filter(ClientProduct::canAuction).toList();
+            List<ClientProduct> products = ClientWireParser.products(response.getWireMessage().getData());
             if (products.isEmpty()) {
                 sounds.play(ClientSounds.Cue.ERROR);
                 boolean retry = new AuctionEligibilityDialog(stage).showAndWait().orElse(false);

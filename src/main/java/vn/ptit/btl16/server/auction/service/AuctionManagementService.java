@@ -78,6 +78,11 @@ public final class AuctionManagementService {
         return media().legacySave(session, 0, code, name, description, imageData, imageName);
     }
 
+    public List<Product> allProducts(UserSession session) {
+        requireLoggedIn(session);
+        return repository.findAllProducts();
+    }
+
     public List<Product> myProducts(UserSession session) {
         requireLoggedIn(session);
         var products = new java.util.LinkedHashMap<Long, Product>();
@@ -288,7 +293,8 @@ public final class AuctionManagementService {
         }
         BigDecimal depositAmount = BigDecimal.ZERO;
         if (requestedStartTime != null) {
-            depositAmount = normalizeMoney(rawDepositAmount, ErrorCode.INVALID_AMOUNT);
+            depositAmount = rawDepositAmount == null || rawDepositAmount.signum() == 0
+                    ? BigDecimal.ZERO : normalizeMoney(rawDepositAmount, ErrorCode.INVALID_AMOUNT);
         } else if (rawDepositAmount != null && rawDepositAmount.signum() != 0) {
             throw new AuctionException(ErrorCode.VALIDATION_ERROR, "Chỉ phòng hẹn giờ mới thu tiền đặt cọc.");
         }
@@ -379,6 +385,9 @@ public final class AuctionManagementService {
                     && repository.auctionDeposit(auctionId, session.getUserId()).compareTo(snapshot.getDepositAmount()) < 0) {
                 throw new AuctionException(ErrorCode.ROOM_DEPOSIT_REQUIRED,
                         "Phòng hẹn giờ chỉ cho phép người đã đặt cọc đủ trước giờ bắt đầu tham gia.");
+            }
+            if (snapshot.getDepositAmount().signum() > 0) {
+                repository.refundAuctionDeposits(auctionId, Instant.now());
             }
             synchronized (rooms) {
                 requireCurrentSession(session, connectionId);

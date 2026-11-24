@@ -65,6 +65,10 @@ public final class AuctionApi {
         return request(MessageType.MY_PRODUCTS, Map.of());
     }
 
+    public CompletableFuture<ApiResponse> allProducts() {
+        return request(MessageType.ALL_PRODUCTS, Map.of());
+    }
+
     public CompletableFuture<ApiResponse> updateProduct(
             long productId,
             String code,
